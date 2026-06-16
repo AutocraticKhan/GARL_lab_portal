@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lab Dashboard — GARL Lab Portal</title>
+  <meta name="description" content="Lab engineer view for managing and completing assigned samples." />
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">🧪</div>
+      <div class="sidebar-logo-text">GARL Portal<span id="eng-lab-name">Lab Engineer</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="sidebar-section-label">My Lab</p>
+      <button class="nav-item active" onclick="switchEngTab('eng-tab-assigned');setNavActive(this)">
+        <span class="nav-icon">🧫</span> Assigned Samples
+      </button>
+      <button class="nav-item" onclick="switchEngTab('eng-tab-completed');setNavActive(this)">
+        <span class="nav-icon">📄</span> Completed Reports
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebar-user-avatar">E</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">Engineer</div>
+          <div class="user-role" id="sidebar-user-role">lab engineer</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-full btn-sm" data-action="logout">⎋ Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title">Lab Dashboard</div>
+        <div class="topbar-subtitle">Click any sample row to view details and take action</div>
+      </div>
+    </header>
+
+    <div class="page-body page-animate">
+
+      <!-- Stats Row -->
+      <div class="stats-grid" style="margin-bottom:var(--sp-6);">
+        <div class="stat-card" style="--stat-accent:var(--clr-primary-g);">
+          <div class="stat-icon">📥</div>
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">Total Samples</div>
+        </div>
+        <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#f59e0b,#d97706);">
+          <div class="stat-icon">📌</div>
+          <div class="stat-value" id="stat-assigned">0</div>
+          <div class="stat-label">Awaiting Action</div>
+        </div>
+        <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#a855f7,#7c3aed);">
+          <div class="stat-icon">⚗️</div>
+          <div class="stat-value" id="stat-progress">0</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#10b981,#059669);">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value" id="stat-done">0</div>
+          <div class="stat-label">Completed</div>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="eng-tab-assigned">🧫 Assigned Samples</button>
+        <button class="tab-btn" data-tab="eng-tab-completed">📄 Completed Reports</button>
+      </div>
+
+      <!-- ── TAB: ASSIGNED ───────────────────────────────────── -->
+      <div id="eng-tab-assigned" class="tab-panel active">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Pending Samples</span>
+            <div class="search-box">
+              <span>🔍</span>
+              <input type="text" id="assigned-search" placeholder="Search by number or name…" />
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Sample #</th><th>Patient</th><th>Test</th>
+                <th>Collected</th><th>Status</th><th>Flag</th>
+              </tr>
+            </thead>
+            <tbody id="assigned-tbody"></tbody>
+          </table>
+        </div>
+        <p style="font-size:0.78rem;color:var(--txt-muted);margin-top:var(--sp-3);padding-left:4px;">
+          💡 Click any row to open the sample details panel.
+        </p>
+      </div>
+
+      <!-- ── TAB: COMPLETED ──────────────────────────────────── -->
+      <div id="eng-tab-completed" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Completed Reports</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Sample #</th><th>Patient</th><th>Test</th>
+                <th>Report #</th><th>Completed</th><th>Download</th>
+              </tr>
+            </thead>
+            <tbody id="completed-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /page-body -->
+  </main>
+</div>
+
+<!-- ── SIDE PANEL: Sample Details ──────────────────────────── -->
+<div class="side-panel-overlay" id="sample-panel-overlay">
+  <div class="side-panel">
+    <div class="side-panel-header">
+      <div class="side-panel-title" id="panel-sample-number">Sample Details</div>
+      <button class="modal-close" id="close-sample-panel">✕</button>
+    </div>
+    <div class="side-panel-body" id="panel-body">
+      <!-- Populated by JS -->
+    </div>
+    <div class="side-panel-footer">
+      <button class="btn btn-accent" id="btn-mark-progress" style="display:none;">
+        ⚗️ Mark In Progress
+      </button>
+      <button class="btn btn-primary" id="btn-upload-report" style="display:none;">
+        📄 Upload Report
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: Upload Report ─────────────────────────────────── -->
+<div class="modal-backdrop" id="modal-upload-report">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Upload Lab Report</h2>
+      <button class="modal-close" id="close-upload-modal">✕</button>
+    </div>
+    <form id="upload-report-form" novalidate>
+      <div class="form-group">
+        <label class="form-label">Report File (PDF)</label>
+        <div class="upload-zone">
+          <input type="file" id="report-file" name="report_file" accept=".pdf,.doc,.docx" />
+          <div class="upload-icon">📁</div>
+          <div class="upload-text">Click to browse or drag &amp; drop your report file</div>
+          <div class="upload-hint">PDF, DOC, DOCX accepted · Stored locally in browser</div>
+        </div>
+        <div class="upload-chosen" id="file-chosen"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="report-notes">Report Notes / Summary</label>
+        <textarea class="form-control" id="report-notes" name="report_notes"
+                  placeholder="Brief findings or notes for this report…"></textarea>
+      </div>
+      <div style="padding:var(--sp-3);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:var(--r-md);font-size:0.78rem;color:#fcd34d;margin-bottom:var(--sp-4);">
+        ⚠ Files are stored in browser localStorage. Large files (&gt;2 MB) may cause storage errors. For production, use Supabase Storage.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="cancel-upload-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Report</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="../js/utils.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/lab-engineer.js"></script>
+<script>
+function setNavActive(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+}
+</script>
+</body>
+</html>

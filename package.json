@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "serve": "npx -y serve . -p 3000"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
+  }
+}

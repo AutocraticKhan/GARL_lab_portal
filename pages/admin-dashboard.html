@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — GARL Lab Portal</title>
+  <meta name="description" content="Admin control panel for user, lab, test, and sample management." />
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">🧪</div>
+      <div class="sidebar-logo-text">GARL Portal<span>Admin Panel</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="sidebar-section-label">Management</p>
+      <button class="nav-item active" data-tab="tab-users" onclick="switchTab('tab-users');setNavActive(this)">
+        <span class="nav-icon">👥</span> Users
+      </button>
+      <button class="nav-item" data-tab="tab-labs" onclick="switchTab('tab-labs');setNavActive(this)">
+        <span class="nav-icon">🏥</span> Labs
+      </button>
+      <button class="nav-item" data-tab="tab-tests" onclick="switchTab('tab-tests');setNavActive(this)">
+        <span class="nav-icon">🔬</span> Tests
+      </button>
+      <button class="nav-item" data-tab="tab-samples" onclick="switchTab('tab-samples');setNavActive(this)">
+        <span class="nav-icon">🧫</span> All Samples
+      </button>
+      <p class="sidebar-section-label">Reports</p>
+      <button class="nav-item" onclick="window.location.href='progress-report.html'">
+        <span class="nav-icon">📊</span> Progress Report
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebar-user-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">Admin</div>
+          <div class="user-role" id="sidebar-user-role">admin</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-full btn-sm" data-action="logout">⎋ Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title" id="topbar-title">User Management</div>
+        <div class="topbar-subtitle">Manage system users, labs, tests, and samples</div>
+      </div>
+    </header>
+
+    <div class="page-body page-animate">
+
+      <!-- TAB BAR -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="tab-users">👥 Users</button>
+        <button class="tab-btn" data-tab="tab-labs">🏥 Labs</button>
+        <button class="tab-btn" data-tab="tab-tests">🔬 Tests</button>
+        <button class="tab-btn" data-tab="tab-samples">🧫 All Samples</button>
+      </div>
+
+      <!-- ── TAB: USERS ──────────────────────────────────────── -->
+      <div id="tab-users" class="tab-panel active">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">System Users</span>
+            <div class="search-box">
+              <span>🔍</span>
+              <input type="text" id="user-search" placeholder="Search users…" />
+            </div>
+            <button class="btn btn-ghost btn-sm" id="btn-export-users">⬇ Export CSV</button>
+            <button class="btn btn-primary btn-sm" id="btn-create-user">+ Create User</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Full Name</th><th>Username</th><th>Role</th>
+                <th>Lab</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── TAB: LABS ───────────────────────────────────────── -->
+      <div id="tab-labs" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Laboratories</span>
+            <button class="btn btn-primary btn-sm" id="btn-create-lab">+ Create Lab</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Lab Name</th><th>Code</th><th>Description</th>
+                <th>Staff / Pending</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="labs-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── TAB: TESTS ──────────────────────────────────────── -->
+      <div id="tab-tests" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Lab Tests</span>
+            <button class="btn btn-primary btn-sm" id="btn-create-test">+ Add Test</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Test Name</th><th>Code</th><th>Lab</th>
+                <th>Turnaround</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tests-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── TAB: ALL SAMPLES ────────────────────────────────── -->
+      <div id="tab-samples" class="tab-panel">
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label class="filter-label">Search</label>
+            <div class="search-box" style="background:rgba(255,255,255,0.05);border:1px solid var(--clr-border);">
+              <span>🔍</span>
+              <input type="text" id="sample-search" placeholder="Sample no. or name…" style="background:none;border:none;outline:none;color:var(--txt-primary);font-size:0.8rem;width:160px;" />
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Status</label>
+            <select class="filter-control" id="sample-status-filter">
+              <option value="">All Statuses</option>
+              <option value="received">Received</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Lab</label>
+            <select class="filter-control" id="sample-lab-filter"></select>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-export-samples" style="align-self:flex-end;">⬇ Export CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sample #</th><th>Customer</th><th>Lab</th>
+                <th>Test</th><th>Status</th><th>Date</th><th>Override Status</th>
+              </tr>
+            </thead>
+            <tbody id="samples-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /page-body -->
+  </main>
+</div>
+
+<!-- ── MODAL: Create/Edit User ──────────────────────────────── -->
+<div class="modal-backdrop" id="modal-user">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="user-modal-title">Create User</h2>
+      <button class="modal-close" id="close-user-modal">✕</button>
+    </div>
+    <form id="create-user-form" novalidate>
+      <input type="hidden" id="create-user-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="input-full-name">Full Name</label>
+          <input class="form-control" type="text" id="input-full-name" name="full_name" placeholder="Dr. Jane Smith" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="input-username">Username</label>
+          <input class="form-control" type="text" id="input-username" name="username" placeholder="jsmith" required />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="user-role-select">Role</label>
+          <select class="form-control" id="user-role-select" name="role" required>
+            <option value="">Select role</option>
+            <option value="admin">Admin</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="lab_engineer">Lab Engineer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="input-user-password">Password <span style="color:var(--txt-muted)">(leave blank to keep)</span></label>
+          <input class="form-control" type="password" id="input-user-password" name="password" placeholder="••••••••" />
+        </div>
+      </div>
+      <div class="form-group" id="lab-field-wrap" style="display:none;">
+        <label class="form-label" for="user-lab-select">Assign to Lab</label>
+        <select class="form-control" id="user-lab-select" name="lab_id">
+          <option value="">Select Lab</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="cancel-user-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── MODAL: Create/Edit Lab ───────────────────────────────── -->
+<div class="modal-backdrop" id="modal-lab">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="lab-modal-title">Create Lab</h2>
+      <button class="modal-close" id="close-lab-modal">✕</button>
+    </div>
+    <form id="create-lab-form" novalidate>
+      <input type="hidden" id="create-lab-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="input-lab-name">Lab Name</label>
+          <input class="form-control" type="text" id="input-lab-name" name="lab_name" placeholder="e.g. Hematology" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="input-lab-code">Lab Code</label>
+          <input class="form-control" type="text" id="input-lab-code" name="lab_code" placeholder="e.g. HEMA" maxlength="8" required />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="input-lab-desc">Description</label>
+        <textarea class="form-control" id="input-lab-desc" name="description" placeholder="Brief description of this lab's scope…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="cancel-lab-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Lab</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── MODAL: Create Test ───────────────────────────────────── -->
+<div class="modal-backdrop" id="modal-test">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Add Lab Test</h2>
+      <button class="modal-close" id="close-test-modal">✕</button>
+    </div>
+    <form id="create-test-form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="test-lab-select">Laboratory</label>
+        <select class="form-control" id="test-lab-select" name="lab_id" required>
+          <option value="">Select Lab</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="input-test-name">Test Name</label>
+          <input class="form-control" type="text" id="input-test-name" name="test_name" placeholder="e.g. Complete Blood Count" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="input-test-code">Test Code</label>
+          <input class="form-control" type="text" id="input-test-code" name="test_code" placeholder="e.g. CBC" maxlength="10" required />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="input-turnaround">Turnaround (days)</label>
+        <input class="form-control" type="number" id="input-turnaround" name="turnaround_days" min="1" max="30" value="1" required />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="cancel-test-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Test</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="../js/utils.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/admin.js"></script>
+<script>
+function setNavActive(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  const titles = { 'tab-users':'User Management', 'tab-labs':'Lab Management', 'tab-tests':'Test Management', 'tab-samples':'All Samples' };
+  document.getElementById('topbar-title').textContent = titles[el.dataset.tab] || 'Admin';
+}
+</script>
+</body>
+</html>

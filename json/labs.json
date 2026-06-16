@@ -1,0 +1,26 @@
+[
+  {
+    "id": "lab-001",
+    "lab_name": "Hematology",
+    "lab_code": "HEMA",
+    "description": "Blood cell analysis and related disorders",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-002",
+    "lab_name": "Microbiology",
+    "lab_code": "MICRO",
+    "description": "Bacterial and fungal culture and sensitivity testing",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-003",
+    "lab_name": "Pathology",
+    "lab_code": "PATH",
+    "description": "Histological and cytological examination of tissues",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  }
+]

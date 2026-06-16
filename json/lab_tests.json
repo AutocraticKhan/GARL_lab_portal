@@ -1,0 +1,101 @@
+[
+  {
+    "id": "tst-001",
+    "lab_id": "lab-001",
+    "test_name": "Complete Blood Count",
+    "test_code": "CBC",
+    "turnaround_days": "1",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-002",
+    "lab_id": "lab-001",
+    "test_name": "Erythrocyte Sedimentation Rate",
+    "test_code": "ESR",
+    "turnaround_days": "1",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-003",
+    "lab_id": "lab-001",
+    "test_name": "Peripheral Blood Film",
+    "test_code": "PBF",
+    "turnaround_days": "2",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-004",
+    "lab_id": "lab-001",
+    "test_name": "Coagulation Profile",
+    "test_code": "COAG",
+    "turnaround_days": "2",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-005",
+    "lab_id": "lab-002",
+    "test_name": "Blood Culture & Sensitivity",
+    "test_code": "BCS",
+    "turnaround_days": "5",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-006",
+    "lab_id": "lab-002",
+    "test_name": "Urine Culture & Sensitivity",
+    "test_code": "UCS",
+    "turnaround_days": "3",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-007",
+    "lab_id": "lab-002",
+    "test_name": "Wound Swab Culture",
+    "test_code": "WSC",
+    "turnaround_days": "3",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-008",
+    "lab_id": "lab-002",
+    "test_name": "Stool Culture",
+    "test_code": "STC",
+    "turnaround_days": "3",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-009",
+    "lab_id": "lab-003",
+    "test_name": "Histology - Biopsy",
+    "test_code": "HIST",
+    "turnaround_days": "5",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-010",
+    "lab_id": "lab-003",
+    "test_name": "Fine Needle Aspiration Cytology",
+    "test_code": "FNAC",
+    "turnaround_days": "3",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "tst-011",
+    "lab_id": "lab-003",
+    "test_name": "Pap Smear",
+    "test_code": "PAP",
+    "turnaround_days": "2",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  }
+]

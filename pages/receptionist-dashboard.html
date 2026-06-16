@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Receptionist Dashboard — GARL Lab Portal</title>
+  <meta name="description" content="Sample intake and management for lab receptionists." />
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+<div id="toast-container"></div>
+
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">🧪</div>
+      <div class="sidebar-logo-text">GARL Portal<span>Receptionist</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="sidebar-section-label">Samples</p>
+      <button class="nav-item active" onclick="switchRecTab('rec-tab-new');setNavActive(this)">
+        <span class="nav-icon">➕</span> Receive Sample
+      </button>
+      <button class="nav-item" onclick="switchRecTab('rec-tab-submissions');setNavActive(this)">
+        <span class="nav-icon">📋</span> My Submissions
+      </button>
+      <button class="nav-item" onclick="switchRecTab('rec-tab-lookup');setNavActive(this)">
+        <span class="nav-icon">🔍</span> Sample Lookup
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebar-user-avatar">R</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">Receptionist</div>
+          <div class="user-role" id="sidebar-user-role">receptionist</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-full btn-sm" data-action="logout">⎋ Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title">Sample Management</div>
+        <div class="topbar-subtitle">Receive, track, and search lab samples</div>
+      </div>
+    </header>
+
+    <div class="page-body page-animate">
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="rec-tab-new">➕ Receive Sample</button>
+        <button class="tab-btn" data-tab="rec-tab-submissions">📋 My Submissions</button>
+        <button class="tab-btn" data-tab="rec-tab-lookup">🔍 Sample Lookup</button>
+      </div>
+
+      <!-- ── TAB: RECEIVE NEW SAMPLE ─────────────────────────── -->
+      <div id="rec-tab-new" class="tab-panel active">
+        <div style="display:grid;grid-template-columns:1fr 400px;gap:var(--sp-6);">
+          <!-- Intake Form -->
+          <div class="card card-elevated">
+            <div class="section-header">
+              <div>
+                <div class="section-title">Receive New Sample</div>
+                <div class="section-subtitle">Fill in patient and test details</div>
+              </div>
+            </div>
+            <form id="intake-form" novalidate>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="customer-name">Patient / Customer Name *</label>
+                  <input class="form-control" type="text" id="customer-name" name="customer_name" placeholder="Full name" required />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="customer-contact">Contact Number</label>
+                  <input class="form-control" type="tel" id="customer-contact" name="customer_contact" placeholder="+234 …" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="customer-address">Address</label>
+                <input class="form-control" type="text" id="customer-address" name="customer_address" placeholder="Street address (optional)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="collection-date">Collection Date &amp; Time *</label>
+                <input class="form-control" type="datetime-local" id="collection-date" name="collection_date" required />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="sample-lab">Laboratory *</label>
+                  <select class="form-control" id="sample-lab" name="lab_id" required>
+                    <option value="">Select Laboratory…</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="sample-test">Test *</label>
+                  <select class="form-control" id="sample-test" name="test_id" required>
+                    <option value="">Select Lab first…</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="sample-notes">Notes</label>
+                <textarea class="form-control" id="sample-notes" name="notes" placeholder="Any special instructions or observations…" style="min-height:70px;"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">Register Sample</button>
+            </form>
+          </div>
+
+          <!-- Confirmation panel -->
+          <div>
+            <div id="intake-confirm" class="card card-elevated" style="display:none;"></div>
+            <div class="card" style="margin-top:var(--sp-4);">
+              <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);margin-bottom:var(--sp-3);text-transform:uppercase;letter-spacing:0.04em;">How it works</div>
+              <div style="display:flex;flex-direction:column;gap:var(--sp-3);">
+                <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
+                  <div style="width:28px;height:28px;border-radius:50%;background:var(--clr-primary-g);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">1</div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Submit the form — a unique sample number is generated automatically</div>
+                </div>
+                <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
+                  <div style="width:28px;height:28px;border-radius:50%;background:rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#fcd34d;">2</div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">The lab engineer picks it up and marks it "In Progress"</div>
+                </div>
+                <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
+                  <div style="width:28px;height:28px;border-radius:50%;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#6ee7b7;">3</div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">After analysis, a report is uploaded and status is set to "Completed"</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: MY SUBMISSIONS ─────────────────────────────── -->
+      <div id="rec-tab-submissions" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">My Submitted Samples</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Sample #</th><th>Customer</th><th>Lab</th>
+                <th>Test</th><th>Status</th><th>Registered</th>
+              </tr>
+            </thead>
+            <tbody id="my-submissions-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── TAB: SAMPLE LOOKUP ──────────────────────────────── -->
+      <div id="rec-tab-lookup" class="tab-panel">
+        <div class="card card-elevated" style="margin-bottom:var(--sp-5);">
+          <div style="display:flex;gap:var(--sp-3);align-items:center;">
+            <div class="search-box" style="flex:1;padding:var(--sp-3) var(--sp-4);">
+              <span style="font-size:1.1rem;">🔍</span>
+              <input type="text" id="lookup-input" placeholder="Search by sample number, patient name, or contact…" style="background:none;border:none;outline:none;color:var(--txt-primary);font-size:0.9rem;flex:1;" />
+            </div>
+            <button class="btn btn-ghost" id="lookup-clear">Clear</button>
+          </div>
+        </div>
+        <div id="lookup-results"></div>
+      </div>
+
+    </div><!-- /page-body -->
+  </main>
+</div>
+
+<script src="../js/utils.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/receptionist.js"></script>
+<script>
+function setNavActive(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "usr-001",
+    "username": "admin",
+    "password": "asdfQWER!1234",
+    "role": "admin",
+    "lab_id": "",
+    "full_name": "Dr. Admin User",
+    "created_by": "system",
+    "active": "true"
+  },
+  {
+    "id": "usr-002",
+    "username": "user1",
+    "password": "asdfQWER!1234",
+    "role": "receptionist",
+    "lab_id": "",
+    "full_name": "Sarah Okonkwo",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-003",
+    "username": "user2",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-001",
+    "full_name": "Dr. James Adebayo",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-004",
+    "username": "eng_micro",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-002",
+    "full_name": "Dr. Amaka Eze",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-005",
+    "username": "eng_path",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-003",
+    "full_name": "Dr. Chidi Nwosu",
+    "created_by": "usr-001",
+    "active": "true"
+  }
+]
