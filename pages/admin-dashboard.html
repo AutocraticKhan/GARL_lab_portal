@@ -55,6 +55,11 @@
         <div class="topbar-title" id="topbar-title">User Management</div>
         <div class="topbar-subtitle">Manage system users, labs, tests, and samples</div>
       </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-check-conn" onclick="handleCheckConnection()">
+          🔌 Check Connection
+        </button>
+      </div>
     </header>
 
     <div class="page-body page-animate">
@@ -287,6 +292,26 @@
   </div>
 </div>
 
+<!-- ── MODAL: Connection Error Details ───────────────────────── -->
+<div class="modal-backdrop" id="modal-conn-error">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">❌ Connection Error</h2>
+      <button class="modal-close" id="close-conn-modal">✕</button>
+    </div>
+    <div class="modal-body" style="padding:1.25rem;">
+      <p id="conn-error-message" style="font-weight:600;color:var(--color-danger);margin-bottom:0.75rem;"></p>
+      <div id="conn-error-details" style="font-size:0.85rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:monospace;"></div>
+      <p style="margin-top:0.75rem;color:var(--txt-muted);font-size:0.8rem;">
+        Check your <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> in <code>js/supabase.js</code>.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" id="close-conn-modal-btn">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Scripts -->
 <script src="../js/supabase-client.js"></script>
 <script src="../js/utils.js"></script>
@@ -301,6 +326,67 @@ function setNavActive(el) {
   const titles = { 'tab-users':'User Management', 'tab-labs':'Lab Management', 'tab-tests':'Test Management', 'tab-samples':'All Samples' };
   document.getElementById('topbar-title').textContent = titles[el.dataset.tab] || 'Admin';
 }
+
+// ── Supabase connection check ────────────────────────────────
+async function handleCheckConnection() {
+  const btn = document.getElementById('btn-check-conn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Checking…';
+
+  try {
+    const result = await checkSupabaseConnection();
+
+    if (result.connected) {
+      btn.className = 'btn btn-sm btn-success';
+      btn.innerHTML = '✅ Connected';
+      setTimeout(() => {
+        btn.className = 'btn btn-ghost btn-sm';
+        btn.innerHTML = '🔌 Check Connection';
+        btn.disabled = false;
+      }, 4000);
+    } else {
+      btn.className = 'btn btn-sm btn-danger';
+      btn.innerHTML = '❌ Error';
+      btn.disabled = false;
+
+      // Show error details in modal
+      document.getElementById('conn-error-message').textContent = result.message;
+      const detailsEl = document.getElementById('conn-error-details');
+      if (result.error) {
+        const lines = [];
+        lines.push('Message: ' + (result.error.message || 'N/A'));
+        if (result.error.code)     lines.push('Code: ' + result.error.code);
+        if (result.error.hint)     lines.push('Hint: ' + result.error.hint);
+        if (result.error.details)  lines.push('Details: ' + result.error.details);
+        detailsEl.textContent = lines.join('\n');
+      } else {
+        detailsEl.textContent = 'No additional error details available.';
+      }
+      openModal('modal-conn-error');
+
+      // Reset button after 4 seconds
+      setTimeout(() => {
+        btn.className = 'btn btn-ghost btn-sm';
+        btn.innerHTML = '🔌 Check Connection';
+      }, 4000);
+    }
+  } catch (err) {
+    console.error('[ADMIN] Connection check threw unexpected error:', err);
+    btn.className = 'btn btn-sm btn-danger';
+    btn.innerHTML = '❌ Error';
+    btn.disabled = false;
+  }
+}
+
+// ── Modal close wiring for connection error modal ────────────
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('close-conn-modal').addEventListener('click', function () {
+    closeModal('modal-conn-error');
+  });
+  document.getElementById('close-conn-modal-btn').addEventListener('click', function () {
+    closeModal('modal-conn-error');
+  });
+});
 </script>
 </body>
 </html>

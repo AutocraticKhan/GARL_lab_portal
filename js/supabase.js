@@ -6,8 +6,8 @@
 
 // ── Supabase Configuration ───────────────────────────────────
 // Replace these with your actual Supabase project credentials
-const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = 'https://dtpbxpegapvatzxdjnjq.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_fC1Wm3YwDs-nQtFq55MePw_-8RQDShK';
 
 // ── Supabase client (loaded from CDN in index.html) ──────────
 let supabaseClient = null;
@@ -65,5 +65,60 @@ async function supabaseDelete(table, id) {
   } catch (err) {
     console.error(`[SUPABASE] Error deleting from ${table}:`, err);
     return false;
+  }
+}
+
+// ── Connection health check ───────────────────────────────────
+async function checkSupabaseConnection() {
+  // Ensure client is initialized
+  if (!supabaseClient) {
+    const initialized = initSupabase();
+    if (!initialized) {
+      return {
+        connected: false,
+        message: 'Supabase client library not loaded or initialization failed.',
+        error: { message: 'initSupabase() returned null. Check console for details.' }
+      };
+    }
+  }
+
+  try {
+    // Perform a lightweight query to verify connectivity
+    const start = performance.now();
+    const { data, error, count } = await supabaseClient
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .limit(1);
+    const latency = Math.round(performance.now() - start);
+
+    if (error) {
+      return {
+        connected: false,
+        message: `Query failed after ${latency}ms`,
+        error: {
+          message: error.message,
+          details: error.details || null,
+          hint: error.hint || null,
+          code: error.code || null
+        }
+      };
+    }
+
+    return {
+      connected: true,
+      message: `Connected successfully (${latency}ms)`,
+      error: null
+    };
+  } catch (err) {
+    return {
+      connected: false,
+      message: 'Connection error — network or runtime failure',
+      error: {
+        message: err.message || String(err),
+        details: err.details || null,
+        hint: err.hint || null,
+        code: err.code || null
+      }
+    };
   }
 }
