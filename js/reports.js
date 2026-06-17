@@ -147,10 +147,10 @@ function renderTable(rows) {
     return `<tr>
       <td><strong>${escHtml(r.lab_name)}</strong> <code style="font-size:0.72rem;color:var(--clr-accent)">${escHtml(r.lab_code)}</code></td>
       <td style="text-align:center;font-weight:700;">${r.total}</td>
-      <td style="text-align:center;">${r.assigned > 0 ? `<span style="color:#fcd34d;font-weight:600;">${r.assigned}</span>` : `<span class="muted">0</span>`}</td>
-      <td style="text-align:center;">${r.in_progress > 0 ? `<span style="color:#c4b5fd;font-weight:600;">${r.in_progress}</span>` : `<span class="muted">0</span>`}</td>
-      <td style="text-align:center;">${r.completed > 0 ? `<span style="color:#6ee7b7;font-weight:600;">${r.completed}</span>` : `<span class="muted">0</span>`}</td>
-      <td style="text-align:center;">${r.pending > 0 ? `<span style="color:#fca5a5;font-weight:600;">${r.pending}</span>` : `<span class="muted">0</span>`}</td>
+      <td style="text-align:center;">${r.assigned > 0 ? `<span style="color:#b45309;font-weight:600;">${r.assigned}</span>` : `<span class="muted">0</span>`}</td>
+      <td style="text-align:center;">${r.in_progress > 0 ? `<span style="color:#7c3aed;font-weight:600;">${r.in_progress}</span>` : `<span class="muted">0</span>`}</td>
+      <td style="text-align:center;">${r.completed > 0 ? `<span style="color:#059669;font-weight:600;">${r.completed}</span>` : `<span class="muted">0</span>`}</td>
+      <td style="text-align:center;">${r.pending > 0 ? `<span style="color:#dc2626;font-weight:600;">${r.pending}</span>` : `<span class="muted">0</span>`}</td>
       <td>
         <div style="display:flex;align-items:center;gap:var(--sp-3);">
           <div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${pct}%;background:${pct>80?'var(--clr-success)':pct>50?'var(--clr-primary)':'var(--clr-warning)'}"></div></div>
@@ -169,13 +169,13 @@ function renderTable(rows) {
       completed: a.completed+r.completed, pending: a.pending+r.pending,
     }), { total:0, assigned:0, in_progress:0, completed:0, pending:0 });
     const tp = Math.round((t.completed/t.total)*100);
-    tbody.innerHTML += `<tr style="border-top:2px solid var(--clr-border-2);background:rgba(255,255,255,0.02);">
+    tbody.innerHTML += `<tr style="border-top:2px solid var(--clr-border-2);background:rgba(0,0,0,0.02);">
       <td><strong>All Labs</strong></td>
       <td style="text-align:center;font-weight:800;">${t.total}</td>
-      <td style="text-align:center;font-weight:700;color:#fcd34d;">${t.assigned}</td>
-      <td style="text-align:center;font-weight:700;color:#c4b5fd;">${t.in_progress}</td>
-      <td style="text-align:center;font-weight:700;color:#6ee7b7;">${t.completed}</td>
-      <td style="text-align:center;font-weight:700;color:#fca5a5;">${t.pending}</td>
+      <td style="text-align:center;font-weight:700;color:#b45309;">${t.assigned}</td>
+      <td style="text-align:center;font-weight:700;color:#7c3aed;">${t.in_progress}</td>
+      <td style="text-align:center;font-weight:700;color:#059669;">${t.completed}</td>
+      <td style="text-align:center;font-weight:700;color:#dc2626;">${t.pending}</td>
       <td>
         <div style="display:flex;align-items:center;gap:var(--sp-3);">
           <div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${tp}%;"></div></div>
@@ -246,26 +246,26 @@ function renderChart(rows) {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } },
+          labels: { color: '#475569', font: { family: 'Inter', size: 12 } },
         },
         tooltip: {
-          backgroundColor: '#0d1627',
-          titleColor: '#f1f5f9',
-          bodyColor: '#94a3b8',
-          borderColor: 'rgba(255,255,255,0.1)',
+          backgroundColor: '#ffffff',
+          titleColor: '#0f172a',
+          bodyColor: '#475569',
+          borderColor: 'rgba(0,0,0,0.1)',
           borderWidth: 1,
         },
       },
       scales: {
         x: {
           stacked: false,
-          ticks: { color: '#94a3b8', font: { family: 'Inter' } },
-          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#475569', font: { family: 'Inter' } },
+          grid: { color: 'rgba(0,0,0,0.05)' },
         },
         y: {
           beginAtZero: true,
-          ticks: { color: '#94a3b8', stepSize: 1, font: { family: 'Inter' } },
-          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#475569', stepSize: 1, font: { family: 'Inter' } },
+          grid: { color: 'rgba(0,0,0,0.05)' },
         },
       },
     },

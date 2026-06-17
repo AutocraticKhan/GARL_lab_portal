@@ -187,7 +187,7 @@ function renderLookup() {
         <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || '—')}</span></div>
       </div>
-      ${report ? `<div style="margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:rgba(16,185,129,0.1);border-radius:var(--r-md);font-size:0.8rem;color:#6ee7b7;">📄 Report available: ${escHtml(report.report_number)}</div>` : ''}
+      ${report ? `<div style="margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:rgba(16,185,129,0.1);border-radius:var(--r-md);font-size:0.8rem;color:#059669;">📄 Report available: ${escHtml(report.report_number)}</div>` : ''}
     </div>`;
   }).join('');
 }

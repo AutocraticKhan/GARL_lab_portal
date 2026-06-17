@@ -125,7 +125,7 @@ function renderAssignedSamples() {
       <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
       <td class="muted">${formatDate(s.collection_date)}</td>
       <td>${statusBadge(s.status)}</td>
-      <td>${overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>'}</td>
+      <td>${overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>'}</td>
     </tr>`;
   }).join('');
 }
