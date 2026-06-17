@@ -752,6 +752,43 @@ td.muted { color: var(--txt-secondary); font-size: 0.8rem; }
 
 .page-animate { animation: fadeUp 0.4s var(--t-slow) both; }
 
+/* ── Connection status ───────────────────────────────────── */
+.connection-status {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--txt-secondary);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+}
+
+/* ── Alert / Error messages ───────────────────────────────── */
+.alert {
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-4);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.alert-error {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2);
+  color: #dc2626;
+}
+
+.alert-error strong {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: 1rem;
+}
+
+.alert-error .btn {
+  margin-top: var(--sp-2);
+}
+
 /* ── Loading spinner ──────────────────────────────────────── */
 .spinner {
   width: 18px; height: 18px;

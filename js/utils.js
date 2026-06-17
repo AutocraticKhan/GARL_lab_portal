@@ -342,26 +342,3 @@ function deriveLabCode(lab) {
   }
   return 'LAB';
 }
-
-// ── LocalStorage controllers for unified labPortalData ─────────
-function getStoredData() {
-  const defaultData = {
-    systemState: { nextSubmissionId: 1001 },
-    submissions: [],
-    samples: []
-  };
-  try {
-    const data = localStorage.getItem('labPortalData');
-    return data ? JSON.parse(data) : defaultData;
-  } catch (e) {
-    return defaultData;
-  }
-}
-
-function saveStoredData(data) {
-  try {
-    localStorage.setItem('labPortalData', JSON.stringify(data));
-  } catch (e) {
-    console.error('Storage quota exceeded for labPortalData', e);
-  }
-}

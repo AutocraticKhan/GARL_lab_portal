@@ -137,7 +137,7 @@ function renderUsers() {
   }).join('');
 }
 
-function handleCreateUser(e) {
+async function handleCreateUser(e) {
   e.preventDefault();
   const form = e.target;
   const id   = document.getElementById('create-user-id').value;
@@ -159,13 +159,13 @@ function handleCreateUser(e) {
       // Edit existing
       const patch = { username, role, full_name: fullName, lab_id: labId };
       if (password) patch.password = password;
-      updateUser(id, patch);
+      await updateUser(id, patch);
       showToast('User updated successfully.', 'success');
     } else {
       if (!password) { showToast('Password is required for new users.', 'error'); submitBtn.disabled = false; submitBtn.innerHTML = 'Save User'; return; }
       const existing = DB.users.find(u => u.username === username);
       if (existing) { showToast('Username already exists.', 'error'); submitBtn.disabled = false; submitBtn.innerHTML = 'Save User'; return; }
-      createUser({ username, password, role, full_name: fullName, lab_id: labId });
+      await createUser({ username, password, role, full_name: fullName, lab_id: labId });
       showToast('User created successfully.', 'success');
     }
     closeModal('modal-user');
@@ -193,8 +193,8 @@ function editUser(id) {
   openModal('modal-user');
 }
 
-function handleToggleUser(id) {
-  toggleUserActive(id);
+async function handleToggleUser(id) {
+  await toggleUserActive(id);
   renderUsers();
   showToast('User status updated.', 'info');
 }
@@ -228,7 +228,7 @@ function renderLabs() {
   }).join('');
 }
 
-function handleCreateLab(e) {
+async function handleCreateLab(e) {
   e.preventDefault();
   const form = e.target;
   const id   = document.getElementById('create-lab-id').value;
@@ -238,15 +238,20 @@ function handleCreateLab(e) {
     description: form.description.value.trim(),
   };
   if (!data.lab_name || !data.lab_code) { showToast('Lab name and code are required.', 'error'); return; }
-  if (id) {
-    updateLab(id, data);
-    showToast('Lab updated.', 'success');
-  } else {
-    createLab(data);
-    showToast('Lab created.', 'success');
+  try {
+    if (id) {
+      await updateLab(id, data);
+      showToast('Lab updated.', 'success');
+    } else {
+      await createLab(data);
+      showToast('Lab created.', 'success');
+    }
+    closeModal('modal-lab');
+    renderLabs();
+  } catch (err) {
+    console.error('[ADMIN] Error saving lab:', err);
+    showToast('Error saving lab: ' + err.message, 'error');
   }
-  closeModal('modal-lab');
-  renderLabs();
 }
 
 function editLab(id) {
@@ -261,12 +266,16 @@ function editLab(id) {
   openModal('modal-lab');
 }
 
-function handleToggleLab(id) {
+async function handleToggleLab(id) {
   const lab = getLab(id);
   if (!lab) return;
-  updateLab(id, { active: !lab.active });
-  renderLabs();
-  showToast('Lab status updated.', 'info');
+  try {
+    await updateLab(id, { active: !lab.active });
+    renderLabs();
+    showToast('Lab status updated.', 'info');
+  } catch (err) {
+    showToast('Error updating lab: ' + err.message, 'error');
+  }
 }
 
 // ── TEST MANAGEMENT ───────────────────────────────────────────
@@ -295,7 +304,7 @@ function renderTests() {
   }).join('');
 }
 
-function handleCreateTest(e) {
+async function handleCreateTest(e) {
   e.preventDefault();
   const form = e.target;
   const data = {
@@ -306,18 +315,26 @@ function handleCreateTest(e) {
     turnaround_days: form.turnaround_days.value,
   };
   if (!data.lab_id || !data.test_type || !data.test_name || !data.test_code) { showToast('All fields are required.', 'error'); return; }
-  createTest(data);
-  showToast('Test created.', 'success');
-  closeModal('modal-test');
-  renderTests();
+  try {
+    await createTest(data);
+    showToast('Test created.', 'success');
+    closeModal('modal-test');
+    renderTests();
+  } catch (err) {
+    showToast('Error creating test: ' + err.message, 'error');
+  }
 }
 
-function handleToggleTest(id) {
+async function handleToggleTest(id) {
   const t = getTest(id);
   if (!t) return;
-  updateTest(id, { active: !(t.active !== false) });
-  renderTests();
-  showToast('Test status updated.', 'info');
+  try {
+    await updateTest(id, { active: !(t.active !== false) });
+    renderTests();
+    showToast('Test status updated.', 'info');
+  } catch (err) {
+    showToast('Error updating test: ' + err.message, 'error');
+  }
 }
 
 // ── ALL SAMPLES ───────────────────────────────────────────────
@@ -366,10 +383,14 @@ function populateSampleFilters() {
     DB.labs.map(l => `<option value="${l.id}" ${current===l.id?'selected':''}>${escHtml(l.lab_name)}</option>`).join('');
 }
 
-function adminOverrideStatus(sampleId, newStatus) {
-  setSampleStatus(sampleId, newStatus, `Status overridden by admin (${adminSession.full_name})`);
-  showToast(`Sample status updated to "${newStatus.replace('_',' ')}".`, 'success');
-  renderAllSamples();
+async function adminOverrideStatus(sampleId, newStatus) {
+  try {
+    await setSampleStatus(sampleId, newStatus, `Status overridden by admin (${adminSession.full_name})`);
+    showToast(`Sample status updated to "${newStatus.replace('_',' ')}".`, 'success');
+    renderAllSamples();
+  } catch (err) {
+    showToast('Error updating status: ' + err.message, 'error');
+  }
 }
 
 // ── Shared: populate lab select dropdowns ─────────────────────

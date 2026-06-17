@@ -392,7 +392,7 @@ function populateSubmissionLabDropdown() {
 }
 
 // ── Submission Handler ──────────────────────────────────────────
-function handleSubmissionSubmit(e) {
+async function handleSubmissionSubmit(e) {
   e.preventDefault();
 
   const labId = document.getElementById('submission-lab').value;
@@ -417,57 +417,61 @@ function handleSubmissionSubmit(e) {
   const labCode = deriveLabCode(lab || 'LAB');
   const currentSubId = DB.systemState.nextSubmissionId;
 
-  // Generate structured IDs
-  const idMappings = generateSampleIDs(labCode, currentSubId, pendingSamples.length, dateVal);
+  // Disable submit button
+  const submitBtn = e.target.querySelector('[type=submit]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="spinner"></span> Submitting…'; }
 
-  // Create submission record
-  const newSubmission = createSubmission({
-    date: dateVal,
-    labCode: labCode,
-    sampleCount: pendingSamples.length,
-  });
+  try {
+    // Generate structured IDs
+    const idMappings = generateSampleIDs(labCode, currentSubId, pendingSamples.length, dateVal);
 
-  // Create sample records from pending samples
-  const newSamples = [];
-  pendingSamples.forEach((ps, index) => {
-    const idInfo = idMappings[index];
-    const sampleData = {
-      sampleId: idInfo.fullId,
-      submissionId: newSubmission.submissionId,
-      sampleNumber: idInfo.sampleNumber,
-      sampleName: idInfo.fullId,
-      sampleType: ps.sampleType,
-      test_id: ps.testId,
-      test_name: ps.testName,
-      selectedElements: ps.elements,
-      elementCount: ps.elements.length,
-      status: 'Registered',
-      customer_name: customerName,
-      customer_contact: customerContact,
-      customer_address: customerAddress,
-      cnic: cnic,
-      sample_location: sampleLocation,
-      lab_id: labId,
-      collection_date: dateVal,
-      collected_by: recSession.id,
-    };
-    const created = createSampleForSubmission(sampleData);
-    newSamples.push(created);
-  });
+    // Create submission record
+    const newSubmission = await createSubmission({
+      date: dateVal,
+      labCode: labCode,
+      sampleCount: pendingSamples.length,
+    });
 
-  // Persist to unified storage
-  const portalData = getStoredData();
-  portalData.submissions.push(newSubmission);
-  newSamples.forEach(s => portalData.samples.push(s));
-  portalData.systemState.nextSubmissionId = DB.systemState.nextSubmissionId;
-  saveStoredData(portalData);
+    // Create sample records from pending samples
+    const newSamples = [];
+    for (let index = 0; index < pendingSamples.length; index++) {
+      const ps = pendingSamples[index];
+      const idInfo = idMappings[index];
+      const sampleData = {
+        sampleId: idInfo.fullId,
+        submissionId: newSubmission.submissionId,
+        sampleNumber: idInfo.sampleNumber,
+        sampleName: idInfo.fullId,
+        sampleType: ps.sampleType,
+        test_id: ps.testId,
+        test_name: ps.testName,
+        selectedElements: ps.elements,
+        elementCount: ps.elements.length,
+        status: 'registered',
+        customer_name: customerName,
+        customer_contact: customerContact,
+        customer_address: customerAddress,
+        cnic: cnic,
+        sample_location: sampleLocation,
+        lab_id: labId,
+        collection_date: dateVal,
+        collected_by: recSession.id,
+      };
+      const created = await createSampleForSubmission(sampleData);
+      newSamples.push(created);
+    }
 
-  // Show confirmation
-  showToast(`Submission #${newSubmission.submissionId} registered with ${pendingSamples.length} sample(s)!`, 'success');
-  renderIntakeConfirmation(newSubmission, newSamples, lab, labCode, customerName, customerContact, cnic, sampleLocation);
+    // Show confirmation
+    showToast(`Submission #${newSubmission.submissionId} registered with ${pendingSamples.length} sample(s)!`, 'success');
+    renderIntakeConfirmation(newSubmission, newSamples, lab, labCode, customerName, customerContact, cnic, sampleLocation);
 
-  // Reset
-  resetForm();
+    // Reset
+    resetForm();
+  } catch (err) {
+    console.error('[RECEPTIONIST] Submission error:', err);
+    showToast('Error submitting: ' + err.message, 'error');
+  }
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = 'Submit Samples'; }
 }
 
 function resetForm() {

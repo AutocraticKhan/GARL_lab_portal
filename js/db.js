@@ -1,5 +1,5 @@
 /* ============================================================
-   db.js — Data layer (Supabase + localStorage persistence)
+   db.js — Data layer (Supabase only — no localStorage, no seeds)
    ============================================================ */
 
 'use strict';
@@ -10,250 +10,11 @@ const DB = {
   tests:   [],
   samples: [],
   reports: [],
-  events:  [],   // sample audit trail
+  events:  [],
   submissions: [],
   systemState: { nextSubmissionId: 1001 },
+  elements: [],
 };
-
-// ── Seed data for initial login (only users kept) ─────────────
-const SEED_USERS = [
-  { id: 'usr-001', username: 'admin', password: 'asdfQWER!1234', role: 'admin', lab_id: '', full_name: 'Dr. Admin User', created_by: 'system', active: true },
-  { id: 'usr-002', username: 'receptionist1', password: 'asdfQWER!1234', role: 'receptionist', lab_id: '', full_name: 'Fatima Khalid', created_by: 'usr-001', active: true },
-  { id: 'usr-003', username: 'eng_aas', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-001', full_name: 'Eng. Ahmed Hussain', created_by: 'usr-001', active: true },
-  { id: 'usr-004', username: 'eng_aes', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-002', full_name: 'Eng. Zainab Ali', created_by: 'usr-001', active: true },
-  { id: 'usr-005', username: 'eng_wdxrf', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-003', full_name: 'Eng. Usman Khan', created_by: 'usr-001', active: true },
-  { id: 'usr-006', username: 'eng_edxrf', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-004', full_name: 'Eng. Saima Bibi', created_by: 'usr-001', active: true },
-  { id: 'usr-007', username: 'eng_xrd', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-005', full_name: 'Eng. Tariq Mehmood', created_by: 'usr-001', active: true },
-  { id: 'usr-008', username: 'eng_pet', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-006', full_name: 'Eng. Rabia Sultana', created_by: 'usr-001', active: true },
-  { id: 'usr-009', username: 'eng_sem', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-007', full_name: 'Eng. Kamran Javed', created_by: 'usr-001', active: true },
-  { id: 'usr-010', username: 'eng_dta', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-008', full_name: 'Eng. Noreen Iqbal', created_by: 'usr-001', active: true },
-  { id: 'usr-011', username: 'eng_crush', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-009', full_name: 'Eng. Bilal Ahmed', created_by: 'usr-001', active: true },
-  { id: 'usr-012', username: 'eng_env', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-010', full_name: 'Eng. Maria Pervez', created_by: 'usr-001', active: true }
-];
-
-const SEED_LABS = [
-  { id: 'lab-001', lab_name: 'AAS', lab_code: 'AAS', description: 'Atomic Absorption Spectrometry for trace and precious metal analysis (Au, Ag, Pt, Pd, Cu, Pb, Zn)', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-002', lab_name: 'MP-AES', lab_code: 'AES', description: 'Microwave Plasma Atomic Emission Spectrometry for multi-element and major oxide analysis', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-003', lab_name: 'WDXRF', lab_code: 'WDX', description: 'Wavelength Dispersive X-Ray Fluorescence for whole-rock major oxides and trace elements', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-004', lab_name: 'EDXRF', lab_code: 'EDX', description: 'Energy Dispersive X-Ray Fluorescence for rapid elemental screening and alloy ID', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-005', lab_name: 'XRD', lab_code: 'XRD', description: 'X-Ray Diffraction for mineral identification, quantitative phase analysis, and clay mineralogy', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-006', lab_name: 'Petrology', lab_code: 'PET', description: 'Petrographic and mineralogical examination of thin sections and polished blocks', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-007', lab_name: 'SEM', lab_code: 'SEM', description: 'Scanning Electron Microscopy with EDS for imaging, elemental mapping, and particle analysis', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-008', lab_name: 'DTA-TG', lab_code: 'DTA', description: 'Differential Thermal Analysis and Thermogravimetry for thermal behavior and weight loss', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-009', lab_name: 'Crushing', lab_code: 'CRU', description: 'Sample preparation including jaw crushing, cone crushing, pulverizing, and sieve analysis', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'lab-010', lab_name: 'Environmental', lab_code: 'ENV', description: 'Environmental and water testing for pH, TDS, EC, heavy metals, effluent, and drinking water quality', created_at: '2026-01-01T00:00:00Z', active: true }
-];
-
-const SEED_SAMPLES = [
-  // ── AAS (lab-001) — 5 samples ────────────────────────────────
-  { id: 'smp-001', lab_id: 'lab-001', sampleId: '26-01-AAS-1001-001', submissionId: '1001', sampleNumber: '001', sampleName: '26-01-AAS-1001-001', sampleType: 'Rock', test_id: 'tst-001', test_name: 'Fire Assay — Au (Gold)', selectedElements: ['Au'], elementCount: 1, status: 'completed', customer_name: 'Ahmed Steel Mills', customer_contact: '+92-300-1111111', collection_date: '2026-01-05', collected_by: 'usr-002', created_at: '2026-01-05T09:00:00Z', completed_at: '2026-01-10T16:00:00Z' },
-  { id: 'smp-002', lab_id: 'lab-001', sampleId: '26-01-AAS-1001-002', submissionId: '1001', sampleNumber: '002', sampleName: '26-01-AAS-1001-002', sampleType: 'Rock', test_id: 'tst-001', test_name: 'Fire Assay — Au (Gold)', selectedElements: ['Au'], elementCount: 1, status: 'completed', customer_name: 'Ahmed Steel Mills', customer_contact: '+92-300-1111111', collection_date: '2026-01-05', collected_by: 'usr-002', created_at: '2026-01-05T09:00:00Z', completed_at: '2026-01-10T17:30:00Z' },
-  { id: 'smp-003', lab_id: 'lab-001', sampleId: '26-01-AAS-1002-001', submissionId: '1002', sampleNumber: '001', sampleName: '26-01-AAS-1002-001', sampleType: 'Ore', test_id: 'tst-004', test_name: 'Base Metals (Cu, Pb, Zn)', selectedElements: ['Cu', 'Pb', 'Zn'], elementCount: 3, status: 'in_progress', customer_name: 'Pakistan Mining Corp', customer_contact: '+92-321-2222222', collection_date: '2026-06-01', collected_by: 'usr-002', created_at: '2026-06-01T10:00:00Z' },
-  { id: 'smp-004', lab_id: 'lab-001', sampleId: '26-06-AAS-1002-002', submissionId: '1002', sampleNumber: '002', sampleName: '26-06-AAS-1002-002', sampleType: 'Ore', test_id: 'tst-005', test_name: 'Trace Elements by AAS', selectedElements: ['As', 'Sb', 'Bi', 'Hg'], elementCount: 4, status: 'assigned', customer_name: 'Pakistan Mining Corp', customer_contact: '+92-321-2222222', collection_date: '2026-06-01', collected_by: 'usr-002', created_at: '2026-06-01T10:00:00Z' },
-  { id: 'smp-005', lab_id: 'lab-001', sampleId: '26-06-AAS-1003-001', submissionId: '1003', sampleNumber: '001', sampleName: '26-06-AAS-1003-001', sampleType: 'Concentrate', test_id: 'tst-002', test_name: 'Fire Assay — Ag (Silver)', selectedElements: ['Ag'], elementCount: 1, status: 'received', customer_name: 'ABC Explorations', customer_contact: '+92-333-3333333', collection_date: '2026-06-15', collected_by: 'usr-002', created_at: '2026-06-15T08:30:00Z' },
-  // ── MP-AES (lab-002) — 4 samples ─────────────────────────────
-  { id: 'smp-006', lab_id: 'lab-002', sampleId: '26-02-AES-1004-001', submissionId: '1004', sampleNumber: '001', sampleName: '26-02-AES-1004-001', sampleType: 'Soil', test_id: 'tst-009', test_name: 'Multi-Element Scan (30+ Elements)', selectedElements: ['Al', 'Ca', 'Fe', 'K', 'Mg', 'Na', 'Si', 'Ti', 'Ba', 'Sr', 'V', 'Zr', 'Cr', 'Ni', 'Cu', 'Zn', 'Pb', 'As', 'Co', 'Mn'], elementCount: 20, status: 'completed', customer_name: 'Soil Survey of Pakistan', customer_contact: '+92-44-5555555', collection_date: '2026-02-10', collected_by: 'usr-002', created_at: '2026-02-10T11:00:00Z', completed_at: '2026-02-17T14:00:00Z' },
-  { id: 'smp-007', lab_id: 'lab-002', sampleId: '26-04-AES-1005-001', submissionId: '1005', sampleNumber: '001', sampleName: '26-04-AES-1005-001', sampleType: 'Rock', test_id: 'tst-007', test_name: 'Major Elements Suite', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'Na', 'K', 'Ti', 'P', 'Mn'], elementCount: 10, status: 'completed', customer_name: 'Geological Survey', customer_contact: '+92-51-6666666', collection_date: '2026-04-20', collected_by: 'usr-002', created_at: '2026-04-20T09:00:00Z', completed_at: '2026-04-28T11:00:00Z' },
-  { id: 'smp-008', lab_id: 'lab-002', sampleId: '26-05-AES-1006-001', submissionId: '1006', sampleNumber: '001', sampleName: '26-05-AES-1006-001', sampleType: 'Water', test_id: 'tst-010', test_name: 'Water Dissolved Metals', selectedElements: ['Cu', 'Pb', 'Zn', 'Cd', 'Cr', 'As', 'Fe', 'Mn'], elementCount: 8, status: 'in_progress', customer_name: 'Punjab Water Authority', customer_contact: '+92-42-7777777', collection_date: '2026-05-05', collected_by: 'usr-002', created_at: '2026-05-05T10:30:00Z' },
-  { id: 'smp-009', lab_id: 'lab-002', sampleId: '26-06-AES-1007-001', submissionId: '1007', sampleNumber: '001', sampleName: '26-06-AES-1007-001', sampleType: 'Sediment', test_id: 'tst-008', test_name: 'REE (Rare Earth Elements) Suite', selectedElements: ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Y'], elementCount: 15, status: 'assigned', customer_name: 'Rare Earth Mining', customer_contact: '+92-300-8888888', collection_date: '2026-06-10', collected_by: 'usr-002', created_at: '2026-06-10T09:00:00Z' },
-  // ── WDXRF (lab-003) — 3 samples ─────────────────────────────
-  { id: 'smp-010', lab_id: 'lab-003', sampleId: '26-03-WDX-1008-001', submissionId: '1008', sampleNumber: '001', sampleName: '26-03-WDX-1008-001', sampleType: 'Rock', test_id: 'tst-011', test_name: 'Whole Rock Major Oxides', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'Na', 'K', 'Ti', 'P', 'Mn'], elementCount: 10, status: 'completed', customer_name: 'Cement Industries Ltd', customer_contact: '+92-44-9999999', collection_date: '2026-03-15', collected_by: 'usr-002', created_at: '2026-03-15T08:00:00Z', completed_at: '2026-03-22T16:00:00Z' },
-  { id: 'smp-011', lab_id: 'lab-003', sampleId: '26-05-WDX-1009-001', submissionId: '1009', sampleNumber: '001', sampleName: '26-05-WDX-1009-001', sampleType: 'Core', test_id: 'tst-012', test_name: 'Trace Elements by XRF', selectedElements: ['Ba', 'Cr', 'V', 'Zr', 'Nb', 'Sr', 'Rb', 'Th', 'U'], elementCount: 9, status: 'completed', customer_name: 'DrillTech Pakistan', customer_contact: '+92-333-0000000', collection_date: '2026-05-20', collected_by: 'usr-002', created_at: '2026-05-20T10:00:00Z', completed_at: '2026-05-28T15:00:00Z' },
-  { id: 'smp-012', lab_id: 'lab-003', sampleId: '26-06-WDX-1010-001', submissionId: '1010', sampleNumber: '001', sampleName: '26-06-WDX-1010-001', sampleType: 'Rock', test_id: 'tst-014', test_name: 'Cement Raw Mix Analysis', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg'], elementCount: 5, status: 'assigned', customer_name: 'Bestway Cement', customer_contact: '+92-300-1112222', collection_date: '2026-06-12', collected_by: 'usr-002', created_at: '2026-06-12T11:30:00Z' },
-  // ── EDXRF (lab-004) — 3 samples ─────────────────────────────
-  { id: 'smp-013', lab_id: 'lab-004', sampleId: '26-04-EDX-1011-001', submissionId: '1011', sampleNumber: '001', sampleName: '26-04-EDX-1011-001', sampleType: 'Concentrate', test_id: 'tst-015', test_name: 'Portable XRF Screening', selectedElements: ['Cu', 'Pb', 'Zn', 'Fe', 'As', 'Sb'], elementCount: 6, status: 'completed', customer_name: 'Copper Mines Ltd', customer_contact: '+92-81-3334444', collection_date: '2026-04-05', collected_by: 'usr-002', created_at: '2026-04-05T09:00:00Z', completed_at: '2026-04-08T16:00:00Z' },
-  { id: 'smp-014', lab_id: 'lab-004', sampleId: '26-06-EDX-1012-001', submissionId: '1012', sampleNumber: '001', sampleName: '26-06-EDX-1012-001', sampleType: 'Dust', test_id: 'tst-017', test_name: 'Alloy Identification', selectedElements: ['Fe', 'Cr', 'Ni', 'Mo', 'Mn'], elementCount: 5, status: 'in_progress', customer_name: 'Steel Re-Rolling Mills', customer_contact: '+92-42-5556666', collection_date: '2026-06-08', collected_by: 'usr-002', created_at: '2026-06-08T10:00:00Z' },
-  { id: 'smp-015', lab_id: 'lab-004', sampleId: '26-06-EDX-1013-001', submissionId: '1013', sampleNumber: '001', sampleName: '26-06-EDX-1013-001', sampleType: 'Soil', test_id: 'tst-016', test_name: 'Elemental Scan (Na to U)', selectedElements: ['Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'As', 'Br', 'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ba', 'W', 'Pb', 'Th', 'U'], elementCount: 31, status: 'received', customer_name: 'Environmental Agency', customer_contact: '+92-51-7778888', collection_date: '2026-06-14', collected_by: 'usr-002', created_at: '2026-06-14T12:00:00Z' },
-  // ── XRD (lab-005) — 2 samples ───────────────────────────────
-  { id: 'smp-016', lab_id: 'lab-005', sampleId: '26-03-XRD-1014-001', submissionId: '1014', sampleNumber: '001', sampleName: '26-03-XRD-1014-001', sampleType: 'Rock', test_id: 'tst-019', test_name: 'Bulk Mineral Identification', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'K'], elementCount: 6, status: 'completed', customer_name: 'Mineral Exploration Co', customer_contact: '+92-300-2223333', collection_date: '2026-03-25', collected_by: 'usr-002', created_at: '2026-03-25T09:30:00Z', completed_at: '2026-04-01T14:00:00Z' },
-  { id: 'smp-017', lab_id: 'lab-005', sampleId: '26-06-XRD-1015-001', submissionId: '1015', sampleNumber: '001', sampleName: '26-06-XRD-1015-001', sampleType: 'Tailings', test_id: 'tst-020', test_name: 'Quantitative Phase Analysis (Rietveld)', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'K', 'Na', 'Ti'], elementCount: 8, status: 'assigned', customer_name: 'Gold Recovery Inc', customer_contact: '+92-321-4445555', collection_date: '2026-06-10', collected_by: 'usr-002', created_at: '2026-06-10T10:00:00Z' },
-  // ── Petrology (lab-006) — 2 samples ─────────────────────────
-  { id: 'smp-018', lab_id: 'lab-006', sampleId: '26-05-PET-1016-001', submissionId: '1016', sampleNumber: '001', sampleName: '26-05-PET-1016-001', sampleType: 'Rock', test_id: 'tst-023', test_name: 'Thin Section Petrography', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'University of Punjab', customer_contact: '+92-42-9998888', collection_date: '2026-05-10', collected_by: 'usr-002', created_at: '2026-05-10T08:00:00Z', completed_at: '2026-05-16T16:00:00Z' },
-  { id: 'smp-019', lab_id: 'lab-006', sampleId: '26-06-PET-1017-001', submissionId: '1017', sampleNumber: '001', sampleName: '26-06-PET-1017-001', sampleType: 'Core', test_id: 'tst-024', test_name: 'Modal Analysis (Point Counting)', selectedElements: [], elementCount: 0, status: 'in_progress', customer_name: 'Oil & Gas Dev Corp', customer_contact: '+92-51-6667777', collection_date: '2026-06-05', collected_by: 'usr-002', created_at: '2026-06-05T11:00:00Z' },
-  // ── SEM (lab-007) — 2 samples ───────────────────────────────
-  { id: 'smp-020', lab_id: 'lab-007', sampleId: '26-04-SEM-1018-001', submissionId: '1018', sampleNumber: '001', sampleName: '26-04-SEM-1018-001', sampleType: 'Dust', test_id: 'tst-027', test_name: 'SEM-EDS Spot Analysis', selectedElements: ['Fe', 'O', 'Si', 'Al', 'Ca'], elementCount: 5, status: 'completed', customer_name: 'Air Quality Monitor', customer_contact: '+92-300-5556666', collection_date: '2026-04-15', collected_by: 'usr-002', created_at: '2026-04-15T09:00:00Z', completed_at: '2026-04-19T15:00:00Z' },
-  { id: 'smp-021', lab_id: 'lab-007', sampleId: '26-06-SEM-1019-001', submissionId: '1019', sampleNumber: '001', sampleName: '26-06-SEM-1019-001', sampleType: 'Core', test_id: 'tst-030', test_name: 'Particle Size & Morphology', selectedElements: [], elementCount: 0, status: 'received', customer_name: 'Cement Research Inst', customer_contact: '+92-44-3332222', collection_date: '2026-06-13', collected_by: 'usr-002', created_at: '2026-06-13T10:30:00Z' },
-  // ── DTA-TG (lab-008) — 2 samples ────────────────────────────
-  { id: 'smp-022', lab_id: 'lab-008', sampleId: '26-05-DTA-1020-001', submissionId: '1020', sampleNumber: '001', sampleName: '26-05-DTA-1020-001', sampleType: 'Sludge', test_id: 'tst-031', test_name: 'Thermogravimetric Analysis (TGA)', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'Waste Treatment Plant', customer_contact: '+92-42-1112223', collection_date: '2026-05-25', collected_by: 'usr-002', created_at: '2026-05-25T08:30:00Z', completed_at: '2026-05-29T12:00:00Z' },
-  { id: 'smp-023', lab_id: 'lab-008', sampleId: '26-06-DTA-1021-001', submissionId: '1021', sampleNumber: '001', sampleName: '26-06-DTA-1021-001', sampleType: 'Water', test_id: 'tst-033', test_name: 'Moisture & Volatile Content', selectedElements: [], elementCount: 0, status: 'assigned', customer_name: 'Food Testing Lab', customer_contact: '+92-300-4445555', collection_date: '2026-06-12', collected_by: 'usr-002', created_at: '2026-06-12T09:00:00Z' },
-  // ── Crushing (lab-009) — 2 samples ──────────────────────────
-  { id: 'smp-024', lab_id: 'lab-009', sampleId: '26-02-CRU-1022-001', submissionId: '1022', sampleNumber: '001', sampleName: '26-02-CRU-1022-001', sampleType: 'Rock', test_id: 'tst-035', test_name: 'Jaw Crushing (Coarse)', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'Bulk Sampling Ltd', customer_contact: '+92-300-6667777', collection_date: '2026-02-20', collected_by: 'usr-002', created_at: '2026-02-20T09:00:00Z', completed_at: '2026-02-21T16:00:00Z' },
-  { id: 'smp-025', lab_id: 'lab-009', sampleId: '26-06-CRU-1023-001', submissionId: '1023', sampleNumber: '001', sampleName: '26-06-CRU-1023-001', sampleType: 'Ore', test_id: 'tst-037', test_name: 'Pulverizing to 75µm', selectedElements: [], elementCount: 0, status: 'received', customer_name: 'Metallurgy Labs', customer_contact: '+92-81-8889999', collection_date: '2026-06-16', collected_by: 'usr-002', created_at: '2026-06-16T10:00:00Z' },
-  // ── Environmental (lab-010) — 2 samples ─────────────────────
-  { id: 'smp-026', lab_id: 'lab-010', sampleId: '26-04-ENV-1024-001', submissionId: '1024', sampleNumber: '001', sampleName: '26-04-ENV-1024-001', sampleType: 'Water', test_id: 'tst-040', test_name: 'Water Quality (pH, TDS, EC)', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'City Water Board', customer_contact: '+92-42-4443333', collection_date: '2026-04-10', collected_by: 'usr-002', created_at: '2026-04-10T08:00:00Z', completed_at: '2026-04-14T14:00:00Z' },
-  { id: 'smp-027', lab_id: 'lab-010', sampleId: '26-06-ENV-1025-001', submissionId: '1025', sampleNumber: '001', sampleName: '26-06-ENV-1025-001', sampleType: 'Water', test_id: 'tst-041', test_name: 'Heavy Metals in Water', selectedElements: ['Pb', 'Cd', 'Cr', 'As', 'Hg'], elementCount: 5, status: 'in_progress', customer_name: 'EPA Punjab', customer_contact: '+92-42-1110000', collection_date: '2026-06-07', collected_by: 'usr-002', created_at: '2026-06-07T11:00:00Z' },
-];
-
-const SEED_REPORTS = [
-  { id: 'rpt-001', sample_id: 'smp-001', lab_id: 'lab-001', report_number: 'RPT-AAS-20260110-0001', uploaded_at: '2026-01-10T16:00:00Z', created_at: '2026-01-10T16:00:00Z' },
-  { id: 'rpt-002', sample_id: 'smp-002', lab_id: 'lab-001', report_number: 'RPT-AAS-20260110-0002', uploaded_at: '2026-01-10T17:30:00Z', created_at: '2026-01-10T17:30:00Z' },
-  { id: 'rpt-003', sample_id: 'smp-006', lab_id: 'lab-002', report_number: 'RPT-AES-20260217-0001', uploaded_at: '2026-02-17T14:00:00Z', created_at: '2026-02-17T14:00:00Z' },
-  { id: 'rpt-004', sample_id: 'smp-007', lab_id: 'lab-002', report_number: 'RPT-AES-20260428-0002', uploaded_at: '2026-04-28T11:00:00Z', created_at: '2026-04-28T11:00:00Z' },
-  { id: 'rpt-005', sample_id: 'smp-010', lab_id: 'lab-003', report_number: 'RPT-WDX-20260322-0001', uploaded_at: '2026-03-22T16:00:00Z', created_at: '2026-03-22T16:00:00Z' },
-  { id: 'rpt-006', sample_id: 'smp-011', lab_id: 'lab-003', report_number: 'RPT-WDX-20260528-0002', uploaded_at: '2026-05-28T15:00:00Z', created_at: '2026-05-28T15:00:00Z' },
-  { id: 'rpt-007', sample_id: 'smp-013', lab_id: 'lab-004', report_number: 'RPT-EDX-20260408-0001', uploaded_at: '2026-04-08T16:00:00Z', created_at: '2026-04-08T16:00:00Z' },
-  { id: 'rpt-008', sample_id: 'smp-016', lab_id: 'lab-005', report_number: 'RPT-XRD-20260401-0001', uploaded_at: '2026-04-01T14:00:00Z', created_at: '2026-04-01T14:00:00Z' },
-  { id: 'rpt-009', sample_id: 'smp-018', lab_id: 'lab-006', report_number: 'RPT-PET-20260516-0001', uploaded_at: '2026-05-16T16:00:00Z', created_at: '2026-05-16T16:00:00Z' },
-  { id: 'rpt-010', sample_id: 'smp-020', lab_id: 'lab-007', report_number: 'RPT-SEM-20260419-0001', uploaded_at: '2026-04-19T15:00:00Z', created_at: '2026-04-19T15:00:00Z' },
-  { id: 'rpt-011', sample_id: 'smp-022', lab_id: 'lab-008', report_number: 'RPT-DTA-20260529-0001', uploaded_at: '2026-05-29T12:00:00Z', created_at: '2026-05-29T12:00:00Z' },
-  { id: 'rpt-012', sample_id: 'smp-024', lab_id: 'lab-009', report_number: 'RPT-CRU-20260221-0001', uploaded_at: '2026-02-21T16:00:00Z', created_at: '2026-02-21T16:00:00Z' },
-  { id: 'rpt-013', sample_id: 'smp-026', lab_id: 'lab-010', report_number: 'RPT-ENV-20260414-0001', uploaded_at: '2026-04-14T14:00:00Z', created_at: '2026-04-14T14:00:00Z' },
-];
-
-const SEED_TESTS = [
-  // ── AAS (lab-001) ──────────────────────────────────────────────
-  { id: 'tst-001', lab_id: 'lab-001', test_name: 'Fire Assay — Au (Gold)', test_code: 'FA-AU', test_type: 'precious_metals', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-002', lab_id: 'lab-001', test_name: 'Fire Assay — Ag (Silver)', test_code: 'FA-AG', test_type: 'precious_metals', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-003', lab_id: 'lab-001', test_name: 'Fire Assay — PGE (Pt, Pd)', test_code: 'FA-PGE', test_type: 'precious_metals', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-004', lab_id: 'lab-001', test_name: 'Base Metals (Cu, Pb, Zn)', test_code: 'AAS-BM', test_type: 'base_metals', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-005', lab_id: 'lab-001', test_name: 'Trace Elements by AAS', test_code: 'AAS-TE', test_type: 'trace_elements', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-006', lab_id: 'lab-001', test_name: 'Cyanide Leach Solution', test_code: 'AAS-CN', test_type: 'trace_elements', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── MP-AES (lab-002) ───────────────────────────────────────────
-  { id: 'tst-007', lab_id: 'lab-002', test_name: 'Major Elements Suite', test_code: 'AES-MAJ', test_type: 'major_oxides', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-008', lab_id: 'lab-002', test_name: 'REE (Rare Earth Elements) Suite', test_code: 'AES-REE', test_type: 'ree', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-009', lab_id: 'lab-002', test_name: 'Multi-Element Scan (30+ Elements)', test_code: 'AES-ME', test_type: 'trace_elements', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-010', lab_id: 'lab-002', test_name: 'Water Dissolved Metals', test_code: 'AES-H2O', test_type: 'trace_elements', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── WDXRF (lab-003) ───────────────────────────────────────────
-  { id: 'tst-011', lab_id: 'lab-003', test_name: 'Whole Rock Major Oxides', test_code: 'WDX-WR', test_type: 'major_oxides', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-012', lab_id: 'lab-003', test_name: 'Trace Elements by XRF', test_code: 'WDX-TE', test_type: 'trace_elements', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-013', lab_id: 'lab-003', test_name: 'Loss on Ignition (LOI)', test_code: 'WDX-LOI', test_type: 'major_oxides', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-014', lab_id: 'lab-003', test_name: 'Cement Raw Mix Analysis', test_code: 'WDX-CEM', test_type: 'major_oxides', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── EDXRF (lab-004) ───────────────────────────────────────────
-  { id: 'tst-015', lab_id: 'lab-004', test_name: 'Portable XRF Screening', test_code: 'EDX-PXRF', test_type: 'trace_elements', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-016', lab_id: 'lab-004', test_name: 'Elemental Scan (Na to U)', test_code: 'EDX-SCAN', test_type: 'trace_elements', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-017', lab_id: 'lab-004', test_name: 'Alloy Identification', test_code: 'EDX-ALLOY', test_type: 'trace_elements', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-018', lab_id: 'lab-004', test_name: 'RoHS Screening', test_code: 'EDX-ROHS', test_type: 'trace_elements', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── XRD (lab-005) ─────────────────────────────────────────────
-  { id: 'tst-019', lab_id: 'lab-005', test_name: 'Bulk Mineral Identification', test_code: 'XRD-BMI', test_type: 'mineralogy', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-020', lab_id: 'lab-005', test_name: 'Quantitative Phase Analysis (Rietveld)', test_code: 'XRD-QPA', test_type: 'mineralogy', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-021', lab_id: 'lab-005', test_name: 'Clay Mineralogy', test_code: 'XRD-CLAY', test_type: 'mineralogy', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-022', lab_id: 'lab-005', test_name: 'Crystallite Size & Strain', test_code: 'XRD-CSS', test_type: 'mineralogy', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── Petrology (lab-006) ───────────────────────────────────────
-  { id: 'tst-023', lab_id: 'lab-006', test_name: 'Thin Section Petrography', test_code: 'PET-TS', test_type: 'petrology', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-024', lab_id: 'lab-006', test_name: 'Modal Analysis (Point Counting)', test_code: 'PET-MOD', test_type: 'petrology', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-025', lab_id: 'lab-006', test_name: 'Photomicrography', test_code: 'PET-PHOTO', test_type: 'petrology', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-026', lab_id: 'lab-006', test_name: 'Fluid Inclusion Studies', test_code: 'PET-FI', test_type: 'petrology', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── SEM (lab-007) ─────────────────────────────────────────────
-  { id: 'tst-027', lab_id: 'lab-007', test_name: 'SEM-EDS Spot Analysis', test_code: 'SEM-EDS', test_type: 'imaging', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-028', lab_id: 'lab-007', test_name: 'Backscattered Electron Imaging', test_code: 'SEM-BSE', test_type: 'imaging', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-029', lab_id: 'lab-007', test_name: 'Elemental Mapping', test_code: 'SEM-MAP', test_type: 'imaging', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-030', lab_id: 'lab-007', test_name: 'Particle Size & Morphology', test_code: 'SEM-PSM', test_type: 'imaging', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── DTA-TG (lab-008) ─────────────────────────────────────────
-  { id: 'tst-031', lab_id: 'lab-008', test_name: 'Thermogravimetric Analysis (TGA)', test_code: 'DTA-TGA', test_type: 'thermal', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-032', lab_id: 'lab-008', test_name: 'Differential Scanning Calorimetry (DSC)', test_code: 'DTA-DSC', test_type: 'thermal', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-033', lab_id: 'lab-008', test_name: 'Moisture & Volatile Content', test_code: 'DTA-H2O', test_type: 'thermal', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-034', lab_id: 'lab-008', test_name: 'Melting Point Determination', test_code: 'DTA-MP', test_type: 'thermal', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── Crushing (lab-009) ────────────────────────────────────────
-  { id: 'tst-035', lab_id: 'lab-009', test_name: 'Jaw Crushing (Coarse)', test_code: 'CRU-JAW', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-036', lab_id: 'lab-009', test_name: 'Cone Crushing (Intermediate)', test_code: 'CRU-CONE', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-037', lab_id: 'lab-009', test_name: 'Pulverizing to 75µm', test_code: 'CRU-PULV', test_type: 'sample_prep', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-038', lab_id: 'lab-009', test_name: 'Sieve Analysis (Particle Size Distribution)', test_code: 'CRU-SIEVE', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-039', lab_id: 'lab-009', test_name: 'Sample Splitting & Riffling', test_code: 'CRU-SPLIT', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  // ── Environmental (lab-010) ────────────────────────────────────
-  { id: 'tst-040', lab_id: 'lab-010', test_name: 'Water Quality (pH, TDS, EC)', test_code: 'ENV-WQ', test_type: 'environmental', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-041', lab_id: 'lab-010', test_name: 'Heavy Metals in Water', test_code: 'ENV-HM', test_type: 'environmental', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-042', lab_id: 'lab-010', test_name: 'Effluent & Wastewater Testing', test_code: 'ENV-EFF', test_type: 'environmental', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-043', lab_id: 'lab-010', test_name: 'Drinking Water Potability', test_code: 'ENV-DW', test_type: 'environmental', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-044', lab_id: 'lab-010', test_name: 'Soil Contamination Screening', test_code: 'ENV-SOIL', test_type: 'environmental', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true }
-];
-
-// ── Migration from old flat format to new hierarchical format ──
-function migrateOldData() {
-  // Check if old-format samples exist (using generateSampleNumber pattern)
-  const oldSamples = DB.samples.filter(s => s.id && s.id.startsWith('smp-'));
-  if (oldSamples.length === 0) return; // nothing to migrate
-
-  console.log(`[DB] Migrating ${oldSamples.length} old-format samples to new structure...`);
-
-  // Load or init labPortalData
-  let portalData = getStoredData();
-
-  let maxSubId = 1000;
-  const subIdMap = {}; // map old submission grouping → new submissionId
-
-  const migratedSamples = [];
-
-  oldSamples.forEach((s, idx) => {
-    // Derive lab code from lab name
-    const lab = DB.labs.find(l => l.id === s.lab_id);
-    const labCode = deriveLabCode(lab?.lab_name || 'LAB');
-
-    // Generate a submissionId based on collected_by + date to group samples
-    const groupKey = `${s.collected_by || 'unknown'}_${s.collection_date || s.created_at}`;
-    if (!subIdMap[groupKey]) {
-      maxSubId++;
-      subIdMap[groupKey] = String(maxSubId);
-    }
-    const subId = subIdMap[groupKey];
-
-    // Generate structured IDs
-    const ids = generateSampleIDs(labCode, subId, 1, s.collection_date || s.created_at);
-    const newSampleId = ids[0].fullId;
-
-    // Create submission record if not already created
-    if (!portalData.submissions.find(sub => sub.submissionId === subId)) {
-      portalData.submissions.push({
-        submissionId: subId,
-        date: s.collection_date ? s.collection_date.slice(0, 10) : s.created_at.slice(0, 10),
-        labCode: labCode,
-        sampleCount: 0, // will be incremented
-        createdAt: s.created_at
-      });
-    }
-
-    // Update sampleCount
-    const subRecord = portalData.submissions.find(sub => sub.submissionId === subId);
-    if (subRecord) subRecord.sampleCount++;
-
-    // Build migrated sample entry
-    const migratedSample = {
-      sampleId: newSampleId,
-      submissionId: subId,
-      sampleNumber: ids[0].sampleNumber,
-      sampleName: s.customer_name || '',
-      sampleType: 'Rock',
-      status: s.status || 'assigned',
-      // Carry forward old fields
-      id: newSampleId,
-      customer_name: s.customer_name,
-      customer_contact: s.customer_contact,
-      customer_address: s.customer_address,
-      external_sample_id: s.external_sample_id,
-      cnic: s.cnic,
-      sample_location: s.sample_location,
-      collection_date: s.collection_date,
-      collected_by: s.collected_by,
-      lab_id: s.lab_id,
-      test_id: s.test_id,
-      notes: s.notes,
-      created_at: s.created_at,
-      in_progress_at: s.in_progress_at,
-      completed_at: s.completed_at,
-    };
-
-    portalData.samples.push(migratedSample);
-    migratedSamples.push(migratedSample);
-  });
-
-  // Update systemState
-  portalData.systemState.nextSubmissionId = maxSubId + 1;
-
-  // Save migrated data
-  saveStoredData(portalData);
-
-  // Replace DB.samples with migrated versions
-  const nonMigrated = DB.samples.filter(s => !s.id || !s.id.startsWith('smp-'));
-  DB.samples = [...nonMigrated, ...migratedSamples];
-  DB.submissions = portalData.submissions;
-  DB.systemState = portalData.systemState;
-
-  // Persist to old storage keys too for backward compat with other dashboards
-  saveDB('samples');
-  saveDB('submissions');
-  saveDB('systemState');
-
-  console.log('[DB] Migration complete.');
-}
 
 // ── Test Types (analytical categories) ──────────────────────────
 const TEST_TYPES = [
@@ -281,8 +42,6 @@ function getTestTypes() {
 }
 
 // ── Elements (geochemical element library) ──────────────────────
-// Embedded directly to eliminate fetch dependency; the JSON file is kept
-// as reference only.
 const ELEMENTS_DATA = [
   { symbol: "Au", name: "Gold", category: "precious_metals" },
   { symbol: "Ag", name: "Silver", category: "precious_metals" },
@@ -353,7 +112,7 @@ const ELEMENTS_DATA = [
   { symbol: "Tl", name: "Thallium", category: "trace_elements" },
   { symbol: "F", name: "Fluorine", category: "light_elements" },
 ];
-DB.elements = []; // will be populated from embedded data
+DB.elements = ELEMENTS_DATA;
 
 // Predefined element groups (for quick-selection)
 const ELEMENT_GROUPS = {
@@ -367,7 +126,6 @@ const ELEMENT_GROUPS = {
 };
 
 function loadElements() {
-  // Use embedded element data so it always works regardless of fetch/Supabase status
   DB.elements = ELEMENTS_DATA;
   return DB.elements;
 }
@@ -392,78 +150,48 @@ function getElementInfo(symbol) {
 
 // ── DB initialisation ─────────────────────────────────────────
 async function initDB() {
-  // Initialize Supabase if available
-  initSupabase();
-  const useSupabase = supabaseClient !== null;
+  // Initialize Supabase
+  const clientReady = initSupabase();
+  if (!clientReady || !supabaseClient) {
+    throw new Error('Supabase client could not be initialized. Check your connection settings.');
+  }
 
-  // Load elements first
-  await loadElements();
+  // Check connection
+  const health = await checkSupabaseConnection();
+  if (!health.connected) {
+    throw new Error('Cannot connect to database: ' + (health.error?.message || health.message || 'Unknown error'));
+  }
 
-  if (useSupabase) {
-    console.log('[DB] Supabase connected. Loading data from cloud...');
-    const [users, labs, tests, samples, reports, events, submissions] = await Promise.all([
-      supabaseFetch('users'),
-      supabaseFetch('labs'),
-      supabaseFetch('tests'),
-      supabaseFetch('samples'),
-      supabaseFetch('reports'),
-      supabaseFetch('events'),
-      supabaseFetch('submissions'),
-    ]);
+  console.log('[DB] Supabase connected. Loading data from cloud...');
 
-    // If Supabase has data, use it; otherwise seed initial data
-    if (users && users.length > 0) {
-      DB.users   = users;
-      DB.labs    = labs   || [];
-      DB.tests   = tests  || [];
-      DB.samples = samples || [];
-      DB.reports = reports || [];
-      DB.events  = events  || [];
-      DB.submissions = submissions || [];
-      DB.systemState = { nextSubmissionId: 1001 + (DB.submissions.length || 0) };
-    } else {
-      // First run — seed with initial data
-      console.log('[DB] No data in Supabase. Seeding initial data...');
-      DB.users   = SEED_USERS;
-      DB.labs    = SEED_LABS;
-      DB.tests   = SEED_TESTS;
-      DB.samples = SEED_SAMPLES;
-      DB.reports = SEED_REPORTS;
-      DB.events  = [];
-      DB.submissions = [];
-      DB.systemState = { nextSubmissionId: 1026 };
+  // Load elements
+  loadElements();
 
-      // Persist seed data to Supabase
-      await Promise.all([
-        supabaseUpsert('users', DB.users),
-        supabaseUpsert('labs', DB.labs),
-        supabaseUpsert('tests', DB.tests),
-        supabaseUpsert('samples', DB.samples),
-        supabaseUpsert('reports', DB.reports),
-      ]);
-    }
-  } else {
-    // Supabase not available — use localStorage + seed fallback
-    console.log('[DB] Supabase not available. Using localStorage...');
-    const storedUsers   = loadFromStorage('users');
-    const storedLabs    = loadFromStorage('labs');
-    const storedTests   = loadFromStorage('tests');
-    DB.samples = loadFromStorage('samples') || [];
-    DB.reports = loadFromStorage('reports') || [];
-    DB.events  = loadFromStorage('events')  || [];
-    DB.submissions = loadFromStorage('submissions') || [];
-    const storedState = loadFromStorage('systemState');
-    DB.systemState = storedState || { nextSubmissionId: 1001 + (DB.submissions.length || 0) };
+  // Load all data from Supabase in parallel
+  const [users, labs, tests, samples, reports, events, submissions, stateData] = await Promise.all([
+    supabaseFetch('users'),
+    supabaseFetch('labs'),
+    supabaseFetch('tests'),
+    supabaseFetch('samples'),
+    supabaseFetch('reports'),
+    supabaseFetch('events'),
+    supabaseFetch('submissions'),
+    supabaseFetch('system_state'),
+  ]);
 
-    // Merge stored data with seed data (seed acts as defaults)
-    DB.users   = mergeSeedData(storedUsers, SEED_USERS);
-    DB.labs    = mergeSeedData(storedLabs, SEED_LABS);
-    DB.tests   = mergeSeedData(storedTests, SEED_TESTS);
-    DB.samples = mergeSeedData(DB.samples, SEED_SAMPLES);
-    DB.reports = mergeSeedData(DB.reports, SEED_REPORTS);
+  DB.users   = users   || [];
+  DB.labs    = labs    || [];
+  DB.tests   = tests   || [];
+  DB.samples = samples || [];
+  DB.reports = reports || [];
+  DB.events  = events  || [];
+  DB.submissions = submissions || [];
 
-    // Run migration on old-format data
-    migrateOldData();
+  // Load system state
+  if (stateData && stateData.length > 0) {
+    const stateMap = {};
+    stateData.forEach(s => { stateMap[s.key] = s.value; });
+    DB.systemState.nextSubmissionId = parseInt(stateMap.nextSubmissionId, 10) || 1001;
   }
 
   // Normalise boolean fields
@@ -471,126 +199,74 @@ async function initDB() {
   DB.labs   = DB.labs.map(l  => ({ ...l, active: l.active === true || l.active === 'true' }));
   DB.tests  = DB.tests.map(t  => ({ ...t, active: t.active === true || t.active === 'true' }));
 
-  // Migrate existing tests: add test_type if missing (use seed defaults)
-  const testTypeMap = {};
-  SEED_TESTS.forEach(s => { testTypeMap[s.id] = s.test_type; });
-  DB.tests = DB.tests.map(t => {
-    if (!t.test_type && testTypeMap[t.id]) {
-      return { ...t, test_type: testTypeMap[t.id] };
-    }
-    return t;
-  });
-
-  // Save everything to localStorage as local cache
-  saveAll();
+  console.log('[DB] Load complete. Users:', DB.users.length, 'Labs:', DB.labs.length, 'Samples:', DB.samples.length);
 }
 
-// ── Merge helper: seed data provides defaults, stored overrides ──
-function mergeSeedData(stored, seed) {
-  if (!Array.isArray(stored) || stored.length === 0) return [...seed];
-  const merged = [...stored];
-  for (const item of seed) {
-    const idx = merged.findIndex(m => m.id === item.id);
-    if (idx === -1) {
-      merged.push(item);
-    }
-    // If it exists in stored, keep the stored version (user edits)
-  }
-  return merged;
-}
-
-// ── localStorage helpers ──────────────────────────────────────
-function loadFromStorage(key) {
-  try {
-    const raw = localStorage.getItem(`garl_${key}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) { return null; }
-}
-
-function saveDB(key) {
-  try {
-    localStorage.setItem(`garl_${key}`, JSON.stringify(DB[key]));
-  } catch (e) {
-    console.error('Storage quota exceeded for key:', key, e);
-  }
-}
-
-function saveAll() {
-  ['users','labs','tests','samples','reports','events','submissions','systemState'].forEach(saveDB);
-}
-
-// ── Supabase sync (fire-and-forget) ───────────────────────────
-function syncToSupabase(key) {
-  if (!supabaseClient) return;
-  supabaseUpsert(key, DB[key]).then(success => {
-    if (success) console.log(`[DB] Synced ${key} to Supabase.`);
-  });
-}
-
-// ── CRUD helpers ──────────────────────────────────────────────
+// ── Supabase CRUD helpers (using functions from supabase.js) ──
 
 /* Users */
-function createUser(data) {
-  const user = { id: generateId('usr'), created_by: currentUser()?.id || 'system', active: true, ...data };
+async function createUser(data) {
+  const user = { id: generateId('usr'), created_by: currentUser()?.id || 'system', active: true, ...data, created_at: new Date().toISOString() };
+  const ok = await supabaseUpsert('users', user);
+  if (!ok) throw new Error('Failed to create user in database');
   DB.users.push(user);
-  saveDB('users');
-  syncToSupabase('users');
   return user;
 }
 
-function updateUser(id, patch) {
+async function updateUser(id, patch) {
   const idx = DB.users.findIndex(u => u.id === id);
   if (idx === -1) return null;
+  // Update in Supabase first
+  const ok = await supabaseUpdate('users', id, patch);
+  if (!ok) throw new Error('Failed to update user in database');
   DB.users[idx] = { ...DB.users[idx], ...patch };
-  saveDB('users');
-  syncToSupabase('users');
   return DB.users[idx];
 }
 
-function toggleUserActive(id) {
+async function toggleUserActive(id) {
   const user = DB.users.find(u => u.id === id);
   if (!user) return;
   return updateUser(id, { active: !user.active });
 }
 
 /* Labs */
-function createLab(data) {
+async function createLab(data) {
   const lab = { id: generateId('lab'), created_at: new Date().toISOString(), active: true, ...data };
+  const ok = await supabaseUpsert('labs', lab);
+  if (!ok) throw new Error('Failed to create lab in database');
   DB.labs.push(lab);
-  saveDB('labs');
-  syncToSupabase('labs');
   return lab;
 }
 
-function updateLab(id, patch) {
+async function updateLab(id, patch) {
   const idx = DB.labs.findIndex(l => l.id === id);
   if (idx === -1) return null;
+  const ok = await supabaseUpdate('labs', id, patch);
+  if (!ok) throw new Error('Failed to update lab in database');
   DB.labs[idx] = { ...DB.labs[idx], ...patch };
-  saveDB('labs');
-  syncToSupabase('labs');
   return DB.labs[idx];
 }
 
 /* Tests */
-function createTest(data) {
+async function createTest(data) {
   const test = { id: generateId('tst'), created_at: new Date().toISOString(), active: true, ...data };
+  const ok = await supabaseUpsert('tests', test);
+  if (!ok) throw new Error('Failed to create test in database');
   DB.tests.push(test);
-  saveDB('tests');
-  syncToSupabase('tests');
   return test;
 }
 
-function updateTest(id, patch) {
+async function updateTest(id, patch) {
   const idx = DB.tests.findIndex(t => t.id === id);
   if (idx === -1) return null;
+  const ok = await supabaseUpdate('tests', id, patch);
+  if (!ok) throw new Error('Failed to update test in database');
   DB.tests[idx] = { ...DB.tests[idx], ...patch };
-  saveDB('tests');
-  syncToSupabase('tests');
   return DB.tests[idx];
 }
 
 /* Submissions */
-function createSubmission(data) {
+async function createSubmission(data) {
   const subId = DB.systemState.nextSubmissionId;
   const submission = {
     submissionId: String(subId),
@@ -599,16 +275,17 @@ function createSubmission(data) {
     sampleCount: data.sampleCount || 0,
     createdAt: new Date().toISOString(),
   };
+  const ok = await supabaseUpsert('submissions', submission);
+  if (!ok) throw new Error('Failed to create submission in database');
   DB.submissions.push(submission);
   DB.systemState.nextSubmissionId = subId + 1;
-  saveDB('submissions');
-  saveDB('systemState');
-  syncToSupabase('submissions');
+  // Update system state in Supabase
+  await supabaseUpsert('system_state', { key: 'nextSubmissionId', value: String(DB.systemState.nextSubmissionId) });
   return submission;
 }
 
 /* Samples */
-function createSample(data) {
+async function createSample(data) {
   const sample = {
     id: generateId('smp'),
     sample_number: generateSampleNumber(),
@@ -616,14 +293,14 @@ function createSample(data) {
     created_at: new Date().toISOString(),
     ...data,
   };
+  const ok = await supabaseUpsert('samples', sample);
+  if (!ok) throw new Error('Failed to create sample in database');
   DB.samples.push(sample);
-  saveDB('samples');
-  syncToSupabase('samples');
-  logEvent(sample.id, 'created', `Sample received and assigned to lab`);
+  await logEvent(sample.id, 'created', `Sample received and assigned to lab`);
   return sample;
 }
 
-function createSampleForSubmission(data) {
+async function createSampleForSubmission(data) {
   const sample = {
     id: data.sampleId || generateId('smp'),
     sampleId: data.sampleId,
@@ -648,47 +325,50 @@ function createSampleForSubmission(data) {
     notes: data.notes || '',
     created_at: new Date().toISOString(),
   };
+  const ok = await supabaseUpsert('samples', sample);
+  if (!ok) throw new Error('Failed to create sample in database');
   DB.samples.push(sample);
-  saveDB('samples');
-  syncToSupabase('samples');
-  logEvent(sample.id, 'created', `Sample registered: ${sample.sampleId}`);
+  await logEvent(sample.id, 'created', `Sample registered: ${sample.sampleId}`);
   return sample;
 }
 
-function updateSample(id, patch) {
+async function updateSample(id, patch) {
   const idx = DB.samples.findIndex(s => s.id === id);
   if (idx === -1) return null;
+  const ok = await supabaseUpdate('samples', id, patch);
+  if (!ok) throw new Error('Failed to update sample in database');
   DB.samples[idx] = { ...DB.samples[idx], ...patch };
-  saveDB('samples');
-  syncToSupabase('samples');
   return DB.samples[idx];
 }
 
-function setSampleStatus(id, status, note = '') {
-  const sample = updateSample(id, { status, [`${status}_at`]: new Date().toISOString() });
-  if (sample) logEvent(id, status, note);
+async function setSampleStatus(id, status, note = '') {
+  const patch = { status };
+  patch[`${status}_at`] = new Date().toISOString();
+  const sample = await updateSample(id, patch);
+  if (sample) await logEvent(id, status, note);
   return sample;
 }
 
 /* Reports */
-function createReport(data) {
+async function createReport(data) {
   const lab = DB.labs.find(l => l.id === data.lab_id);
   const labCode = lab?.lab_code || 'LAB';
   const report = {
     id: generateId('rpt'),
     uploaded_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
     report_number: generateReportNumber(labCode),
     ...data,
   };
+  const ok = await supabaseUpsert('reports', report);
+  if (!ok) throw new Error('Failed to create report in database');
   DB.reports.push(report);
-  saveDB('reports');
-  syncToSupabase('reports');
-  setSampleStatus(data.sample_id, 'completed', `Report ${report.report_number} uploaded`);
+  await setSampleStatus(data.sample_id, 'completed', `Report ${report.report_number} uploaded`);
   return report;
 }
 
 /* Events / Audit */
-function logEvent(sample_id, type, note = '') {
+async function logEvent(sample_id, type, note = '') {
   const evt = {
     id: generateId('evt'),
     sample_id,
@@ -698,9 +378,9 @@ function logEvent(sample_id, type, note = '') {
     actor_name: currentUser()?.full_name || 'System',
     timestamp: new Date().toISOString(),
   };
+  const ok = await supabaseUpsert('events', evt);
+  if (!ok) console.warn('[DB] Failed to log event to database');
   DB.events.push(evt);
-  saveDB('events');
-  syncToSupabase('events');
   return evt;
 }
 
@@ -708,7 +388,19 @@ function getEventsForSample(sample_id) {
   return DB.events.filter(e => e.sample_id === sample_id).sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp));
 }
 
-// ── Lookup helpers ────────────────────────────────────────────
+// ── Re-fetch a table from Supabase (useful when another user made changes) ──
+async function refreshTable(table) {
+  const data = await supabaseFetch(table);
+  if (data) {
+    DB[table] = data;
+    if (table === 'users' || table === 'labs' || table === 'tests') {
+      DB[table] = DB[table].map(u => ({ ...u, active: u.active === true || u.active === 'true' }));
+    }
+  }
+  return DB[table];
+}
+
+// ── Lookup helpers (synchronous, work on cached DB) ────────────
 function getLab(id)    { return DB.labs.find(l => l.id === id); }
 function getTest(id)   { return DB.tests.find(t => t.id === id); }
 function getUser(id)   { return DB.users.find(u => u.id === id); }
@@ -731,10 +423,10 @@ function getActiveLabs() {
   return DB.labs.filter(l => l.active !== false);
 }
 
-// ── Reset (for development) ───────────────────────────────────
+// ── Reset function (clears database for development) ────────────
 function resetToCSV() {
-  ['garl_users','garl_labs','garl_tests','garl_samples','garl_reports','garl_events','garl_submissions','garl_systemState'].forEach(k => localStorage.removeItem(k));
-  localStorage.removeItem('labPortalData');
-  showToast('Local cache cleared. Reloading...', 'info');
+  // This now only clears localStorage session and reloads
+  localStorage.removeItem('garl_session');
+  showToast('Session cleared. Reloading...', 'info');
   setTimeout(() => location.reload(), 1500);
 }

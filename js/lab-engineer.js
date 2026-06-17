@@ -229,13 +229,17 @@ function openSamplePanel(sampleId) {
 }
 
 // ── Status transitions ────────────────────────────────────────
-function handleMarkInProgress() {
+async function handleMarkInProgress() {
   if (!activeSampleId) return;
-  setSampleStatus(activeSampleId, 'in_progress', `Sample opened by ${engSession.full_name}`);
-  showToast('Sample marked as In Progress.', 'success');
-  // Refresh panel
-  openSamplePanel(activeSampleId);
-  renderAssignedSamples();
+  try {
+    await setSampleStatus(activeSampleId, 'in_progress', `Sample opened by ${engSession.full_name}`);
+    showToast('Sample marked as In Progress.', 'success');
+    // Refresh panel
+    openSamplePanel(activeSampleId);
+    renderAssignedSamples();
+  } catch (err) {
+    showToast('Error updating status: ' + err.message, 'error');
+  }
 }
 
 // ── Upload Report ─────────────────────────────────────────────
@@ -269,7 +273,7 @@ async function handleUploadReport(e) {
       reportData.report_file_name = file.name;
     }
 
-    const report = createReport(reportData);
+    const report = await createReport(reportData);
     showToast(`Report ${report.report_number} uploaded successfully!`, 'success');
     closeModal('modal-upload-report');
     closePanel('sample-panel-overlay');
