@@ -11,41 +11,111 @@
   },
   {
     "id": "usr-002",
-    "username": "user1",
+    "username": "receptionist1",
     "password": "asdfQWER!1234",
     "role": "receptionist",
     "lab_id": "",
-    "full_name": "Sarah Okonkwo",
+    "full_name": "Fatima Khalid",
     "created_by": "usr-001",
     "active": "true"
   },
   {
     "id": "usr-003",
-    "username": "user2",
+    "username": "eng_aas",
     "password": "asdfQWER!1234",
     "role": "lab_engineer",
     "lab_id": "lab-001",
-    "full_name": "Dr. James Adebayo",
+    "full_name": "Eng. Ahmed Hussain",
     "created_by": "usr-001",
     "active": "true"
   },
   {
     "id": "usr-004",
-    "username": "eng_micro",
+    "username": "eng_aes",
     "password": "asdfQWER!1234",
     "role": "lab_engineer",
     "lab_id": "lab-002",
-    "full_name": "Dr. Amaka Eze",
+    "full_name": "Eng. Zainab Ali",
     "created_by": "usr-001",
     "active": "true"
   },
   {
     "id": "usr-005",
-    "username": "eng_path",
+    "username": "eng_wdxrf",
     "password": "asdfQWER!1234",
     "role": "lab_engineer",
     "lab_id": "lab-003",
-    "full_name": "Dr. Chidi Nwosu",
+    "full_name": "Eng. Usman Khan",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-006",
+    "username": "eng_edxrf",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-004",
+    "full_name": "Eng. Saima Bibi",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-007",
+    "username": "eng_xrd",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-005",
+    "full_name": "Eng. Tariq Mehmood",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-008",
+    "username": "eng_pet",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-006",
+    "full_name": "Eng. Rabia Sultana",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-009",
+    "username": "eng_sem",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-007",
+    "full_name": "Eng. Kamran Javed",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-010",
+    "username": "eng_dta",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-008",
+    "full_name": "Eng. Noreen Iqbal",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-011",
+    "username": "eng_crush",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-009",
+    "full_name": "Eng. Bilal Ahmed",
+    "created_by": "usr-001",
+    "active": "true"
+  },
+  {
+    "id": "usr-012",
+    "username": "eng_env",
+    "password": "asdfQWER!1234",
+    "role": "lab_engineer",
+    "lab_id": "lab-010",
+    "full_name": "Eng. Maria Pervez",
     "created_by": "usr-001",
     "active": "true"
   }

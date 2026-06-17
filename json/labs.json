@@ -1,25 +1,81 @@
 [
   {
     "id": "lab-001",
-    "lab_name": "Hematology",
-    "lab_code": "HEMA",
-    "description": "Blood cell analysis and related disorders",
+    "lab_name": "AAS",
+    "lab_code": "AAS",
+    "description": "Atomic Absorption Spectrometry for trace and precious metal analysis (Au, Ag, Pt, Pd, Cu, Pb, Zn)",
     "created_at": "2026-01-01T00:00:00Z",
     "active": "true"
   },
   {
     "id": "lab-002",
-    "lab_name": "Microbiology",
-    "lab_code": "MICRO",
-    "description": "Bacterial and fungal culture and sensitivity testing",
+    "lab_name": "MP-AES",
+    "lab_code": "AES",
+    "description": "Microwave Plasma Atomic Emission Spectrometry for multi-element and major oxide analysis",
     "created_at": "2026-01-01T00:00:00Z",
     "active": "true"
   },
   {
     "id": "lab-003",
-    "lab_name": "Pathology",
-    "lab_code": "PATH",
-    "description": "Histological and cytological examination of tissues",
+    "lab_name": "WDXRF",
+    "lab_code": "WDX",
+    "description": "Wavelength Dispersive X-Ray Fluorescence for whole-rock major oxides and trace elements",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-004",
+    "lab_name": "EDXRF",
+    "lab_code": "EDX",
+    "description": "Energy Dispersive X-Ray Fluorescence for rapid elemental screening and alloy ID",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-005",
+    "lab_name": "XRD",
+    "lab_code": "XRD",
+    "description": "X-Ray Diffraction for mineral identification, quantitative phase analysis, and clay mineralogy",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-006",
+    "lab_name": "Petrology",
+    "lab_code": "PET",
+    "description": "Petrographic and mineralogical examination of thin sections and polished blocks",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-007",
+    "lab_name": "SEM",
+    "lab_code": "SEM",
+    "description": "Scanning Electron Microscopy with EDS for imaging, elemental mapping, and particle analysis",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-008",
+    "lab_name": "DTA-TG",
+    "lab_code": "DTA",
+    "description": "Differential Thermal Analysis and Thermogravimetry for thermal behavior and weight loss",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-009",
+    "lab_name": "Crushing",
+    "lab_code": "CRU",
+    "description": "Sample preparation including jaw crushing, cone crushing, pulverizing, and sieve analysis",
+    "created_at": "2026-01-01T00:00:00Z",
+    "active": "true"
+  },
+  {
+    "id": "lab-010",
+    "lab_name": "Environmental",
+    "lab_code": "ENV",
+    "description": "Environmental and water testing for pH, TDS, EC, heavy metals, effluent, and drinking water quality",
     "created_at": "2026-01-01T00:00:00Z",
     "active": "true"
   }

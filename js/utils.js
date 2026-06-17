@@ -317,17 +317,30 @@ function generateSampleIDs(labCode, submissionId, totalSamples, dateString) {
   return generatedIds;
 }
 
-// ── Lab code derivation from lab name ──────────────────────────
+// ── Lab code derivation from lab name or lab object ────────────
 /**
- * Derive a short code from a lab name by taking the first word.
- * Examples: "Hematology" → "HEM", "Blood Culture & Sensitivity" → "BLO"
- * @param {string} labName
+ * Derive a short code from a lab, checking lab_code field first.
+ * Falls back to deriving from lab name (first 3 chars of first word).
+ * @param {string|Object} lab - Lab object with lab_code field, or lab name string
  * @returns {string}
  */
-function deriveLabCode(labName) {
-  if (!labName) return 'LAB';
-  const firstWord = labName.trim().split(/\s+/)[0];
-  return firstWord.toUpperCase().substring(0, 3);
+function deriveLabCode(lab) {
+  if (!lab) return 'LAB';
+  // If given a lab object with a lab_code, use it directly
+  if (typeof lab === 'object' && lab.lab_code) {
+    return lab.lab_code.toUpperCase().substring(0, 3);
+  }
+  // If given a string, derive from name
+  if (typeof lab === 'string') {
+    const firstWord = lab.trim().split(/\s+/)[0];
+    return firstWord.toUpperCase().substring(0, 3);
+  }
+  // If given a lab object without lab_code, derive from lab_name
+  if (typeof lab === 'object' && lab.lab_name) {
+    const firstWord = lab.lab_name.trim().split(/\s+/)[0];
+    return firstWord.toUpperCase().substring(0, 3);
+  }
+  return 'LAB';
 }
 
 // ── LocalStorage controllers for unified labPortalData ─────────

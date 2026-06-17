@@ -45,7 +45,7 @@ function wireReceptionistEvents() {
     populateSubmissionLabDropdown();
     labSel.addEventListener('change', () => {
       const lab = getLab(labSel.value);
-      const code = lab ? deriveLabCode(lab.lab_name) : '—';
+      const code = lab ? deriveLabCode(lab) : '—';
       document.getElementById('lab-code-display').innerHTML =
         lab ? `<span class="lab-code-badge">${code}</span>` : 'Select a lab to auto-generate code';
     });
@@ -66,16 +66,20 @@ function wireReceptionistEvents() {
     const rowCount = formSamplesBody.rows.length;
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><input type="text" class="sample-name" placeholder="e.g. DNA Extract A" required></td>
+      <td><input type="text" class="sample-name" placeholder="e.g. Core Sample A" required></td>
       <td>
         <select class="sample-type" required>
           <option value="">-- Select Type --</option>
-          <option value="Blood">Blood</option>
-          <option value="Saliva">Saliva</option>
-          <option value="Tissue">Tissue</option>
-          <option value="Urine">Urine</option>
-          <option value="Stool">Stool</option>
-          <option value="Swab">Swab</option>
+          <option value="Rock">Rock</option>
+          <option value="Ore">Ore</option>
+          <option value="Core">Core</option>
+          <option value="Soil">Soil</option>
+          <option value="Sediment">Sediment</option>
+          <option value="Water">Water</option>
+          <option value="Concentrate">Concentrate</option>
+          <option value="Tailings">Tailings</option>
+          <option value="Dust">Dust</option>
+          <option value="Sludge">Sludge</option>
         </select>
       </td>
       <td><button type="button" class="btn-remove-row" onclick="this.closest('tr').remove()">✕ Remove</button></td>
@@ -174,7 +178,7 @@ function handleSubmissionSubmit(e) {
   }
 
   const lab = getLab(labId);
-  const labCode = deriveLabCode(lab?.lab_name || 'LAB');
+  const labCode = deriveLabCode(lab || 'LAB');
 
   // Get next submission ID from DB
   const currentSubId = DB.systemState.nextSubmissionId;
@@ -236,16 +240,20 @@ function handleSubmissionSubmit(e) {
   if (addBtn) {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><input type="text" class="sample-name" placeholder="e.g. DNA Extract A" required></td>
+      <td><input type="text" class="sample-name" placeholder="e.g. Core Sample A" required></td>
       <td>
         <select class="sample-type" required>
           <option value="">-- Select Type --</option>
-          <option value="Blood">Blood</option>
-          <option value="Saliva">Saliva</option>
-          <option value="Tissue">Tissue</option>
-          <option value="Urine">Urine</option>
-          <option value="Stool">Stool</option>
-          <option value="Swab">Swab</option>
+          <option value="Rock">Rock</option>
+          <option value="Ore">Ore</option>
+          <option value="Core">Core</option>
+          <option value="Soil">Soil</option>
+          <option value="Sediment">Sediment</option>
+          <option value="Water">Water</option>
+          <option value="Concentrate">Concentrate</option>
+          <option value="Tailings">Tailings</option>
+          <option value="Dust">Dust</option>
+          <option value="Sludge">Sludge</option>
         </select>
       </td>
       <td><button type="button" class="btn-remove-row" onclick="this.closest('tr').remove()">✕ Remove</button></td>

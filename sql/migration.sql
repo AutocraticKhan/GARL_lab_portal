@@ -1,7 +1,8 @@
 -- ============================================================
--- GARL Lab Portal — Supabase Migration
+-- GARL Minerals Lab Portal — Supabase Migration
 -- Run this in the Supabase SQL Editor to create all tables
--- ============================================================
+-- Schema supports: AAS, MP-AES, WDXRF, EDXRF, XRD, Petrology,
+-- SEM, DTA-TG, Crushing, Environmental mineral testing labs
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (

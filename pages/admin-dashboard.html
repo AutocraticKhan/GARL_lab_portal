@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Dashboard — GARL Lab Portal</title>
-  <meta name="description" content="Admin control panel for user, lab, test, and sample management." />
+  <title>Admin Dashboard — GARL Minerals Lab</title>
+  <meta name="description" content="Admin control panel for users, labs, analytical tests, and mineral sample management." />
   <link rel="stylesheet" href="../css/styles.css" />
 </head>
 <body>
@@ -26,7 +26,7 @@
         <span class="nav-icon">🏥</span> Labs
       </button>
       <button class="nav-item" data-tab="tab-tests" onclick="switchTab('tab-tests');setNavActive(this)">
-        <span class="nav-icon">🔬</span> Tests
+        <span class="nav-icon">🔬</span> Analytical Tests
       </button>
       <button class="nav-item" data-tab="tab-samples" onclick="switchTab('tab-samples');setNavActive(this)">
         <span class="nav-icon">🧫</span> All Samples
@@ -237,11 +237,11 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="input-lab-name">Lab Name</label>
-          <input class="form-control" type="text" id="input-lab-name" name="lab_name" placeholder="e.g. Hematology" required />
+          <input class="form-control" type="text" id="input-lab-name" name="lab_name" placeholder="e.g. AAS, XRD" required />
         </div>
         <div class="form-group">
           <label class="form-label" for="input-lab-code">Lab Code</label>
-          <input class="form-control" type="text" id="input-lab-code" name="lab_code" placeholder="e.g. HEMA" maxlength="8" required />
+          <input class="form-control" type="text" id="input-lab-code" name="lab_code" placeholder="e.g. AAS, XRD, WDX" maxlength="8" required />
         </div>
       </div>
       <div class="form-group">
@@ -273,7 +273,7 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="input-test-name">Test Name</label>
-          <input class="form-control" type="text" id="input-test-name" name="test_name" placeholder="e.g. Complete Blood Count" required />
+          <input class="form-control" type="text" id="input-test-name" name="test_name" placeholder="e.g. Fire Assay — Au" required />
         </div>
         <div class="form-group">
           <label class="form-label" for="input-test-code">Test Code</label>
