@@ -69,6 +69,7 @@ function wireAdminEvents() {
   document.getElementById('btn-create-test').addEventListener('click', () => {
     document.getElementById('create-test-form').reset();
     populateLabSelect('test-lab-select');
+    populateTestTypeSelect();
     openModal('modal-test');
   });
   document.getElementById('create-test-form').addEventListener('submit', handleCreateTest);
@@ -84,6 +85,15 @@ function wireAdminEvents() {
   // Export buttons
   document.getElementById('btn-export-users').addEventListener('click', () => downloadCSV('users.csv', DB.users));
   document.getElementById('btn-export-samples').addEventListener('click', () => downloadCSV('samples.csv', DB.samples));
+}
+
+// ── Populate test type dropdown ────────────────────────────────
+function populateTestTypeSelect() {
+  const sel = document.getElementById('test-type-select');
+  if (!sel) return;
+  const types = getTestTypes();
+  sel.innerHTML = '<option value="">Select Test Type</option>' +
+    types.map(t => `<option value="${t.value}">${escHtml(t.label)}</option>`).join('');
 }
 
 // ── USER MANAGEMENT ───────────────────────────────────────────
@@ -263,15 +273,17 @@ function handleToggleLab(id) {
 function renderTests() {
   const tbody = document.getElementById('tests-tbody');
   if (!DB.tests.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔬</div><p>No tests defined</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🔬</div><p>No tests defined</p></div></td></tr>`;
     return;
   }
   tbody.innerHTML = DB.tests.map(t => {
     const lab = getLab(t.lab_id);
+    const typeLabel = t.test_type ? getTestTypeLabel(t.test_type) : '—';
     return `<tr>
       <td><strong>${escHtml(t.test_name)}</strong></td>
       <td class="muted"><code>${escHtml(t.test_code)}</code></td>
       <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
+      <td><span class="badge badge-info" style="font-size:0.7rem;">${escHtml(typeLabel)}</span></td>
       <td class="muted">${t.turnaround_days} day${t.turnaround_days == 1 ? '' : 's'}</td>
       <td>${t.active !== false ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
       <td>
@@ -288,11 +300,12 @@ function handleCreateTest(e) {
   const form = e.target;
   const data = {
     lab_id:          form.lab_id.value,
+    test_type:       form.test_type.value,
     test_name:       form.test_name.value.trim(),
     test_code:       form.test_code.value.trim().toUpperCase(),
     turnaround_days: form.turnaround_days.value,
   };
-  if (!data.lab_id || !data.test_name || !data.test_code) { showToast('All fields are required.', 'error'); return; }
+  if (!data.lab_id || !data.test_type || !data.test_name || !data.test_code) { showToast('All fields are required.', 'error'); return; }
   createTest(data);
   showToast('Test created.', 'success');
   closeModal('modal-test');

@@ -44,51 +44,117 @@ const SEED_LABS = [
   { id: 'lab-010', lab_name: 'Environmental', lab_code: 'ENV', description: 'Environmental and water testing for pH, TDS, EC, heavy metals, effluent, and drinking water quality', created_at: '2026-01-01T00:00:00Z', active: true }
 ];
 
+const SEED_SAMPLES = [
+  // ── AAS (lab-001) — 5 samples ────────────────────────────────
+  { id: 'smp-001', lab_id: 'lab-001', sampleId: '26-01-AAS-1001-001', submissionId: '1001', sampleNumber: '001', sampleName: '26-01-AAS-1001-001', sampleType: 'Rock', test_id: 'tst-001', test_name: 'Fire Assay — Au (Gold)', selectedElements: ['Au'], elementCount: 1, status: 'completed', customer_name: 'Ahmed Steel Mills', customer_contact: '+92-300-1111111', collection_date: '2026-01-05', collected_by: 'usr-002', created_at: '2026-01-05T09:00:00Z', completed_at: '2026-01-10T16:00:00Z' },
+  { id: 'smp-002', lab_id: 'lab-001', sampleId: '26-01-AAS-1001-002', submissionId: '1001', sampleNumber: '002', sampleName: '26-01-AAS-1001-002', sampleType: 'Rock', test_id: 'tst-001', test_name: 'Fire Assay — Au (Gold)', selectedElements: ['Au'], elementCount: 1, status: 'completed', customer_name: 'Ahmed Steel Mills', customer_contact: '+92-300-1111111', collection_date: '2026-01-05', collected_by: 'usr-002', created_at: '2026-01-05T09:00:00Z', completed_at: '2026-01-10T17:30:00Z' },
+  { id: 'smp-003', lab_id: 'lab-001', sampleId: '26-01-AAS-1002-001', submissionId: '1002', sampleNumber: '001', sampleName: '26-01-AAS-1002-001', sampleType: 'Ore', test_id: 'tst-004', test_name: 'Base Metals (Cu, Pb, Zn)', selectedElements: ['Cu', 'Pb', 'Zn'], elementCount: 3, status: 'in_progress', customer_name: 'Pakistan Mining Corp', customer_contact: '+92-321-2222222', collection_date: '2026-06-01', collected_by: 'usr-002', created_at: '2026-06-01T10:00:00Z' },
+  { id: 'smp-004', lab_id: 'lab-001', sampleId: '26-06-AAS-1002-002', submissionId: '1002', sampleNumber: '002', sampleName: '26-06-AAS-1002-002', sampleType: 'Ore', test_id: 'tst-005', test_name: 'Trace Elements by AAS', selectedElements: ['As', 'Sb', 'Bi', 'Hg'], elementCount: 4, status: 'assigned', customer_name: 'Pakistan Mining Corp', customer_contact: '+92-321-2222222', collection_date: '2026-06-01', collected_by: 'usr-002', created_at: '2026-06-01T10:00:00Z' },
+  { id: 'smp-005', lab_id: 'lab-001', sampleId: '26-06-AAS-1003-001', submissionId: '1003', sampleNumber: '001', sampleName: '26-06-AAS-1003-001', sampleType: 'Concentrate', test_id: 'tst-002', test_name: 'Fire Assay — Ag (Silver)', selectedElements: ['Ag'], elementCount: 1, status: 'received', customer_name: 'ABC Explorations', customer_contact: '+92-333-3333333', collection_date: '2026-06-15', collected_by: 'usr-002', created_at: '2026-06-15T08:30:00Z' },
+  // ── MP-AES (lab-002) — 4 samples ─────────────────────────────
+  { id: 'smp-006', lab_id: 'lab-002', sampleId: '26-02-AES-1004-001', submissionId: '1004', sampleNumber: '001', sampleName: '26-02-AES-1004-001', sampleType: 'Soil', test_id: 'tst-009', test_name: 'Multi-Element Scan (30+ Elements)', selectedElements: ['Al', 'Ca', 'Fe', 'K', 'Mg', 'Na', 'Si', 'Ti', 'Ba', 'Sr', 'V', 'Zr', 'Cr', 'Ni', 'Cu', 'Zn', 'Pb', 'As', 'Co', 'Mn'], elementCount: 20, status: 'completed', customer_name: 'Soil Survey of Pakistan', customer_contact: '+92-44-5555555', collection_date: '2026-02-10', collected_by: 'usr-002', created_at: '2026-02-10T11:00:00Z', completed_at: '2026-02-17T14:00:00Z' },
+  { id: 'smp-007', lab_id: 'lab-002', sampleId: '26-04-AES-1005-001', submissionId: '1005', sampleNumber: '001', sampleName: '26-04-AES-1005-001', sampleType: 'Rock', test_id: 'tst-007', test_name: 'Major Elements Suite', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'Na', 'K', 'Ti', 'P', 'Mn'], elementCount: 10, status: 'completed', customer_name: 'Geological Survey', customer_contact: '+92-51-6666666', collection_date: '2026-04-20', collected_by: 'usr-002', created_at: '2026-04-20T09:00:00Z', completed_at: '2026-04-28T11:00:00Z' },
+  { id: 'smp-008', lab_id: 'lab-002', sampleId: '26-05-AES-1006-001', submissionId: '1006', sampleNumber: '001', sampleName: '26-05-AES-1006-001', sampleType: 'Water', test_id: 'tst-010', test_name: 'Water Dissolved Metals', selectedElements: ['Cu', 'Pb', 'Zn', 'Cd', 'Cr', 'As', 'Fe', 'Mn'], elementCount: 8, status: 'in_progress', customer_name: 'Punjab Water Authority', customer_contact: '+92-42-7777777', collection_date: '2026-05-05', collected_by: 'usr-002', created_at: '2026-05-05T10:30:00Z' },
+  { id: 'smp-009', lab_id: 'lab-002', sampleId: '26-06-AES-1007-001', submissionId: '1007', sampleNumber: '001', sampleName: '26-06-AES-1007-001', sampleType: 'Sediment', test_id: 'tst-008', test_name: 'REE (Rare Earth Elements) Suite', selectedElements: ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Y'], elementCount: 15, status: 'assigned', customer_name: 'Rare Earth Mining', customer_contact: '+92-300-8888888', collection_date: '2026-06-10', collected_by: 'usr-002', created_at: '2026-06-10T09:00:00Z' },
+  // ── WDXRF (lab-003) — 3 samples ─────────────────────────────
+  { id: 'smp-010', lab_id: 'lab-003', sampleId: '26-03-WDX-1008-001', submissionId: '1008', sampleNumber: '001', sampleName: '26-03-WDX-1008-001', sampleType: 'Rock', test_id: 'tst-011', test_name: 'Whole Rock Major Oxides', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'Na', 'K', 'Ti', 'P', 'Mn'], elementCount: 10, status: 'completed', customer_name: 'Cement Industries Ltd', customer_contact: '+92-44-9999999', collection_date: '2026-03-15', collected_by: 'usr-002', created_at: '2026-03-15T08:00:00Z', completed_at: '2026-03-22T16:00:00Z' },
+  { id: 'smp-011', lab_id: 'lab-003', sampleId: '26-05-WDX-1009-001', submissionId: '1009', sampleNumber: '001', sampleName: '26-05-WDX-1009-001', sampleType: 'Core', test_id: 'tst-012', test_name: 'Trace Elements by XRF', selectedElements: ['Ba', 'Cr', 'V', 'Zr', 'Nb', 'Sr', 'Rb', 'Th', 'U'], elementCount: 9, status: 'completed', customer_name: 'DrillTech Pakistan', customer_contact: '+92-333-0000000', collection_date: '2026-05-20', collected_by: 'usr-002', created_at: '2026-05-20T10:00:00Z', completed_at: '2026-05-28T15:00:00Z' },
+  { id: 'smp-012', lab_id: 'lab-003', sampleId: '26-06-WDX-1010-001', submissionId: '1010', sampleNumber: '001', sampleName: '26-06-WDX-1010-001', sampleType: 'Rock', test_id: 'tst-014', test_name: 'Cement Raw Mix Analysis', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg'], elementCount: 5, status: 'assigned', customer_name: 'Bestway Cement', customer_contact: '+92-300-1112222', collection_date: '2026-06-12', collected_by: 'usr-002', created_at: '2026-06-12T11:30:00Z' },
+  // ── EDXRF (lab-004) — 3 samples ─────────────────────────────
+  { id: 'smp-013', lab_id: 'lab-004', sampleId: '26-04-EDX-1011-001', submissionId: '1011', sampleNumber: '001', sampleName: '26-04-EDX-1011-001', sampleType: 'Concentrate', test_id: 'tst-015', test_name: 'Portable XRF Screening', selectedElements: ['Cu', 'Pb', 'Zn', 'Fe', 'As', 'Sb'], elementCount: 6, status: 'completed', customer_name: 'Copper Mines Ltd', customer_contact: '+92-81-3334444', collection_date: '2026-04-05', collected_by: 'usr-002', created_at: '2026-04-05T09:00:00Z', completed_at: '2026-04-08T16:00:00Z' },
+  { id: 'smp-014', lab_id: 'lab-004', sampleId: '26-06-EDX-1012-001', submissionId: '1012', sampleNumber: '001', sampleName: '26-06-EDX-1012-001', sampleType: 'Dust', test_id: 'tst-017', test_name: 'Alloy Identification', selectedElements: ['Fe', 'Cr', 'Ni', 'Mo', 'Mn'], elementCount: 5, status: 'in_progress', customer_name: 'Steel Re-Rolling Mills', customer_contact: '+92-42-5556666', collection_date: '2026-06-08', collected_by: 'usr-002', created_at: '2026-06-08T10:00:00Z' },
+  { id: 'smp-015', lab_id: 'lab-004', sampleId: '26-06-EDX-1013-001', submissionId: '1013', sampleNumber: '001', sampleName: '26-06-EDX-1013-001', sampleType: 'Soil', test_id: 'tst-016', test_name: 'Elemental Scan (Na to U)', selectedElements: ['Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'As', 'Br', 'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Ba', 'W', 'Pb', 'Th', 'U'], elementCount: 31, status: 'received', customer_name: 'Environmental Agency', customer_contact: '+92-51-7778888', collection_date: '2026-06-14', collected_by: 'usr-002', created_at: '2026-06-14T12:00:00Z' },
+  // ── XRD (lab-005) — 2 samples ───────────────────────────────
+  { id: 'smp-016', lab_id: 'lab-005', sampleId: '26-03-XRD-1014-001', submissionId: '1014', sampleNumber: '001', sampleName: '26-03-XRD-1014-001', sampleType: 'Rock', test_id: 'tst-019', test_name: 'Bulk Mineral Identification', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'K'], elementCount: 6, status: 'completed', customer_name: 'Mineral Exploration Co', customer_contact: '+92-300-2223333', collection_date: '2026-03-25', collected_by: 'usr-002', created_at: '2026-03-25T09:30:00Z', completed_at: '2026-04-01T14:00:00Z' },
+  { id: 'smp-017', lab_id: 'lab-005', sampleId: '26-06-XRD-1015-001', submissionId: '1015', sampleNumber: '001', sampleName: '26-06-XRD-1015-001', sampleType: 'Tailings', test_id: 'tst-020', test_name: 'Quantitative Phase Analysis (Rietveld)', selectedElements: ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'K', 'Na', 'Ti'], elementCount: 8, status: 'assigned', customer_name: 'Gold Recovery Inc', customer_contact: '+92-321-4445555', collection_date: '2026-06-10', collected_by: 'usr-002', created_at: '2026-06-10T10:00:00Z' },
+  // ── Petrology (lab-006) — 2 samples ─────────────────────────
+  { id: 'smp-018', lab_id: 'lab-006', sampleId: '26-05-PET-1016-001', submissionId: '1016', sampleNumber: '001', sampleName: '26-05-PET-1016-001', sampleType: 'Rock', test_id: 'tst-023', test_name: 'Thin Section Petrography', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'University of Punjab', customer_contact: '+92-42-9998888', collection_date: '2026-05-10', collected_by: 'usr-002', created_at: '2026-05-10T08:00:00Z', completed_at: '2026-05-16T16:00:00Z' },
+  { id: 'smp-019', lab_id: 'lab-006', sampleId: '26-06-PET-1017-001', submissionId: '1017', sampleNumber: '001', sampleName: '26-06-PET-1017-001', sampleType: 'Core', test_id: 'tst-024', test_name: 'Modal Analysis (Point Counting)', selectedElements: [], elementCount: 0, status: 'in_progress', customer_name: 'Oil & Gas Dev Corp', customer_contact: '+92-51-6667777', collection_date: '2026-06-05', collected_by: 'usr-002', created_at: '2026-06-05T11:00:00Z' },
+  // ── SEM (lab-007) — 2 samples ───────────────────────────────
+  { id: 'smp-020', lab_id: 'lab-007', sampleId: '26-04-SEM-1018-001', submissionId: '1018', sampleNumber: '001', sampleName: '26-04-SEM-1018-001', sampleType: 'Dust', test_id: 'tst-027', test_name: 'SEM-EDS Spot Analysis', selectedElements: ['Fe', 'O', 'Si', 'Al', 'Ca'], elementCount: 5, status: 'completed', customer_name: 'Air Quality Monitor', customer_contact: '+92-300-5556666', collection_date: '2026-04-15', collected_by: 'usr-002', created_at: '2026-04-15T09:00:00Z', completed_at: '2026-04-19T15:00:00Z' },
+  { id: 'smp-021', lab_id: 'lab-007', sampleId: '26-06-SEM-1019-001', submissionId: '1019', sampleNumber: '001', sampleName: '26-06-SEM-1019-001', sampleType: 'Core', test_id: 'tst-030', test_name: 'Particle Size & Morphology', selectedElements: [], elementCount: 0, status: 'received', customer_name: 'Cement Research Inst', customer_contact: '+92-44-3332222', collection_date: '2026-06-13', collected_by: 'usr-002', created_at: '2026-06-13T10:30:00Z' },
+  // ── DTA-TG (lab-008) — 2 samples ────────────────────────────
+  { id: 'smp-022', lab_id: 'lab-008', sampleId: '26-05-DTA-1020-001', submissionId: '1020', sampleNumber: '001', sampleName: '26-05-DTA-1020-001', sampleType: 'Sludge', test_id: 'tst-031', test_name: 'Thermogravimetric Analysis (TGA)', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'Waste Treatment Plant', customer_contact: '+92-42-1112223', collection_date: '2026-05-25', collected_by: 'usr-002', created_at: '2026-05-25T08:30:00Z', completed_at: '2026-05-29T12:00:00Z' },
+  { id: 'smp-023', lab_id: 'lab-008', sampleId: '26-06-DTA-1021-001', submissionId: '1021', sampleNumber: '001', sampleName: '26-06-DTA-1021-001', sampleType: 'Water', test_id: 'tst-033', test_name: 'Moisture & Volatile Content', selectedElements: [], elementCount: 0, status: 'assigned', customer_name: 'Food Testing Lab', customer_contact: '+92-300-4445555', collection_date: '2026-06-12', collected_by: 'usr-002', created_at: '2026-06-12T09:00:00Z' },
+  // ── Crushing (lab-009) — 2 samples ──────────────────────────
+  { id: 'smp-024', lab_id: 'lab-009', sampleId: '26-02-CRU-1022-001', submissionId: '1022', sampleNumber: '001', sampleName: '26-02-CRU-1022-001', sampleType: 'Rock', test_id: 'tst-035', test_name: 'Jaw Crushing (Coarse)', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'Bulk Sampling Ltd', customer_contact: '+92-300-6667777', collection_date: '2026-02-20', collected_by: 'usr-002', created_at: '2026-02-20T09:00:00Z', completed_at: '2026-02-21T16:00:00Z' },
+  { id: 'smp-025', lab_id: 'lab-009', sampleId: '26-06-CRU-1023-001', submissionId: '1023', sampleNumber: '001', sampleName: '26-06-CRU-1023-001', sampleType: 'Ore', test_id: 'tst-037', test_name: 'Pulverizing to 75µm', selectedElements: [], elementCount: 0, status: 'received', customer_name: 'Metallurgy Labs', customer_contact: '+92-81-8889999', collection_date: '2026-06-16', collected_by: 'usr-002', created_at: '2026-06-16T10:00:00Z' },
+  // ── Environmental (lab-010) — 2 samples ─────────────────────
+  { id: 'smp-026', lab_id: 'lab-010', sampleId: '26-04-ENV-1024-001', submissionId: '1024', sampleNumber: '001', sampleName: '26-04-ENV-1024-001', sampleType: 'Water', test_id: 'tst-040', test_name: 'Water Quality (pH, TDS, EC)', selectedElements: [], elementCount: 0, status: 'completed', customer_name: 'City Water Board', customer_contact: '+92-42-4443333', collection_date: '2026-04-10', collected_by: 'usr-002', created_at: '2026-04-10T08:00:00Z', completed_at: '2026-04-14T14:00:00Z' },
+  { id: 'smp-027', lab_id: 'lab-010', sampleId: '26-06-ENV-1025-001', submissionId: '1025', sampleNumber: '001', sampleName: '26-06-ENV-1025-001', sampleType: 'Water', test_id: 'tst-041', test_name: 'Heavy Metals in Water', selectedElements: ['Pb', 'Cd', 'Cr', 'As', 'Hg'], elementCount: 5, status: 'in_progress', customer_name: 'EPA Punjab', customer_contact: '+92-42-1110000', collection_date: '2026-06-07', collected_by: 'usr-002', created_at: '2026-06-07T11:00:00Z' },
+];
+
+const SEED_REPORTS = [
+  { id: 'rpt-001', sample_id: 'smp-001', lab_id: 'lab-001', report_number: 'RPT-AAS-20260110-0001', uploaded_at: '2026-01-10T16:00:00Z', created_at: '2026-01-10T16:00:00Z' },
+  { id: 'rpt-002', sample_id: 'smp-002', lab_id: 'lab-001', report_number: 'RPT-AAS-20260110-0002', uploaded_at: '2026-01-10T17:30:00Z', created_at: '2026-01-10T17:30:00Z' },
+  { id: 'rpt-003', sample_id: 'smp-006', lab_id: 'lab-002', report_number: 'RPT-AES-20260217-0001', uploaded_at: '2026-02-17T14:00:00Z', created_at: '2026-02-17T14:00:00Z' },
+  { id: 'rpt-004', sample_id: 'smp-007', lab_id: 'lab-002', report_number: 'RPT-AES-20260428-0002', uploaded_at: '2026-04-28T11:00:00Z', created_at: '2026-04-28T11:00:00Z' },
+  { id: 'rpt-005', sample_id: 'smp-010', lab_id: 'lab-003', report_number: 'RPT-WDX-20260322-0001', uploaded_at: '2026-03-22T16:00:00Z', created_at: '2026-03-22T16:00:00Z' },
+  { id: 'rpt-006', sample_id: 'smp-011', lab_id: 'lab-003', report_number: 'RPT-WDX-20260528-0002', uploaded_at: '2026-05-28T15:00:00Z', created_at: '2026-05-28T15:00:00Z' },
+  { id: 'rpt-007', sample_id: 'smp-013', lab_id: 'lab-004', report_number: 'RPT-EDX-20260408-0001', uploaded_at: '2026-04-08T16:00:00Z', created_at: '2026-04-08T16:00:00Z' },
+  { id: 'rpt-008', sample_id: 'smp-016', lab_id: 'lab-005', report_number: 'RPT-XRD-20260401-0001', uploaded_at: '2026-04-01T14:00:00Z', created_at: '2026-04-01T14:00:00Z' },
+  { id: 'rpt-009', sample_id: 'smp-018', lab_id: 'lab-006', report_number: 'RPT-PET-20260516-0001', uploaded_at: '2026-05-16T16:00:00Z', created_at: '2026-05-16T16:00:00Z' },
+  { id: 'rpt-010', sample_id: 'smp-020', lab_id: 'lab-007', report_number: 'RPT-SEM-20260419-0001', uploaded_at: '2026-04-19T15:00:00Z', created_at: '2026-04-19T15:00:00Z' },
+  { id: 'rpt-011', sample_id: 'smp-022', lab_id: 'lab-008', report_number: 'RPT-DTA-20260529-0001', uploaded_at: '2026-05-29T12:00:00Z', created_at: '2026-05-29T12:00:00Z' },
+  { id: 'rpt-012', sample_id: 'smp-024', lab_id: 'lab-009', report_number: 'RPT-CRU-20260221-0001', uploaded_at: '2026-02-21T16:00:00Z', created_at: '2026-02-21T16:00:00Z' },
+  { id: 'rpt-013', sample_id: 'smp-026', lab_id: 'lab-010', report_number: 'RPT-ENV-20260414-0001', uploaded_at: '2026-04-14T14:00:00Z', created_at: '2026-04-14T14:00:00Z' },
+];
+
 const SEED_TESTS = [
-  { id: 'tst-001', lab_id: 'lab-001', test_name: 'Fire Assay — Au (Gold)', test_code: 'FA-AU', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-002', lab_id: 'lab-001', test_name: 'Fire Assay — Ag (Silver)', test_code: 'FA-AG', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-003', lab_id: 'lab-001', test_name: 'Fire Assay — PGE (Pt, Pd)', test_code: 'FA-PGE', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-004', lab_id: 'lab-001', test_name: 'Base Metals (Cu, Pb, Zn)', test_code: 'AAS-BM', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-005', lab_id: 'lab-001', test_name: 'Trace Elements by AAS', test_code: 'AAS-TE', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-006', lab_id: 'lab-001', test_name: 'Cyanide Leach Solution', test_code: 'AAS-CN', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-007', lab_id: 'lab-002', test_name: 'Major Elements Suite', test_code: 'AES-MAJ', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-008', lab_id: 'lab-002', test_name: 'REE (Rare Earth Elements) Suite', test_code: 'AES-REE', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-009', lab_id: 'lab-002', test_name: 'Multi-Element Scan (30+ Elements)', test_code: 'AES-ME', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-010', lab_id: 'lab-002', test_name: 'Water Dissolved Metals', test_code: 'AES-H2O', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-011', lab_id: 'lab-003', test_name: 'Whole Rock Major Oxides', test_code: 'WDX-WR', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-012', lab_id: 'lab-003', test_name: 'Trace Elements by XRF', test_code: 'WDX-TE', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-013', lab_id: 'lab-003', test_name: 'Loss on Ignition (LOI)', test_code: 'WDX-LOI', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-014', lab_id: 'lab-003', test_name: 'Cement Raw Mix Analysis', test_code: 'WDX-CEM', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-015', lab_id: 'lab-004', test_name: 'Portable XRF Screening', test_code: 'EDX-PXRF', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-016', lab_id: 'lab-004', test_name: 'Elemental Scan (Na to U)', test_code: 'EDX-SCAN', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-017', lab_id: 'lab-004', test_name: 'Alloy Identification', test_code: 'EDX-ALLOY', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-018', lab_id: 'lab-004', test_name: 'RoHS Screening', test_code: 'EDX-ROHS', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-019', lab_id: 'lab-005', test_name: 'Bulk Mineral Identification', test_code: 'XRD-BMI', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-020', lab_id: 'lab-005', test_name: 'Quantitative Phase Analysis (Rietveld)', test_code: 'XRD-QPA', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-021', lab_id: 'lab-005', test_name: 'Clay Mineralogy', test_code: 'XRD-CLAY', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-022', lab_id: 'lab-005', test_name: 'Crystallite Size & Strain', test_code: 'XRD-CSS', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-023', lab_id: 'lab-006', test_name: 'Thin Section Petrography', test_code: 'PET-TS', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-024', lab_id: 'lab-006', test_name: 'Modal Analysis (Point Counting)', test_code: 'PET-MOD', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-025', lab_id: 'lab-006', test_name: 'Photomicrography', test_code: 'PET-PHOTO', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-026', lab_id: 'lab-006', test_name: 'Fluid Inclusion Studies', test_code: 'PET-FI', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-027', lab_id: 'lab-007', test_name: 'SEM-EDS Spot Analysis', test_code: 'SEM-EDS', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-028', lab_id: 'lab-007', test_name: 'Backscattered Electron Imaging', test_code: 'SEM-BSE', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-029', lab_id: 'lab-007', test_name: 'Elemental Mapping', test_code: 'SEM-MAP', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-030', lab_id: 'lab-007', test_name: 'Particle Size & Morphology', test_code: 'SEM-PSM', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-031', lab_id: 'lab-008', test_name: 'Thermogravimetric Analysis (TGA)', test_code: 'DTA-TGA', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-032', lab_id: 'lab-008', test_name: 'Differential Scanning Calorimetry (DSC)', test_code: 'DTA-DSC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-033', lab_id: 'lab-008', test_name: 'Moisture & Volatile Content', test_code: 'DTA-H2O', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-034', lab_id: 'lab-008', test_name: 'Melting Point Determination', test_code: 'DTA-MP', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-035', lab_id: 'lab-009', test_name: 'Jaw Crushing (Coarse)', test_code: 'CRU-JAW', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-036', lab_id: 'lab-009', test_name: 'Cone Crushing (Intermediate)', test_code: 'CRU-CONE', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-037', lab_id: 'lab-009', test_name: 'Pulverizing to 75µm', test_code: 'CRU-PULV', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-038', lab_id: 'lab-009', test_name: 'Sieve Analysis (Particle Size Distribution)', test_code: 'CRU-SIEVE', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-039', lab_id: 'lab-009', test_name: 'Sample Splitting & Riffling', test_code: 'CRU-SPLIT', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-040', lab_id: 'lab-010', test_name: 'Water Quality (pH, TDS, EC)', test_code: 'ENV-WQ', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-041', lab_id: 'lab-010', test_name: 'Heavy Metals in Water', test_code: 'ENV-HM', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-042', lab_id: 'lab-010', test_name: 'Effluent & Wastewater Testing', test_code: 'ENV-EFF', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-043', lab_id: 'lab-010', test_name: 'Drinking Water Potability', test_code: 'ENV-DW', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
-  { id: 'tst-044', lab_id: 'lab-010', test_name: 'Soil Contamination Screening', test_code: 'ENV-SOIL', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true }
+  // ── AAS (lab-001) ──────────────────────────────────────────────
+  { id: 'tst-001', lab_id: 'lab-001', test_name: 'Fire Assay — Au (Gold)', test_code: 'FA-AU', test_type: 'precious_metals', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-002', lab_id: 'lab-001', test_name: 'Fire Assay — Ag (Silver)', test_code: 'FA-AG', test_type: 'precious_metals', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-003', lab_id: 'lab-001', test_name: 'Fire Assay — PGE (Pt, Pd)', test_code: 'FA-PGE', test_type: 'precious_metals', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-004', lab_id: 'lab-001', test_name: 'Base Metals (Cu, Pb, Zn)', test_code: 'AAS-BM', test_type: 'base_metals', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-005', lab_id: 'lab-001', test_name: 'Trace Elements by AAS', test_code: 'AAS-TE', test_type: 'trace_elements', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-006', lab_id: 'lab-001', test_name: 'Cyanide Leach Solution', test_code: 'AAS-CN', test_type: 'trace_elements', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── MP-AES (lab-002) ───────────────────────────────────────────
+  { id: 'tst-007', lab_id: 'lab-002', test_name: 'Major Elements Suite', test_code: 'AES-MAJ', test_type: 'major_oxides', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-008', lab_id: 'lab-002', test_name: 'REE (Rare Earth Elements) Suite', test_code: 'AES-REE', test_type: 'ree', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-009', lab_id: 'lab-002', test_name: 'Multi-Element Scan (30+ Elements)', test_code: 'AES-ME', test_type: 'trace_elements', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-010', lab_id: 'lab-002', test_name: 'Water Dissolved Metals', test_code: 'AES-H2O', test_type: 'trace_elements', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── WDXRF (lab-003) ───────────────────────────────────────────
+  { id: 'tst-011', lab_id: 'lab-003', test_name: 'Whole Rock Major Oxides', test_code: 'WDX-WR', test_type: 'major_oxides', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-012', lab_id: 'lab-003', test_name: 'Trace Elements by XRF', test_code: 'WDX-TE', test_type: 'trace_elements', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-013', lab_id: 'lab-003', test_name: 'Loss on Ignition (LOI)', test_code: 'WDX-LOI', test_type: 'major_oxides', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-014', lab_id: 'lab-003', test_name: 'Cement Raw Mix Analysis', test_code: 'WDX-CEM', test_type: 'major_oxides', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── EDXRF (lab-004) ───────────────────────────────────────────
+  { id: 'tst-015', lab_id: 'lab-004', test_name: 'Portable XRF Screening', test_code: 'EDX-PXRF', test_type: 'trace_elements', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-016', lab_id: 'lab-004', test_name: 'Elemental Scan (Na to U)', test_code: 'EDX-SCAN', test_type: 'trace_elements', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-017', lab_id: 'lab-004', test_name: 'Alloy Identification', test_code: 'EDX-ALLOY', test_type: 'trace_elements', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-018', lab_id: 'lab-004', test_name: 'RoHS Screening', test_code: 'EDX-ROHS', test_type: 'trace_elements', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── XRD (lab-005) ─────────────────────────────────────────────
+  { id: 'tst-019', lab_id: 'lab-005', test_name: 'Bulk Mineral Identification', test_code: 'XRD-BMI', test_type: 'mineralogy', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-020', lab_id: 'lab-005', test_name: 'Quantitative Phase Analysis (Rietveld)', test_code: 'XRD-QPA', test_type: 'mineralogy', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-021', lab_id: 'lab-005', test_name: 'Clay Mineralogy', test_code: 'XRD-CLAY', test_type: 'mineralogy', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-022', lab_id: 'lab-005', test_name: 'Crystallite Size & Strain', test_code: 'XRD-CSS', test_type: 'mineralogy', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── Petrology (lab-006) ───────────────────────────────────────
+  { id: 'tst-023', lab_id: 'lab-006', test_name: 'Thin Section Petrography', test_code: 'PET-TS', test_type: 'petrology', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-024', lab_id: 'lab-006', test_name: 'Modal Analysis (Point Counting)', test_code: 'PET-MOD', test_type: 'petrology', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-025', lab_id: 'lab-006', test_name: 'Photomicrography', test_code: 'PET-PHOTO', test_type: 'petrology', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-026', lab_id: 'lab-006', test_name: 'Fluid Inclusion Studies', test_code: 'PET-FI', test_type: 'petrology', turnaround_days: '7', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── SEM (lab-007) ─────────────────────────────────────────────
+  { id: 'tst-027', lab_id: 'lab-007', test_name: 'SEM-EDS Spot Analysis', test_code: 'SEM-EDS', test_type: 'imaging', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-028', lab_id: 'lab-007', test_name: 'Backscattered Electron Imaging', test_code: 'SEM-BSE', test_type: 'imaging', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-029', lab_id: 'lab-007', test_name: 'Elemental Mapping', test_code: 'SEM-MAP', test_type: 'imaging', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-030', lab_id: 'lab-007', test_name: 'Particle Size & Morphology', test_code: 'SEM-PSM', test_type: 'imaging', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── DTA-TG (lab-008) ─────────────────────────────────────────
+  { id: 'tst-031', lab_id: 'lab-008', test_name: 'Thermogravimetric Analysis (TGA)', test_code: 'DTA-TGA', test_type: 'thermal', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-032', lab_id: 'lab-008', test_name: 'Differential Scanning Calorimetry (DSC)', test_code: 'DTA-DSC', test_type: 'thermal', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-033', lab_id: 'lab-008', test_name: 'Moisture & Volatile Content', test_code: 'DTA-H2O', test_type: 'thermal', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-034', lab_id: 'lab-008', test_name: 'Melting Point Determination', test_code: 'DTA-MP', test_type: 'thermal', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── Crushing (lab-009) ────────────────────────────────────────
+  { id: 'tst-035', lab_id: 'lab-009', test_name: 'Jaw Crushing (Coarse)', test_code: 'CRU-JAW', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-036', lab_id: 'lab-009', test_name: 'Cone Crushing (Intermediate)', test_code: 'CRU-CONE', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-037', lab_id: 'lab-009', test_name: 'Pulverizing to 75µm', test_code: 'CRU-PULV', test_type: 'sample_prep', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-038', lab_id: 'lab-009', test_name: 'Sieve Analysis (Particle Size Distribution)', test_code: 'CRU-SIEVE', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-039', lab_id: 'lab-009', test_name: 'Sample Splitting & Riffling', test_code: 'CRU-SPLIT', test_type: 'sample_prep', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  // ── Environmental (lab-010) ────────────────────────────────────
+  { id: 'tst-040', lab_id: 'lab-010', test_name: 'Water Quality (pH, TDS, EC)', test_code: 'ENV-WQ', test_type: 'environmental', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-041', lab_id: 'lab-010', test_name: 'Heavy Metals in Water', test_code: 'ENV-HM', test_type: 'environmental', turnaround_days: '4', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-042', lab_id: 'lab-010', test_name: 'Effluent & Wastewater Testing', test_code: 'ENV-EFF', test_type: 'environmental', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-043', lab_id: 'lab-010', test_name: 'Drinking Water Potability', test_code: 'ENV-DW', test_type: 'environmental', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-044', lab_id: 'lab-010', test_name: 'Soil Contamination Screening', test_code: 'ENV-SOIL', test_type: 'environmental', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true }
 ];
 
 // ── Migration from old flat format to new hierarchical format ──
@@ -187,6 +253,31 @@ function migrateOldData() {
   saveDB('systemState');
 
   console.log('[DB] Migration complete.');
+}
+
+// ── Test Types (analytical categories) ──────────────────────────
+const TEST_TYPES = [
+  { value: 'precious_metals', label: 'Precious Metals (Au, Ag, Pt, Pd)' },
+  { value: 'base_metals',     label: 'Base Metals (Cu, Pb, Zn, Ni, Co)' },
+  { value: 'major_oxides',    label: 'Major Oxides (Si, Al, Fe, Ca, Mg, etc.)' },
+  { value: 'trace_elements',  label: 'Trace Elements (As, Ba, Cr, V, Zr, etc.)' },
+  { value: 'ree',             label: 'REE / Rare Earth Elements' },
+  { value: 'light_elements',  label: 'Light Elements (Li, Be, B)' },
+  { value: 'mineralogy',      label: 'Mineralogy / XRD Phase Analysis' },
+  { value: 'petrology',       label: 'Petrology & Thin Section' },
+  { value: 'imaging',         label: 'SEM Imaging & Elemental Mapping' },
+  { value: 'thermal',         label: 'Thermal Analysis (TGA, DSC, DTA)' },
+  { value: 'sample_prep',     label: 'Sample Preparation (Crushing, Sieving)' },
+  { value: 'environmental',   label: 'Environmental / Water Testing' },
+];
+
+function getTestTypeLabel(value) {
+  const tt = TEST_TYPES.find(t => t.value === value);
+  return tt ? tt.label : value;
+}
+
+function getTestTypes() {
+  return TEST_TYPES;
 }
 
 // ── Elements (geochemical element library) ──────────────────────
@@ -336,17 +427,19 @@ async function initDB() {
       DB.users   = SEED_USERS;
       DB.labs    = SEED_LABS;
       DB.tests   = SEED_TESTS;
-      DB.samples = [];
-      DB.reports = [];
+      DB.samples = SEED_SAMPLES;
+      DB.reports = SEED_REPORTS;
       DB.events  = [];
       DB.submissions = [];
-      DB.systemState = { nextSubmissionId: 1001 };
+      DB.systemState = { nextSubmissionId: 1026 };
 
       // Persist seed data to Supabase
       await Promise.all([
         supabaseUpsert('users', DB.users),
         supabaseUpsert('labs', DB.labs),
         supabaseUpsert('tests', DB.tests),
+        supabaseUpsert('samples', DB.samples),
+        supabaseUpsert('reports', DB.reports),
       ]);
     }
   } else {
@@ -366,6 +459,8 @@ async function initDB() {
     DB.users   = mergeSeedData(storedUsers, SEED_USERS);
     DB.labs    = mergeSeedData(storedLabs, SEED_LABS);
     DB.tests   = mergeSeedData(storedTests, SEED_TESTS);
+    DB.samples = mergeSeedData(DB.samples, SEED_SAMPLES);
+    DB.reports = mergeSeedData(DB.reports, SEED_REPORTS);
 
     // Run migration on old-format data
     migrateOldData();
@@ -375,6 +470,16 @@ async function initDB() {
   DB.users  = DB.users.map(u => ({ ...u, active: u.active === true || u.active === 'true' }));
   DB.labs   = DB.labs.map(l  => ({ ...l, active: l.active === true || l.active === 'true' }));
   DB.tests  = DB.tests.map(t  => ({ ...t, active: t.active === true || t.active === 'true' }));
+
+  // Migrate existing tests: add test_type if missing (use seed defaults)
+  const testTypeMap = {};
+  SEED_TESTS.forEach(s => { testTypeMap[s.id] = s.test_type; });
+  DB.tests = DB.tests.map(t => {
+    if (!t.test_type && testTypeMap[t.id]) {
+      return { ...t, test_type: testTypeMap[t.id] };
+    }
+    return t;
+  });
 
   // Save everything to localStorage as local cache
   saveAll();

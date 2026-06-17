@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tests (
   lab_id TEXT NOT NULL REFERENCES labs(id),
   test_name TEXT NOT NULL,
   test_code TEXT NOT NULL,
+  test_type TEXT DEFAULT '',
   turnaround_days INTEGER DEFAULT 1,
   active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
