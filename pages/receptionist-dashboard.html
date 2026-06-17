@@ -133,22 +133,76 @@
 
               <!-- Dynamic Samples Section -->
               <fieldset class="form-section">
-                <legend>Samples (Add one or more)</legend>
-                <div class="samples-table-wrap">
+                <legend>Bulk Sample Generator</legend>
+                <div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-bottom:var(--sp-4);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
+                  <div style="display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap;">
+                    <div style="display:flex;gap:var(--sp-2);align-items:center;flex:1;min-width:160px;">
+                      <label style="font-size:0.78rem;font-weight:600;white-space:nowrap;">Sample Type</label>
+                      <select id="bulkSampleType" class="form-control" style="flex:1;min-width:100px;">
+                        <option value="">Type…</option>
+                        <option value="Rock">Rock</option>
+                        <option value="Ore">Ore</option>
+                        <option value="Core">Core</option>
+                        <option value="Soil">Soil</option>
+                        <option value="Sediment">Sediment</option>
+                        <option value="Water">Water</option>
+                        <option value="Concentrate">Concentrate</option>
+                        <option value="Tailings">Tailings</option>
+                        <option value="Dust">Dust</option>
+                        <option value="Sludge">Sludge</option>
+                      </select>
+                    </div>
+                    <div style="display:flex;gap:var(--sp-2);align-items:center;flex:1;min-width:160px;">
+                      <label style="font-size:0.78rem;font-weight:600;white-space:nowrap;">Test Type</label>
+                      <select id="bulkTestType" class="form-control" style="flex:1;min-width:120px;">
+                        <option value="">Test…</option>
+                      </select>
+                    </div>
+                    <div style="display:flex;gap:var(--sp-2);align-items:center;flex:1;min-width:100px;">
+                      <label style="font-size:0.78rem;font-weight:600;white-space:nowrap;">Count</label>
+                      <input type="number" id="bulkSampleCount" class="form-control" min="1" max="500"
+                             placeholder="Count" style="width:70px;" />
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:var(--sp-2);align-items:flex-start;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:280px;">
+                      <label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:var(--sp-1);">Elements</label>
+                      <div id="bulkElementPicker" style="position:relative;">
+                        <div class="bulk-element-trigger" style="display:flex;flex-wrap:wrap;gap:2px;min-height:32px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:var(--r-sm);cursor:pointer;background:var(--clr-surface);align-items:center;">
+                          <div class="bulk-chips-container" style="display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;"></div>
+                          <input type="text" class="bulk-element-search" placeholder="Search elements…" style="border:none;outline:none;background:none;flex:1;min-width:60px;font-size:0.8rem;padding:2px;" />
+                        </div>
+                        <div class="bulk-element-dropdown" style="display:none;position:absolute;z-index:1050;top:100%;left:0;right:0;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:280px;overflow-y:auto;font-size:0.8rem;">
+                          <div class="bulk-element-groups" style="padding:4px;border-bottom:1px solid var(--clr-border);"></div>
+                          <div class="bulk-element-items" style="padding:4px;display:grid;grid-template-columns:1fr 1fr;gap:2px;"></div>
+                        </div>
+                        <input type="hidden" id="bulkSelectedElements" value="" />
+                      </div>
+                    </div>
+                    <div style="display:flex;align-items:flex-end;gap:var(--sp-2);padding-top:22px;">
+                      <button type="button" id="bulkAddSamplesBtn" class="btn btn-primary" style="height:34px;">+ Add Samples</button>
+                    </div>
+                  </div>
+                </div>
+
+                <legend style="margin-top:var(--sp-4);">Generated Samples</legend>
+                <div class="samples-table-wrap" style="overflow:visible;">
                   <table>
                     <thead>
                       <tr>
-                        <th style="width:45%;">Sample Name</th>
-                        <th style="width:35%;">Sample Type</th>
-                        <th style="width:20%;">Action</th>
+                        <th style="width:10%;">#</th>
+                        <th style="width:18%;">Sample Type</th>
+                        <th style="width:22%;">Test Type</th>
+                        <th style="width:32%;">Elements</th>
+                        <th style="width:8%;">Est.</th>
+                        <th style="width:10%;">Action</th>
                       </tr>
                     </thead>
                     <tbody id="formSamplesBody">
-                      <!-- Rows injected via JS -->
+                      <!-- Rows injected via JS — read-only display only -->
                     </tbody>
                   </table>
                 </div>
-                <button type="button" id="addSampleRowBtn" class="btn-add-row">+ Add Sample Row</button>
               </fieldset>
 
               <button type="submit" class="btn btn-primary btn-full btn-lg">Submit Registration</button>
@@ -167,7 +221,7 @@
                 </div>
                 <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
                   <div style="width:28px;height:28px;border-radius:50%;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#b45309;">2</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Samples receive structured IDs like <code>26-06-HEM-1001-001</code></div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Samples receive structured IDs like <code>26-06-AAS-1001-001</code></div>
                 </div>
                 <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
                   <div style="width:28px;height:28px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#059669;">3</div>
@@ -189,7 +243,7 @@
             <thead>
               <tr>
                 <th>Sample ID</th><th>Submission #</th><th>Customer</th><th>Lab</th>
-                <th>Type</th><th>Status</th><th>Registered</th>
+                <th>Type</th><th>Elements</th><th>Status</th><th>Registered</th>
               </tr>
             </thead>
             <tbody id="my-submissions-tbody"></tbody>
@@ -211,12 +265,13 @@
                 <th>Submission ID</th>
                 <th>Sample Name</th>
                 <th>Type</th>
+                <th>Elements</th>
                 <th>Status</th>
                 <th>Registered</th>
               </tr>
             </thead>
             <tbody id="displayTableBody">
-              <tr><td colspan="6" style="text-align:center;color:var(--txt-muted);">No samples registered yet.</td></tr>
+              <tr><td colspan="7" style="text-align:center;color:var(--txt-muted);">No samples registered yet.</td></tr>
             </tbody>
           </table>
           <!-- Pagination Controls -->

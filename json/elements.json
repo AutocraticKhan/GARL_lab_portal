@@ -1,0 +1,342 @@
+[
+  {
+    "symbol": "Au",
+    "name": "Gold",
+    "category": "precious_metals"
+  },
+  {
+    "symbol": "Ag",
+    "name": "Silver",
+    "category": "precious_metals"
+  },
+  {
+    "symbol": "Pt",
+    "name": "Platinum",
+    "category": "precious_metals"
+  },
+  {
+    "symbol": "Pd",
+    "name": "Palladium",
+    "category": "precious_metals"
+  },
+  {
+    "symbol": "Cu",
+    "name": "Copper",
+    "category": "base_metals"
+  },
+  {
+    "symbol": "Pb",
+    "name": "Lead",
+    "category": "base_metals"
+  },
+  {
+    "symbol": "Zn",
+    "name": "Zinc",
+    "category": "base_metals"
+  },
+  {
+    "symbol": "Ni",
+    "name": "Nickel",
+    "category": "base_metals"
+  },
+  {
+    "symbol": "Co",
+    "name": "Cobalt",
+    "category": "base_metals"
+  },
+  {
+    "symbol": "Mo",
+    "name": "Molybdenum",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Cd",
+    "name": "Cadmium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Cr",
+    "name": "Chromium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "As",
+    "name": "Arsenic",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Sb",
+    "name": "Antimony",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Bi",
+    "name": "Bismuth",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Hg",
+    "name": "Mercury",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Sn",
+    "name": "Tin",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "W",
+    "name": "Tungsten",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Se",
+    "name": "Selenium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Te",
+    "name": "Tellurium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Ba",
+    "name": "Barium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Sr",
+    "name": "Strontium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "V",
+    "name": "Vanadium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Zr",
+    "name": "Zirconium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Nb",
+    "name": "Niobium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Ta",
+    "name": "Tantalum",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Th",
+    "name": "Thorium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "U",
+    "name": "Uranium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "La",
+    "name": "Lanthanum",
+    "category": "ree"
+  },
+  {
+    "symbol": "Ce",
+    "name": "Cerium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Pr",
+    "name": "Praseodymium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Nd",
+    "name": "Neodymium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Sm",
+    "name": "Samarium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Eu",
+    "name": "Europium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Gd",
+    "name": "Gadolinium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Tb",
+    "name": "Terbium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Dy",
+    "name": "Dysprosium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Ho",
+    "name": "Holmium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Er",
+    "name": "Erbium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Tm",
+    "name": "Thulium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Yb",
+    "name": "Ytterbium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Lu",
+    "name": "Lutetium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Y",
+    "name": "Yttrium",
+    "category": "ree"
+  },
+  {
+    "symbol": "Sc",
+    "name": "Scandium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Li",
+    "name": "Lithium",
+    "category": "light_elements"
+  },
+  {
+    "symbol": "Be",
+    "name": "Beryllium",
+    "category": "light_elements"
+  },
+  {
+    "symbol": "B",
+    "name": "Boron",
+    "category": "light_elements"
+  },
+  {
+    "symbol": "Na",
+    "name": "Sodium",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Mg",
+    "name": "Magnesium",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Al",
+    "name": "Aluminium",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Si",
+    "name": "Silicon",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "P",
+    "name": "Phosphorus",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "S",
+    "name": "Sulphur",
+    "category": "light_elements"
+  },
+  {
+    "symbol": "Cl",
+    "name": "Chlorine",
+    "category": "light_elements"
+  },
+  {
+    "symbol": "K",
+    "name": "Potassium",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Ca",
+    "name": "Calcium",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Ti",
+    "name": "Titanium",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Mn",
+    "name": "Manganese",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Fe",
+    "name": "Iron",
+    "category": "major_oxides"
+  },
+  {
+    "symbol": "Rb",
+    "name": "Rubidium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Cs",
+    "name": "Caesium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Hf",
+    "name": "Hafnium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Ga",
+    "name": "Gallium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Ge",
+    "name": "Germanium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "In",
+    "name": "Indium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Re",
+    "name": "Rhenium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "Tl",
+    "name": "Thallium",
+    "category": "trace_elements"
+  },
+  {
+    "symbol": "F",
+    "name": "Fluorine",
+    "category": "light_elements"
+  }
+]

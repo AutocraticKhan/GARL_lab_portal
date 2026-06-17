@@ -189,11 +189,124 @@ function migrateOldData() {
   console.log('[DB] Migration complete.');
 }
 
+// ── Elements (geochemical element library) ──────────────────────
+// Embedded directly to eliminate fetch dependency; the JSON file is kept
+// as reference only.
+const ELEMENTS_DATA = [
+  { symbol: "Au", name: "Gold", category: "precious_metals" },
+  { symbol: "Ag", name: "Silver", category: "precious_metals" },
+  { symbol: "Pt", name: "Platinum", category: "precious_metals" },
+  { symbol: "Pd", name: "Palladium", category: "precious_metals" },
+  { symbol: "Cu", name: "Copper", category: "base_metals" },
+  { symbol: "Pb", name: "Lead", category: "base_metals" },
+  { symbol: "Zn", name: "Zinc", category: "base_metals" },
+  { symbol: "Ni", name: "Nickel", category: "base_metals" },
+  { symbol: "Co", name: "Cobalt", category: "base_metals" },
+  { symbol: "Mo", name: "Molybdenum", category: "trace_elements" },
+  { symbol: "Cd", name: "Cadmium", category: "trace_elements" },
+  { symbol: "Cr", name: "Chromium", category: "trace_elements" },
+  { symbol: "As", name: "Arsenic", category: "trace_elements" },
+  { symbol: "Sb", name: "Antimony", category: "trace_elements" },
+  { symbol: "Bi", name: "Bismuth", category: "trace_elements" },
+  { symbol: "Hg", name: "Mercury", category: "trace_elements" },
+  { symbol: "Sn", name: "Tin", category: "trace_elements" },
+  { symbol: "W", name: "Tungsten", category: "trace_elements" },
+  { symbol: "Se", name: "Selenium", category: "trace_elements" },
+  { symbol: "Te", name: "Tellurium", category: "trace_elements" },
+  { symbol: "Ba", name: "Barium", category: "trace_elements" },
+  { symbol: "Sr", name: "Strontium", category: "trace_elements" },
+  { symbol: "V", name: "Vanadium", category: "trace_elements" },
+  { symbol: "Zr", name: "Zirconium", category: "trace_elements" },
+  { symbol: "Nb", name: "Niobium", category: "trace_elements" },
+  { symbol: "Ta", name: "Tantalum", category: "trace_elements" },
+  { symbol: "Th", name: "Thorium", category: "trace_elements" },
+  { symbol: "U", name: "Uranium", category: "trace_elements" },
+  { symbol: "La", name: "Lanthanum", category: "ree" },
+  { symbol: "Ce", name: "Cerium", category: "ree" },
+  { symbol: "Pr", name: "Praseodymium", category: "ree" },
+  { symbol: "Nd", name: "Neodymium", category: "ree" },
+  { symbol: "Sm", name: "Samarium", category: "ree" },
+  { symbol: "Eu", name: "Europium", category: "ree" },
+  { symbol: "Gd", name: "Gadolinium", category: "ree" },
+  { symbol: "Tb", name: "Terbium", category: "ree" },
+  { symbol: "Dy", name: "Dysprosium", category: "ree" },
+  { symbol: "Ho", name: "Holmium", category: "ree" },
+  { symbol: "Er", name: "Erbium", category: "ree" },
+  { symbol: "Tm", name: "Thulium", category: "ree" },
+  { symbol: "Yb", name: "Ytterbium", category: "ree" },
+  { symbol: "Lu", name: "Lutetium", category: "ree" },
+  { symbol: "Y", name: "Yttrium", category: "ree" },
+  { symbol: "Sc", name: "Scandium", category: "trace_elements" },
+  { symbol: "Li", name: "Lithium", category: "light_elements" },
+  { symbol: "Be", name: "Beryllium", category: "light_elements" },
+  { symbol: "B", name: "Boron", category: "light_elements" },
+  { symbol: "Na", name: "Sodium", category: "major_oxides" },
+  { symbol: "Mg", name: "Magnesium", category: "major_oxides" },
+  { symbol: "Al", name: "Aluminium", category: "major_oxides" },
+  { symbol: "Si", name: "Silicon", category: "major_oxides" },
+  { symbol: "P", name: "Phosphorus", category: "major_oxides" },
+  { symbol: "S", name: "Sulphur", category: "light_elements" },
+  { symbol: "Cl", name: "Chlorine", category: "light_elements" },
+  { symbol: "K", name: "Potassium", category: "major_oxides" },
+  { symbol: "Ca", name: "Calcium", category: "major_oxides" },
+  { symbol: "Ti", name: "Titanium", category: "major_oxides" },
+  { symbol: "Mn", name: "Manganese", category: "major_oxides" },
+  { symbol: "Fe", name: "Iron", category: "major_oxides" },
+  { symbol: "Rb", name: "Rubidium", category: "trace_elements" },
+  { symbol: "Cs", name: "Caesium", category: "trace_elements" },
+  { symbol: "Hf", name: "Hafnium", category: "trace_elements" },
+  { symbol: "Ga", name: "Gallium", category: "trace_elements" },
+  { symbol: "Ge", name: "Germanium", category: "trace_elements" },
+  { symbol: "In", name: "Indium", category: "trace_elements" },
+  { symbol: "Re", name: "Rhenium", category: "trace_elements" },
+  { symbol: "Tl", name: "Thallium", category: "trace_elements" },
+  { symbol: "F", name: "Fluorine", category: "light_elements" },
+];
+DB.elements = []; // will be populated from embedded data
+
+// Predefined element groups (for quick-selection)
+const ELEMENT_GROUPS = {
+  'Precious Metals':     ['Au', 'Ag', 'Pt', 'Pd'],
+  'Base Metals':         ['Cu', 'Pb', 'Zn', 'Ni', 'Co', 'Mo', 'Cd'],
+  'Major Oxides':        ['Si', 'Al', 'Fe', 'Ca', 'Mg', 'Na', 'K', 'Ti', 'P', 'Mn'],
+  'Light Elements':      ['Li', 'Be', 'B', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'Ca'],
+  'Trace Elements':      ['As', 'Ba', 'Bi', 'Cd', 'Cr', 'Cs', 'Ga', 'Ge', 'Hf', 'Hg', 'In', 'Nb', 'Rb', 'Sb', 'Sc', 'Sn', 'Sr', 'Ta', 'Te', 'Tl', 'Th', 'U', 'V', 'W', 'Zr'],
+  'REE (Rare Earths)':   ['La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Y', 'Sc'],
+  'All Elements':        null  // special: selects everything
+};
+
+function loadElements() {
+  // Use embedded element data so it always works regardless of fetch/Supabase status
+  DB.elements = ELEMENTS_DATA;
+  return DB.elements;
+}
+
+function getAllElements() {
+  return DB.elements || [];
+}
+
+function getElementsByCategory(category) {
+  return (DB.elements || []).filter(e => e.category === category);
+}
+
+function getElementSymbols(groupName) {
+  if (!ELEMENT_GROUPS[groupName]) return [];
+  if (groupName === 'All Elements') return (DB.elements || []).map(e => e.symbol);
+  return ELEMENT_GROUPS[groupName];
+}
+
+function getElementInfo(symbol) {
+  return (DB.elements || []).find(e => e.symbol === symbol) || null;
+}
+
 // ── DB initialisation ─────────────────────────────────────────
 async function initDB() {
   // Initialize Supabase if available
   initSupabase();
   const useSupabase = supabaseClient !== null;
+
+  // Load elements first
+  await loadElements();
 
   if (useSupabase) {
     console.log('[DB] Supabase connected. Loading data from cloud...');
@@ -413,6 +526,10 @@ function createSampleForSubmission(data) {
     sampleNumber: data.sampleNumber,
     sampleName: data.sampleName,
     sampleType: data.sampleType,
+    test_id: data.test_id || '',
+    test_name: data.test_name || '',
+    selectedElements: data.selectedElements || [],
+    elementCount: data.elementCount || 0,
     status: data.status || 'assigned',
     customer_name: data.customer_name || '',
     customer_contact: data.customer_contact || '',
@@ -423,7 +540,6 @@ function createSampleForSubmission(data) {
     collection_date: data.collection_date || '',
     collected_by: data.collected_by || '',
     lab_id: data.lab_id || '',
-    test_id: data.test_id || '',
     notes: data.notes || '',
     created_at: new Date().toISOString(),
   };
