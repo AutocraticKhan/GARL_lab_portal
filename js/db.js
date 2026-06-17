@@ -1,5 +1,5 @@
 /* ============================================================
-   db.js — Data layer (JSON → localStorage persistence)
+   db.js — Data layer (Supabase + localStorage persistence)
    ============================================================ */
 
 'use strict';
@@ -10,118 +10,117 @@ const DB = {
   tests:   [],
   samples: [],
   reports: [],
-  events:  [],   // sample audit trail (localStorage only)
+  events:  [],   // sample audit trail
 };
 
-// ── Embedded default data (used when fetch fails, e.g. file://) ──
-const DEFAULT_DATA = {
-  users: [
-    { id: 'usr-001', username: 'admin', password: 'asdfQWER!1234', role: 'admin', lab_id: '', full_name: 'Dr. Admin User', created_by: 'system', active: 'true' },
-    { id: 'usr-002', username: 'user1', password: 'asdfQWER!1234', role: 'receptionist', lab_id: '', full_name: 'Sarah Okonkwo', created_by: 'usr-001', active: 'true' },
-    { id: 'usr-003', username: 'user2', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-001', full_name: 'Dr. James Adebayo', created_by: 'usr-001', active: 'true' },
-    { id: 'usr-004', username: 'eng_micro', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-002', full_name: 'Dr. Amaka Eze', created_by: 'usr-001', active: 'true' },
-    { id: 'usr-005', username: 'eng_path', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-003', full_name: 'Dr. Chidi Nwosu', created_by: 'usr-001', active: 'true' }
-  ],
-  labs: [
-    { id: 'lab-001', lab_name: 'Hematology', lab_code: 'HEMA', description: 'Blood cell analysis and related disorders', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'lab-002', lab_name: 'Microbiology', lab_code: 'MICRO', description: 'Bacterial and fungal culture and sensitivity testing', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'lab-003', lab_name: 'Pathology', lab_code: 'PATH', description: 'Histological and cytological examination of tissues', created_at: '2026-01-01T00:00:00Z', active: 'true' }
-  ],
-  tests: [
-    { id: 'tst-001', lab_id: 'lab-001', test_name: 'Complete Blood Count', test_code: 'CBC', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-002', lab_id: 'lab-001', test_name: 'Erythrocyte Sedimentation Rate', test_code: 'ESR', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-003', lab_id: 'lab-001', test_name: 'Peripheral Blood Film', test_code: 'PBF', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-004', lab_id: 'lab-001', test_name: 'Coagulation Profile', test_code: 'COAG', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-005', lab_id: 'lab-002', test_name: 'Blood Culture & Sensitivity', test_code: 'BCS', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-006', lab_id: 'lab-002', test_name: 'Urine Culture & Sensitivity', test_code: 'UCS', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-007', lab_id: 'lab-002', test_name: 'Wound Swab Culture', test_code: 'WSC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-008', lab_id: 'lab-002', test_name: 'Stool Culture', test_code: 'STC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-009', lab_id: 'lab-003', test_name: 'Histology - Biopsy', test_code: 'HIST', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-010', lab_id: 'lab-003', test_name: 'Fine Needle Aspiration Cytology', test_code: 'FNAC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: 'true' },
-    { id: 'tst-011', lab_id: 'lab-003', test_name: 'Pap Smear', test_code: 'PAP', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: 'true' }
-  ],
-  samples: [],
-  reports: []
-};
+// ── Seed data for initial login (only users kept) ─────────────
+const SEED_USERS = [
+  { id: 'usr-001', username: 'admin', password: 'asdfQWER!1234', role: 'admin', lab_id: '', full_name: 'Dr. Admin User', created_by: 'system', active: true },
+  { id: 'usr-002', username: 'user1', password: 'asdfQWER!1234', role: 'receptionist', lab_id: '', full_name: 'Sarah Okonkwo', created_by: 'usr-001', active: true },
+  { id: 'usr-003', username: 'user2', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-001', full_name: 'Dr. James Adebayo', created_by: 'usr-001', active: true },
+  { id: 'usr-004', username: 'eng_micro', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-002', full_name: 'Dr. Amaka Eze', created_by: 'usr-001', active: true },
+  { id: 'usr-005', username: 'eng_path', password: 'asdfQWER!1234', role: 'lab_engineer', lab_id: 'lab-003', full_name: 'Dr. Chidi Nwosu', created_by: 'usr-001', active: true }
+];
 
-// ── JSON loader ─────────────────────────────────────────────
-async function loadJSON(filename) {
-  const prefix = window.location.pathname.includes('/pages/') ? '../' : '';
-  const res = await fetch(`${prefix}json/${filename}`);
-  if (!res.ok) throw new Error(`Failed to load ${filename}: ${res.status}`);
-  return await res.json();
-}
+const SEED_LABS = [
+  { id: 'lab-001', lab_name: 'Hematology', lab_code: 'HEMA', description: 'Blood cell analysis and related disorders', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'lab-002', lab_name: 'Microbiology', lab_code: 'MICRO', description: 'Bacterial and fungal culture and sensitivity testing', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'lab-003', lab_name: 'Pathology', lab_code: 'PATH', description: 'Histological and cytological examination of tissues', created_at: '2026-01-01T00:00:00Z', active: true }
+];
+
+const SEED_TESTS = [
+  { id: 'tst-001', lab_id: 'lab-001', test_name: 'Complete Blood Count', test_code: 'CBC', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-002', lab_id: 'lab-001', test_name: 'Erythrocyte Sedimentation Rate', test_code: 'ESR', turnaround_days: '1', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-003', lab_id: 'lab-001', test_name: 'Peripheral Blood Film', test_code: 'PBF', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-004', lab_id: 'lab-001', test_name: 'Coagulation Profile', test_code: 'COAG', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-005', lab_id: 'lab-002', test_name: 'Blood Culture & Sensitivity', test_code: 'BCS', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-006', lab_id: 'lab-002', test_name: 'Urine Culture & Sensitivity', test_code: 'UCS', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-007', lab_id: 'lab-002', test_name: 'Wound Swab Culture', test_code: 'WSC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-008', lab_id: 'lab-002', test_name: 'Stool Culture', test_code: 'STC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-009', lab_id: 'lab-003', test_name: 'Histology - Biopsy', test_code: 'HIST', turnaround_days: '5', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-010', lab_id: 'lab-003', test_name: 'Fine Needle Aspiration Cytology', test_code: 'FNAC', turnaround_days: '3', created_at: '2026-01-01T00:00:00Z', active: true },
+  { id: 'tst-011', lab_id: 'lab-003', test_name: 'Pap Smear', test_code: 'PAP', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true }
+];
 
 // ── DB initialisation ─────────────────────────────────────────
-function mergeData(key, jsonData, idField = 'id') {
-  const stored = loadFromStorage(key);
-  if (!Array.isArray(stored)) return jsonData;
-
-  const merged = [...stored];
-  for (const item of jsonData) {
-    const idx = merged.findIndex(m => m[idField] === item[idField]);
-    if (idx === -1) {
-      merged.push(item);
-    } else {
-      // For user credentials/critical fields, ensure JSON updates override localStorage
-      if (key === 'users') {
-        if (item.password) merged[idx].password = item.password;
-        if (item.role !== merged[idx].role) merged[idx].role = item.role;
-        if (item.username !== merged[idx].username) merged[idx].username = item.username;
-        if (item.full_name !== merged[idx].full_name) merged[idx].full_name = item.full_name;
-        if (item.lab_id !== merged[idx].lab_id) merged[idx].lab_id = item.lab_id;
-        // Sync active field so JSON data always overrides stale localStorage
-        merged[idx].active = item.active;
-      } else if (key === 'labs') {
-        if (item.lab_name !== merged[idx].lab_name) merged[idx].lab_name = item.lab_name;
-        if (item.lab_code !== merged[idx].lab_code) merged[idx].lab_code = item.lab_code;
-        merged[idx].active = item.active;
-      } else if (key === 'tests') {
-        if (item.test_name !== merged[idx].test_name) merged[idx].test_name = item.test_name;
-        if (item.test_code !== merged[idx].test_code) merged[idx].test_code = item.test_code;
-        if (item.turnaround_days !== merged[idx].turnaround_days) merged[idx].turnaround_days = item.turnaround_days;
-        merged[idx].active = item.active;
-      }
-    }
-  }
-  return merged;
-}
-
 async function initDB() {
-  // When opened via file:// protocol, fetch() is blocked by CORS.
-  // Use embedded default data directly and merge with any existing localStorage data.
-  const isFileProtocol = window.location.protocol === 'file:';
+  // Initialize Supabase if available
+  initSupabase();
+  const useSupabase = supabaseClient !== null;
 
-  if (isFileProtocol) {
-    // Merge stored data with defaults, so user-created data persists across page loads
-    DB.users   = mergeData('users', DEFAULT_DATA.users, 'id');
-    DB.labs    = mergeData('labs', DEFAULT_DATA.labs, 'id');
-    DB.tests   = mergeData('tests', DEFAULT_DATA.tests, 'id');
+  if (useSupabase) {
+    console.log('[DB] Supabase connected. Loading data from cloud...');
+    const [users, labs, tests, samples, reports, events] = await Promise.all([
+      supabaseFetch('users'),
+      supabaseFetch('labs'),
+      supabaseFetch('tests'),
+      supabaseFetch('samples'),
+      supabaseFetch('reports'),
+      supabaseFetch('events'),
+    ]);
+
+    // If Supabase has data, use it; otherwise seed initial data
+    if (users && users.length > 0) {
+      DB.users   = users;
+      DB.labs    = labs   || [];
+      DB.tests   = tests  || [];
+      DB.samples = samples || [];
+      DB.reports = reports || [];
+      DB.events  = events  || [];
+    } else {
+      // First run — seed with initial data
+      console.log('[DB] No data in Supabase. Seeding initial data...');
+      DB.users   = SEED_USERS;
+      DB.labs    = SEED_LABS;
+      DB.tests   = SEED_TESTS;
+      DB.samples = [];
+      DB.reports = [];
+      DB.events  = [];
+
+      // Persist seed data to Supabase
+      await Promise.all([
+        supabaseUpsert('users', DB.users),
+        supabaseUpsert('labs', DB.labs),
+        supabaseUpsert('tests', DB.tests),
+      ]);
+    }
+  } else {
+    // Supabase not available — use localStorage + seed fallback
+    console.log('[DB] Supabase not available. Using localStorage...');
+    const storedUsers   = loadFromStorage('users');
+    const storedLabs    = loadFromStorage('labs');
+    const storedTests   = loadFromStorage('tests');
     DB.samples = loadFromStorage('samples') || [];
     DB.reports = loadFromStorage('reports') || [];
-    DB.events  = loadFromStorage('events') || [];
-  } else {
-    let jsonUsers = [], jsonLabs = [], jsonTests = [], jsonSamples = [], jsonReports = [];
-    try { jsonUsers  = await loadJSON('users.json'); }      catch (e) { jsonUsers  = DEFAULT_DATA.users; }
-    try { jsonLabs   = await loadJSON('labs.json'); }       catch (e) { jsonLabs   = DEFAULT_DATA.labs; }
-    try { jsonTests  = await loadJSON('lab_tests.json'); }  catch (e) { jsonTests  = DEFAULT_DATA.tests; }
-    try { jsonSamples = await loadJSON('samples.json'); }   catch (e) { jsonSamples = DEFAULT_DATA.samples; }
-    try { jsonReports = await loadJSON('reports.json'); }   catch (e) { jsonReports = DEFAULT_DATA.reports; }
+    DB.events  = loadFromStorage('events')  || [];
 
-    DB.users   = mergeData('users', jsonUsers, 'id');
-    DB.labs    = mergeData('labs', jsonLabs, 'id');
-    DB.tests   = mergeData('tests', jsonTests, 'id');
-    DB.samples = mergeData('samples', jsonSamples, 'id');
-    DB.reports = mergeData('reports', jsonReports, 'id');
-    DB.events  = loadFromStorage('events') || [];
+    // Merge stored data with seed data (seed acts as defaults)
+    DB.users   = mergeSeedData(storedUsers, SEED_USERS);
+    DB.labs    = mergeSeedData(storedLabs, SEED_LABS);
+    DB.tests   = mergeSeedData(storedTests, SEED_TESTS);
   }
 
-  // Normalise boolean strings
-  DB.users  = DB.users.map(u => ({ ...u, active: u.active === 'true' || u.active === true }));
-  DB.labs   = DB.labs.map(l  => ({ ...l, active: l.active === 'true' || l.active === true }));
-  DB.tests  = DB.tests.map(t  => ({ ...t, active: t.active === 'true' || t.active === true }));
+  // Normalise boolean fields
+  DB.users  = DB.users.map(u => ({ ...u, active: u.active === true || u.active === 'true' }));
+  DB.labs   = DB.labs.map(l  => ({ ...l, active: l.active === true || l.active === 'true' }));
+  DB.tests  = DB.tests.map(t  => ({ ...t, active: t.active === true || t.active === 'true' }));
 
+  // Save everything to localStorage as local cache
   saveAll();
+}
+
+// ── Merge helper: seed data provides defaults, stored overrides ──
+function mergeSeedData(stored, seed) {
+  if (!Array.isArray(stored) || stored.length === 0) return [...seed];
+  const merged = [...stored];
+  for (const item of seed) {
+    const idx = merged.findIndex(m => m.id === item.id);
+    if (idx === -1) {
+      merged.push(item);
+    }
+    // If it exists in stored, keep the stored version (user edits)
+  }
+  return merged;
 }
 
 // ── localStorage helpers ──────────────────────────────────────
@@ -144,6 +143,14 @@ function saveAll() {
   ['users','labs','tests','samples','reports','events'].forEach(saveDB);
 }
 
+// ── Supabase sync (fire-and-forget) ───────────────────────────
+function syncToSupabase(key) {
+  if (!supabaseClient) return;
+  supabaseUpsert(key, DB[key]).then(success => {
+    if (success) console.log(`[DB] Synced ${key} to Supabase.`);
+  });
+}
+
 // ── CRUD helpers ──────────────────────────────────────────────
 
 /* Users */
@@ -151,6 +158,7 @@ function createUser(data) {
   const user = { id: generateId('usr'), created_by: currentUser()?.id || 'system', active: true, ...data };
   DB.users.push(user);
   saveDB('users');
+  syncToSupabase('users');
   return user;
 }
 
@@ -159,6 +167,7 @@ function updateUser(id, patch) {
   if (idx === -1) return null;
   DB.users[idx] = { ...DB.users[idx], ...patch };
   saveDB('users');
+  syncToSupabase('users');
   return DB.users[idx];
 }
 
@@ -173,6 +182,7 @@ function createLab(data) {
   const lab = { id: generateId('lab'), created_at: new Date().toISOString(), active: true, ...data };
   DB.labs.push(lab);
   saveDB('labs');
+  syncToSupabase('labs');
   return lab;
 }
 
@@ -181,6 +191,7 @@ function updateLab(id, patch) {
   if (idx === -1) return null;
   DB.labs[idx] = { ...DB.labs[idx], ...patch };
   saveDB('labs');
+  syncToSupabase('labs');
   return DB.labs[idx];
 }
 
@@ -189,6 +200,7 @@ function createTest(data) {
   const test = { id: generateId('tst'), created_at: new Date().toISOString(), active: true, ...data };
   DB.tests.push(test);
   saveDB('tests');
+  syncToSupabase('tests');
   return test;
 }
 
@@ -197,6 +209,7 @@ function updateTest(id, patch) {
   if (idx === -1) return null;
   DB.tests[idx] = { ...DB.tests[idx], ...patch };
   saveDB('tests');
+  syncToSupabase('tests');
   return DB.tests[idx];
 }
 
@@ -211,6 +224,7 @@ function createSample(data) {
   };
   DB.samples.push(sample);
   saveDB('samples');
+  syncToSupabase('samples');
   logEvent(sample.id, 'created', `Sample received and assigned to lab`);
   return sample;
 }
@@ -220,6 +234,7 @@ function updateSample(id, patch) {
   if (idx === -1) return null;
   DB.samples[idx] = { ...DB.samples[idx], ...patch };
   saveDB('samples');
+  syncToSupabase('samples');
   return DB.samples[idx];
 }
 
@@ -241,6 +256,7 @@ function createReport(data) {
   };
   DB.reports.push(report);
   saveDB('reports');
+  syncToSupabase('reports');
   setSampleStatus(data.sample_id, 'completed', `Report ${report.report_number} uploaded`);
   return report;
 }
@@ -258,6 +274,7 @@ function logEvent(sample_id, type, note = '') {
   };
   DB.events.push(evt);
   saveDB('events');
+  syncToSupabase('events');
   return evt;
 }
 
@@ -288,12 +305,9 @@ function getActiveLabs() {
   return DB.labs.filter(l => l.active !== false);
 }
 
-// ── Session helpers ───────────────────────────────────────────
-// currentUser() is defined in auth.js
-
 // ── Reset (for development) ───────────────────────────────────
 function resetToCSV() {
   ['garl_users','garl_labs','garl_tests','garl_samples','garl_reports','garl_events'].forEach(k => localStorage.removeItem(k));
-  showToast('Database reset to defaults. Reloading…', 'info');
+  showToast('Local cache cleared. Reloading...', 'info');
   setTimeout(() => location.reload(), 1500);
 }
