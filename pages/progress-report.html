@@ -18,9 +18,9 @@
       <div class="sidebar-logo-text">GARL Portal<span>Analytics</span></div>
     </div>
     <nav class="sidebar-nav">
-      <p class="sidebar-section-label">Admin</p>
-      <button class="nav-item" onclick="window.location.href='admin-dashboard.html'">
-        <span class="nav-icon">🛠</span> Admin Dashboard
+      <p class="sidebar-section-label">Navigation</p>
+      <button class="nav-item" id="nav-back-dashboard">
+        <span class="nav-icon">🛠</span> <span id="nav-back-label">Dashboard</span>
       </button>
       <p class="sidebar-section-label">Reports</p>
       <button class="nav-item active">
@@ -153,5 +153,42 @@
 <script src="../js/db.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/reports.js"></script>
+<script>
+// Set the dashboard back-link based on user role with session preservation
+(function() {
+  var btn = document.getElementById('nav-back-dashboard');
+  var label = document.getElementById('nav-back-label');
+  if (!btn || !label) return;
+
+  var session = null;
+  try {
+    var raw = localStorage.getItem('garl_session');
+    if (raw) session = JSON.parse(raw);
+  } catch(e) {}
+  if (!session) {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var sp = params.get('session');
+      if (sp) session = JSON.parse(decodeURIComponent(sp));
+    } catch(e) {}
+  }
+
+  var dest, name;
+  if (session && session.role === 'receptionist') {
+    dest = 'receptionist-dashboard.html';
+    name = 'Receptionist Dashboard';
+  } else {
+    dest = 'admin-dashboard.html';
+    name = 'Admin Dashboard';
+  }
+
+  label.textContent = name;
+  btn.onclick = function() {
+    // Preserve session in query param for file:// protocol
+    var sep = dest.indexOf('?') === -1 ? '?' : '&';
+    window.location.href = dest + sep + 'session=' + encodeURIComponent(JSON.stringify(session || {}));
+  };
+})();
+</script>
 </body>
 </html>

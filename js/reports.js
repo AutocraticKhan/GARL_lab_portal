@@ -8,7 +8,7 @@ let chartInstance = null;
 
 // ── Init ──────────────────────────────────────────────────────
 async function initReports() {
-  reportSession = requireAuth('admin');
+  reportSession = requireAuth(['admin', 'receptionist']);
   if (!reportSession) return;
   await initDB();
   renderSidebarUser();
