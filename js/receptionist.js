@@ -11,6 +11,8 @@ const rowsPerPage = 5;
 // ── In-memory sample data store (indexed by row number) ──────
 let pendingSamples = [];
 let nextPseudoId = 1;
+let pendingPage = 1;
+const PENDING_PER_PAGE = 5;
 
 async function initReceptionist() {
   recSession = requireAuth('receptionist');
@@ -201,43 +203,99 @@ function toggleBulkElement(symbol) {
   setBulkElements(current);
 }
 
-// ── Read-Only Display Row Builder ──────────────────────────────
-function addDisplayRow(sampleType, testId, testName, elements) {
+// ── Paginated Pending Samples Table ────────────────────────────
+function buildPreviewId(rowNum) {
+  const labId = document.getElementById('submission-lab').value;
+  const lab = getLab(labId);
+  const labCode = lab ? deriveLabCode(lab) : 'XXX';
+  const subId = DB.systemState.nextSubmissionId;
+  const dateStr = (document.getElementById('submission-date').value || new Date().toISOString().slice(0, 10)).slice(2, 4).replace('-', '');
+  return `${dateStr}-${labCode}-${subId}-${String(rowNum).padStart(3, '0')}`;
+}
+
+function renderPendingTable() {
   const tbody = document.getElementById('formSamplesBody');
-  const rowNum = nextPseudoId++;
-  const row = document.createElement('tr');
-  row.dataset.rowNum = rowNum;
+  const totalPages = Math.ceil(pendingSamples.length / PENDING_PER_PAGE) || 1;
 
-  const elementLabels = elements.map(s => {
-    const info = getElementInfo(s);
-    return info ? `${s} (${info.name})` : s;
-  }).join(', ');
+  if (pendingPage < 1) pendingPage = 1;
+  if (pendingPage > totalPages) pendingPage = totalPages;
 
-  row.innerHTML = `
-    <td style="font-weight:600;font-size:0.82rem;color:var(--clr-primary);">#${String(rowNum).padStart(3, '0')}</td>
-    <td>${escHtml(sampleType)}</td>
-    <td>${escHtml(testName)}</td>
-    <td style="font-size:0.78rem;">${elements.length > 0 ? escHtml(elementLabels) : '—'}</td>
-    <td style="text-align:center;font-weight:600;font-size:0.85rem;">${elements.length}</td>
-    <td><button type="button" class="btn-remove-row" onclick="removeDisplayRow(${rowNum})">✕</button></td>
-  `;
+  const startIndex = (pendingPage - 1) * PENDING_PER_PAGE;
+  const endIndex = startIndex + PENDING_PER_PAGE;
+  const pageData = pendingSamples.slice(startIndex, endIndex);
 
-  tbody.appendChild(row);
+  if (pageData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:var(--sp-6);color:var(--txt-muted);">No samples added yet. Use the generator above.</td></tr>`;
+  } else {
+    tbody.innerHTML = pageData.map(ps => {
+      const elementLabels = ps.elements.map(s => {
+        const info = getElementInfo(s);
+        return info ? `${s} (${info.name})` : s;
+      }).join(', ');
+      return `<tr data-row-num="${ps.rowNum}">
+        <td style="font-weight:600;font-size:0.78rem;color:var(--clr-primary);font-family:monospace;">${escHtml(ps.previewId)}</td>
+        <td>${escHtml(ps.sampleType)}</td>
+        <td>${escHtml(ps.testName)}</td>
+        <td style="font-size:0.78rem;">${ps.elements.length > 0 ? escHtml(elementLabels) : '—'}</td>
+        <td style="text-align:center;font-weight:600;font-size:0.85rem;">${ps.elements.length}</td>
+        <td><button type="button" class="btn-remove-row" onclick="removeDisplayRow(${ps.rowNum})">✕</button></td>
+      </tr>`;
+    }).join('');
+  }
 
-  // Store in memory
-  pendingSamples.push({
-    rowNum,
-    sampleType,
-    testId,
-    testName,
-    elements: [...elements],
-  });
+  // Update pagination controls
+  const pagination = document.getElementById('pendingPagination');
+  const prevBtn = document.getElementById('pendingPrevBtn');
+  const nextBtn = document.getElementById('pendingNextBtn');
+  const pageButtons = document.getElementById('pendingPageButtons');
+  const countEl = document.getElementById('pendingSampleCount');
+
+  if (countEl) countEl.textContent = `— ${pendingSamples.length} total`;
+
+  if (totalPages <= 1) {
+    pagination.style.display = 'none';
+  } else {
+    pagination.style.display = '';
+    prevBtn.disabled = pendingPage <= 1;
+    nextBtn.disabled = pendingPage >= totalPages;
+
+    // Build numbered page buttons
+    let pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages = [1];
+      if (pendingPage > 3) pages.push('…');
+      for (let i = Math.max(2, pendingPage - 1); i <= Math.min(totalPages - 1, pendingPage + 1); i++) {
+        pages.push(i);
+      }
+      if (pendingPage < totalPages - 2) pages.push('…');
+      pages.push(totalPages);
+    }
+
+    pageButtons.innerHTML = pages.map(p => {
+      if (p === '…') {
+        return `<span style="padding:4px 6px;color:var(--txt-muted);">…</span>`;
+      }
+      const isActive = p === pendingPage;
+      return `<button type="button" class="page-num-btn ${isActive ? 'active' : ''}" data-page="${p}" style="min-width:32px;height:32px;padding:0 6px;border:1px solid ${isActive ? 'var(--clr-primary)' : 'var(--clr-border)'};border-radius:var(--r-sm);background:${isActive ? 'var(--clr-primary)' : 'var(--clr-surface)'};color:${isActive ? '#fff' : 'var(--txt-primary)'};cursor:pointer;font-size:0.78rem;font-weight:600;">${p}</button>`;
+    }).join('');
+
+    // Wire page button clicks
+    pageButtons.querySelectorAll('.page-num-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pendingPage = parseInt(btn.dataset.page, 10);
+        renderPendingTable();
+      });
+    });
+  }
 }
 
 function removeDisplayRow(rowNum) {
-  const row = document.querySelector(`#formSamplesBody tr[data-row-num="${rowNum}"]`);
-  if (row) row.remove();
   pendingSamples = pendingSamples.filter(s => s.rowNum !== rowNum);
+  const totalPages = Math.ceil(pendingSamples.length / PENDING_PER_PAGE) || 1;
+  if (pendingPage > totalPages) pendingPage = totalPages;
+  renderPendingTable();
 }
 
 // ── Bulk Add Handler ────────────────────────────────────────────
@@ -275,10 +333,22 @@ function handleBulkAdd() {
   }
 
   for (let i = 0; i < count; i++) {
-    addDisplayRow(sampleType, testId, testName, elements);
+    const rowNum = nextPseudoId++;
+    pendingSamples.push({
+      rowNum,
+      previewId: buildPreviewId(rowNum),
+      sampleType,
+      testId,
+      testName,
+      elements: [...elements],
+    });
   }
 
-  // Reset count only (keep type, test, elements for next batch)
+  // Navigate to last page to see new rows
+  const totalPages = Math.ceil(pendingSamples.length / PENDING_PER_PAGE) || 1;
+  pendingPage = totalPages;
+  renderPendingTable();
+
   countInput.value = '';
   showToast(`${count} "${sampleType} — ${testName}" sample(s) added.`, 'success');
 }
@@ -297,6 +367,21 @@ function populateBulkTestDropdown() {
     opt.textContent = t.test_name;
     sel.appendChild(opt);
   });
+}
+
+// ── Auto-select default test when AAS lab is chosen ────────────
+function autoSelectDefaultTest() {
+  const labId = document.getElementById('submission-lab').value;
+  if (!labId) return;
+  const lab = getLab(labId);
+  if (!lab || lab.lab_name !== 'AAS') return;
+  // "Trace Elements by AAS" has test_code 'AAS-TE' and id 'tst-005'
+  const defaultTest = getTest('tst-005');
+  const sel = document.getElementById('bulkTestType');
+  if (defaultTest && sel) {
+    const opt = sel.querySelector(`option[value="tst-005"]`);
+    if (opt) sel.value = 'tst-005';
+  }
 }
 
 // ── Lab Dropdown for Submission Form ──────────────────────────
@@ -387,9 +472,10 @@ function handleSubmissionSubmit(e) {
 
 function resetForm() {
   // Clear table
-  document.getElementById('formSamplesBody').innerHTML = '';
   pendingSamples = [];
   nextPseudoId = 1;
+  pendingPage = 1;
+  renderPendingTable();
 
   // Clear bulk selections
   document.getElementById('bulkSampleType').value = '';
@@ -466,12 +552,29 @@ function wireReceptionistEvents() {
     subDate.value = new Date().toISOString().slice(0, 10);
   }
 
-  // Populate bulk test dropdown & wire bulk-add button
+  // Default count to 1
+  const bulkCount = document.getElementById('bulkSampleCount');
+  if (bulkCount) bulkCount.value = 1;
+
+  // Populate bulk test dropdown & auto-select default test if AAS
   populateBulkTestDropdown();
+  autoSelectDefaultTest();
   document.getElementById('bulkAddSamplesBtn').addEventListener('click', handleBulkAdd);
 
   // Initialize bulk element picker
   initBulkElementPicker();
+
+  // Wire pending pagination
+  document.getElementById('pendingPrevBtn').addEventListener('click', () => {
+    if (pendingPage > 1) { pendingPage--; renderPendingTable(); }
+  });
+  document.getElementById('pendingNextBtn').addEventListener('click', () => {
+    const totalPages = Math.ceil(pendingSamples.length / PENDING_PER_PAGE) || 1;
+    if (pendingPage < totalPages) { pendingPage++; renderPendingTable(); }
+  });
+
+  // Initial pending table render
+  renderPendingTable();
 
   // Submission form submit
   document.getElementById('submissionForm').addEventListener('submit', handleSubmissionSubmit);

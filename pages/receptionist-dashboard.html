@@ -185,12 +185,12 @@
                   </div>
                 </div>
 
-                <legend style="margin-top:var(--sp-4);">Generated Samples</legend>
+                <legend style="margin-top:var(--sp-4);">Generated Samples <span id="pendingSampleCount" style="font-size:0.75rem;font-weight:400;color:var(--txt-muted);"></span></legend>
                 <div class="samples-table-wrap" style="overflow:visible;">
                   <table>
                     <thead>
                       <tr>
-                        <th style="width:10%;">#</th>
+                        <th style="width:10%;">Sample ID</th>
                         <th style="width:18%;">Sample Type</th>
                         <th style="width:22%;">Test Type</th>
                         <th style="width:32%;">Elements</th>
@@ -202,6 +202,11 @@
                       <!-- Rows injected via JS — read-only display only -->
                     </tbody>
                   </table>
+                </div>
+                <div class="pagination-container" id="pendingPagination" style="display:none;">
+                  <button id="pendingPrevBtn" class="btn btn-secondary" disabled>←</button>
+                  <div id="pendingPageButtons" style="display:inline-flex;gap:2px;align-items:center;"></div>
+                  <button id="pendingNextBtn" class="btn btn-secondary" disabled>→</button>
                 </div>
               </fieldset>
 
