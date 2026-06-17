@@ -88,8 +88,22 @@
                 <label class="form-label" for="customer-address">Address</label>
                 <input class="form-control" type="text" id="customer-address" name="customer_address" placeholder="Street address (optional)" />
               </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="sample-id">Sample ID</label>
+                  <input class="form-control" type="text" id="sample-id" name="external_sample_id" placeholder="External reference (optional)" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="customer-cnic">CNIC</label>
+                  <input class="form-control" type="text" id="customer-cnic" name="cnic" placeholder="Pakistan ID (optional)" />
+                </div>
+              </div>
               <div class="form-group">
-                <label class="form-label" for="collection-date">Collection Date &amp; Time *</label>
+                <label class="form-label" for="sample-location">Sample Location</label>
+                <input class="form-control" type="text" id="sample-location" name="sample_location" placeholder="e.g. Left arm, Right arm (optional)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="collection-date">Collection Date & Time *</label>
                 <input class="form-control" type="datetime-local" id="collection-date" name="collection_date" required />
               </div>
               <div class="form-row">
@@ -147,7 +161,7 @@
           <table>
             <thead>
               <tr>
-                <th>Sample #</th><th>Customer</th><th>Lab</th>
+                <th>Sample #</th><th>Customer</th><th>CNIC</th><th>Lab</th>
                 <th>Test</th><th>Status</th><th>Registered</th>
               </tr>
             </thead>
@@ -162,7 +176,7 @@
           <div style="display:flex;gap:var(--sp-3);align-items:center;">
             <div class="search-box" style="flex:1;padding:var(--sp-3) var(--sp-4);">
               <span style="font-size:1.1rem;">🔍</span>
-              <input type="text" id="lookup-input" placeholder="Search by sample number, patient name, or contact…" style="background:none;border:none;outline:none;color:var(--txt-primary);font-size:0.9rem;flex:1;" />
+              <input type="text" id="lookup-input" placeholder="Search by sample number, patient name, CNIC, or contact…" style="background:none;border:none;outline:none;color:var(--txt-primary);font-size:0.9rem;flex:1;" />
             </div>
             <button class="btn btn-ghost" id="lookup-clear">Clear</button>
           </div>

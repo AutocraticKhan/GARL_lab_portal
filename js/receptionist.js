@@ -83,14 +83,17 @@ function handleIntakeSubmit(e) {
   if (!labId || !testId) { showToast('Please select a lab and test.', 'error'); return; }
 
   const data = {
-    customer_name:    form.customer_name.value.trim(),
-    customer_contact: form.customer_contact.value.trim(),
-    customer_address: form.customer_address.value.trim(),
-    collection_date:  form.collection_date.value,
-    collected_by:     recSession.id,
-    lab_id:           labId,
-    test_id:          testId,
-    notes:            form.notes.value.trim(),
+    customer_name:      form.customer_name.value.trim(),
+    customer_contact:   form.customer_contact.value.trim(),
+    customer_address:   form.customer_address.value.trim(),
+    external_sample_id: form.external_sample_id.value.trim(),
+    cnic:               form.cnic.value.trim(),
+    sample_location:    form.sample_location.value.trim(),
+    collection_date:    form.collection_date.value,
+    collected_by:       recSession.id,
+    lab_id:             labId,
+    test_id:            testId,
+    notes:              form.notes.value.trim(),
   };
 
   if (!data.customer_name) { showToast('Customer name is required.', 'error'); return; }
@@ -122,6 +125,10 @@ function renderIntakeConfirmation(sample) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);">
       <div class="detail-row"><span class="detail-label">Sample Number</span><span class="detail-value" style="font-size:1.1rem;font-weight:700;color:var(--clr-primary);">${escHtml(sample.sample_number)}</span></div>
       <div class="detail-row"><span class="detail-label">Customer</span><span class="detail-value">${escHtml(sample.customer_name)}</span></div>
+      <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(sample.customer_contact || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(sample.cnic || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Sample ID</span><span class="detail-value">${escHtml(sample.external_sample_id || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(sample.sample_location || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Lab Assigned</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || '—')}</span></div>
     </div>`;
@@ -135,7 +142,7 @@ function renderMySubmissions() {
     .sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(s => {
@@ -144,6 +151,7 @@ function renderMySubmissions() {
     return `<tr>
       <td><strong style="color:var(--clr-primary)">${escHtml(s.sample_number)}</strong></td>
       <td>${escHtml(s.customer_name)}</td>
+      <td class="muted">${escHtml(s.cnic || '—')}</td>
       <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
       <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
       <td>${statusBadge(s.status)}</td>
@@ -161,7 +169,8 @@ function renderLookup() {
   const matches = DB.samples.filter(s =>
     s.sample_number?.toLowerCase().includes(q) ||
     s.customer_name?.toLowerCase().includes(q) ||
-    s.customer_contact?.toLowerCase().includes(q)
+    s.customer_contact?.toLowerCase().includes(q) ||
+    s.cnic?.toLowerCase().includes(q)
   );
 
   if (!matches.length) {
@@ -184,6 +193,9 @@ function renderLookup() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">
         <div class="detail-row"><span class="detail-label">Customer</span><span class="detail-value">${escHtml(s.customer_name)}</span></div>
         <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(s.customer_contact || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(s.cnic || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Sample ID</span><span class="detail-value">${escHtml(s.external_sample_id || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(s.sample_location || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || '—')}</span></div>
       </div>

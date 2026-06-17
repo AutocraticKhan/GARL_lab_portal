@@ -316,12 +316,12 @@ function renderAllSamples() {
   const tbody  = document.getElementById('samples-tbody');
 
   let rows = [...DB.samples].sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
-  if (query)  rows = rows.filter(s => s.sample_number?.toLowerCase().includes(query) || s.customer_name?.toLowerCase().includes(query));
+  if (query)  rows = rows.filter(s => s.sample_number?.toLowerCase().includes(query) || s.customer_name?.toLowerCase().includes(query) || s.cnic?.toLowerCase().includes(query));
   if (status) rows = rows.filter(s => s.status === status);
   if (labId)  rows = rows.filter(s => s.lab_id === labId);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🧫</div><p>No samples found</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🧫</div><p>No samples found</p></div></td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(s => {
@@ -330,6 +330,7 @@ function renderAllSamples() {
     return `<tr>
       <td><strong>${escHtml(s.sample_number)}</strong></td>
       <td>${escHtml(s.customer_name)}</td>
+      <td class="muted">${escHtml(s.cnic || '—')}</td>
       <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
       <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
       <td>${statusBadge(s.status)}</td>

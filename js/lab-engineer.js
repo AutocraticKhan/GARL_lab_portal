@@ -180,9 +180,12 @@ function openSamplePanel(sampleId) {
         <span style="font-size:0.8rem;color:var(--txt-muted)">Last updated: ${formatDateTime(sample.in_progress_at || sample.created_at)}</span>
       </div>
       <div class="detail-row"><span class="detail-label">Sample Number</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary)">${escHtml(sample.sample_number)}</span></div>
+      <div class="detail-row"><span class="detail-label">Sample ID</span><span class="detail-value">${escHtml(sample.external_sample_id || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Patient Name</span><span class="detail-value">${escHtml(sample.customer_name)}</span></div>
       <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(sample.customer_contact || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(sample.cnic || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${escHtml(sample.customer_address || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(sample.sample_location || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Collection Date</span><span class="detail-value">${formatDateTime(sample.collection_date)}</span></div>
       <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
