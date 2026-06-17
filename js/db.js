@@ -11,6 +11,8 @@ const DB = {
   samples: [],
   reports: [],
   events:  [],   // sample audit trail
+  submissions: [],
+  systemState: { nextSubmissionId: 1001 },
 };
 
 // ── Seed data for initial login (only users kept) ─────────────
@@ -42,6 +44,104 @@ const SEED_TESTS = [
   { id: 'tst-011', lab_id: 'lab-003', test_name: 'Pap Smear', test_code: 'PAP', turnaround_days: '2', created_at: '2026-01-01T00:00:00Z', active: true }
 ];
 
+// ── Migration from old flat format to new hierarchical format ──
+function migrateOldData() {
+  // Check if old-format samples exist (using generateSampleNumber pattern)
+  const oldSamples = DB.samples.filter(s => s.id && s.id.startsWith('smp-'));
+  if (oldSamples.length === 0) return; // nothing to migrate
+
+  console.log(`[DB] Migrating ${oldSamples.length} old-format samples to new structure...`);
+
+  // Load or init labPortalData
+  let portalData = getStoredData();
+
+  let maxSubId = 1000;
+  const subIdMap = {}; // map old submission grouping → new submissionId
+
+  const migratedSamples = [];
+
+  oldSamples.forEach((s, idx) => {
+    // Derive lab code from lab name
+    const lab = DB.labs.find(l => l.id === s.lab_id);
+    const labCode = deriveLabCode(lab?.lab_name || 'LAB');
+
+    // Generate a submissionId based on collected_by + date to group samples
+    const groupKey = `${s.collected_by || 'unknown'}_${s.collection_date || s.created_at}`;
+    if (!subIdMap[groupKey]) {
+      maxSubId++;
+      subIdMap[groupKey] = String(maxSubId);
+    }
+    const subId = subIdMap[groupKey];
+
+    // Generate structured IDs
+    const ids = generateSampleIDs(labCode, subId, 1, s.collection_date || s.created_at);
+    const newSampleId = ids[0].fullId;
+
+    // Create submission record if not already created
+    if (!portalData.submissions.find(sub => sub.submissionId === subId)) {
+      portalData.submissions.push({
+        submissionId: subId,
+        date: s.collection_date ? s.collection_date.slice(0, 10) : s.created_at.slice(0, 10),
+        labCode: labCode,
+        sampleCount: 0, // will be incremented
+        createdAt: s.created_at
+      });
+    }
+
+    // Update sampleCount
+    const subRecord = portalData.submissions.find(sub => sub.submissionId === subId);
+    if (subRecord) subRecord.sampleCount++;
+
+    // Build migrated sample entry
+    const migratedSample = {
+      sampleId: newSampleId,
+      submissionId: subId,
+      sampleNumber: ids[0].sampleNumber,
+      sampleName: s.customer_name || '',
+      sampleType: 'Blood',
+      status: s.status || 'assigned',
+      // Carry forward old fields
+      id: newSampleId,
+      customer_name: s.customer_name,
+      customer_contact: s.customer_contact,
+      customer_address: s.customer_address,
+      external_sample_id: s.external_sample_id,
+      cnic: s.cnic,
+      sample_location: s.sample_location,
+      collection_date: s.collection_date,
+      collected_by: s.collected_by,
+      lab_id: s.lab_id,
+      test_id: s.test_id,
+      notes: s.notes,
+      created_at: s.created_at,
+      in_progress_at: s.in_progress_at,
+      completed_at: s.completed_at,
+    };
+
+    portalData.samples.push(migratedSample);
+    migratedSamples.push(migratedSample);
+  });
+
+  // Update systemState
+  portalData.systemState.nextSubmissionId = maxSubId + 1;
+
+  // Save migrated data
+  saveStoredData(portalData);
+
+  // Replace DB.samples with migrated versions
+  const nonMigrated = DB.samples.filter(s => !s.id || !s.id.startsWith('smp-'));
+  DB.samples = [...nonMigrated, ...migratedSamples];
+  DB.submissions = portalData.submissions;
+  DB.systemState = portalData.systemState;
+
+  // Persist to old storage keys too for backward compat with other dashboards
+  saveDB('samples');
+  saveDB('submissions');
+  saveDB('systemState');
+
+  console.log('[DB] Migration complete.');
+}
+
 // ── DB initialisation ─────────────────────────────────────────
 async function initDB() {
   // Initialize Supabase if available
@@ -50,13 +150,14 @@ async function initDB() {
 
   if (useSupabase) {
     console.log('[DB] Supabase connected. Loading data from cloud...');
-    const [users, labs, tests, samples, reports, events] = await Promise.all([
+    const [users, labs, tests, samples, reports, events, submissions] = await Promise.all([
       supabaseFetch('users'),
       supabaseFetch('labs'),
       supabaseFetch('tests'),
       supabaseFetch('samples'),
       supabaseFetch('reports'),
       supabaseFetch('events'),
+      supabaseFetch('submissions'),
     ]);
 
     // If Supabase has data, use it; otherwise seed initial data
@@ -67,6 +168,8 @@ async function initDB() {
       DB.samples = samples || [];
       DB.reports = reports || [];
       DB.events  = events  || [];
+      DB.submissions = submissions || [];
+      DB.systemState = { nextSubmissionId: 1001 + (DB.submissions.length || 0) };
     } else {
       // First run — seed with initial data
       console.log('[DB] No data in Supabase. Seeding initial data...');
@@ -76,6 +179,8 @@ async function initDB() {
       DB.samples = [];
       DB.reports = [];
       DB.events  = [];
+      DB.submissions = [];
+      DB.systemState = { nextSubmissionId: 1001 };
 
       // Persist seed data to Supabase
       await Promise.all([
@@ -93,11 +198,17 @@ async function initDB() {
     DB.samples = loadFromStorage('samples') || [];
     DB.reports = loadFromStorage('reports') || [];
     DB.events  = loadFromStorage('events')  || [];
+    DB.submissions = loadFromStorage('submissions') || [];
+    const storedState = loadFromStorage('systemState');
+    DB.systemState = storedState || { nextSubmissionId: 1001 + (DB.submissions.length || 0) };
 
     // Merge stored data with seed data (seed acts as defaults)
     DB.users   = mergeSeedData(storedUsers, SEED_USERS);
     DB.labs    = mergeSeedData(storedLabs, SEED_LABS);
     DB.tests   = mergeSeedData(storedTests, SEED_TESTS);
+
+    // Run migration on old-format data
+    migrateOldData();
   }
 
   // Normalise boolean fields
@@ -140,7 +251,7 @@ function saveDB(key) {
 }
 
 function saveAll() {
-  ['users','labs','tests','samples','reports','events'].forEach(saveDB);
+  ['users','labs','tests','samples','reports','events','submissions','systemState'].forEach(saveDB);
 }
 
 // ── Supabase sync (fire-and-forget) ───────────────────────────
@@ -213,6 +324,24 @@ function updateTest(id, patch) {
   return DB.tests[idx];
 }
 
+/* Submissions */
+function createSubmission(data) {
+  const subId = DB.systemState.nextSubmissionId;
+  const submission = {
+    submissionId: String(subId),
+    date: data.date,
+    labCode: data.labCode,
+    sampleCount: data.sampleCount || 0,
+    createdAt: new Date().toISOString(),
+  };
+  DB.submissions.push(submission);
+  DB.systemState.nextSubmissionId = subId + 1;
+  saveDB('submissions');
+  saveDB('systemState');
+  syncToSupabase('submissions');
+  return submission;
+}
+
 /* Samples */
 function createSample(data) {
   const sample = {
@@ -226,6 +355,35 @@ function createSample(data) {
   saveDB('samples');
   syncToSupabase('samples');
   logEvent(sample.id, 'created', `Sample received and assigned to lab`);
+  return sample;
+}
+
+function createSampleForSubmission(data) {
+  const sample = {
+    id: data.sampleId || generateId('smp'),
+    sampleId: data.sampleId,
+    submissionId: data.submissionId,
+    sampleNumber: data.sampleNumber,
+    sampleName: data.sampleName,
+    sampleType: data.sampleType,
+    status: data.status || 'assigned',
+    customer_name: data.customer_name || '',
+    customer_contact: data.customer_contact || '',
+    customer_address: data.customer_address || '',
+    external_sample_id: data.external_sample_id || '',
+    cnic: data.cnic || '',
+    sample_location: data.sample_location || '',
+    collection_date: data.collection_date || '',
+    collected_by: data.collected_by || '',
+    lab_id: data.lab_id || '',
+    test_id: data.test_id || '',
+    notes: data.notes || '',
+    created_at: new Date().toISOString(),
+  };
+  DB.samples.push(sample);
+  saveDB('samples');
+  syncToSupabase('samples');
+  logEvent(sample.id, 'created', `Sample registered: ${sample.sampleId}`);
   return sample;
 }
 
@@ -286,7 +444,7 @@ function getEventsForSample(sample_id) {
 function getLab(id)    { return DB.labs.find(l => l.id === id); }
 function getTest(id)   { return DB.tests.find(t => t.id === id); }
 function getUser(id)   { return DB.users.find(u => u.id === id); }
-function getSample(id) { return DB.samples.find(s => s.id === id); }
+function getSample(id) { return DB.samples.find(s => s.id === id || s.sampleId === id); }
 function getReport(id) { return DB.reports.find(r => r.id === id); }
 
 function getTestsForLab(lab_id) {
@@ -307,7 +465,8 @@ function getActiveLabs() {
 
 // ── Reset (for development) ───────────────────────────────────
 function resetToCSV() {
-  ['garl_users','garl_labs','garl_tests','garl_samples','garl_reports','garl_events'].forEach(k => localStorage.removeItem(k));
+  ['garl_users','garl_labs','garl_tests','garl_samples','garl_reports','garl_events','garl_submissions','garl_systemState'].forEach(k => localStorage.removeItem(k));
+  localStorage.removeItem('labPortalData');
   showToast('Local cache cleared. Reloading...', 'info');
   setTimeout(() => location.reload(), 1500);
 }

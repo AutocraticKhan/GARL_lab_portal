@@ -20,10 +20,13 @@
     <nav class="sidebar-nav">
       <p class="sidebar-section-label">Samples</p>
       <button class="nav-item active" onclick="switchRecTab('rec-tab-new');setNavActive(this)">
-        <span class="nav-icon">➕</span> Receive Sample
+        <span class="nav-icon">➕</span> New Submission
       </button>
       <button class="nav-item" onclick="switchRecTab('rec-tab-submissions');setNavActive(this)">
         <span class="nav-icon">📋</span> My Submissions
+      </button>
+      <button class="nav-item" onclick="switchRecTab('rec-tab-all-samples');setNavActive(this)">
+        <span class="nav-icon">📊</span> All Samples
       </button>
       <button class="nav-item" onclick="switchRecTab('rec-tab-lookup');setNavActive(this)">
         <span class="nav-icon">🔍</span> Sample Lookup
@@ -50,85 +53,109 @@
     <header class="topbar">
       <div>
         <div class="topbar-title">Sample Management</div>
-        <div class="topbar-subtitle">Receive, track, and search lab samples</div>
+        <div class="topbar-subtitle">Create submissions with multiple samples, track, and search</div>
       </div>
     </header>
 
     <div class="page-body page-animate">
       <!-- Tab Bar -->
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="rec-tab-new">➕ Receive Sample</button>
+        <button class="tab-btn active" data-tab="rec-tab-new">➕ New Submission</button>
         <button class="tab-btn" data-tab="rec-tab-submissions">📋 My Submissions</button>
+        <button class="tab-btn" data-tab="rec-tab-all-samples">📊 All Samples</button>
         <button class="tab-btn" data-tab="rec-tab-lookup">🔍 Sample Lookup</button>
       </div>
 
-      <!-- ── TAB: RECEIVE NEW SAMPLE ─────────────────────────── -->
+      <!-- ── TAB: NEW SUBMISSION (Multi-Sample) ─────────────── -->
       <div id="rec-tab-new" class="tab-panel active">
-        <div style="display:grid;grid-template-columns:1fr 400px;gap:var(--sp-6);">
-          <!-- Intake Form -->
+        <div style="display:grid;grid-template-columns:1fr 380px;gap:var(--sp-6);">
+          <!-- Submission Form -->
           <div class="card card-elevated">
             <div class="section-header">
               <div>
-                <div class="section-title">Receive New Sample</div>
-                <div class="section-subtitle">Fill in patient and test details</div>
+                <div class="section-title">Create New Submission</div>
+                <div class="section-subtitle">Select lab, date, and add sample rows</div>
               </div>
             </div>
-            <form id="intake-form" novalidate>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="customer-name">Patient / Customer Name *</label>
-                  <input class="form-control" type="text" id="customer-name" name="customer_name" placeholder="Full name" required />
+
+            <form id="submissionForm" novalidate>
+              <!-- Submission Metadata -->
+              <fieldset class="form-section">
+                <legend>Submission Information</legend>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="submission-lab">Laboratory *</label>
+                    <select class="form-control" id="submission-lab" name="lab_id" required>
+                      <option value="">Select Laboratory…</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="submission-date">Date *</label>
+                    <input class="form-control" type="date" id="submission-date" name="date" required />
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="customer-contact">Contact Number</label>
-                  <input class="form-control" type="tel" id="customer-contact" name="customer_contact" placeholder="+234 …" />
+                  <label class="form-label">Lab Code</label>
+                  <div id="lab-code-display" style="font-size:0.9rem;color:var(--txt-muted);padding:var(--sp-2) 0;">
+                    Select a lab to auto-generate code
+                  </div>
                 </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="customer-address">Address</label>
-                <input class="form-control" type="text" id="customer-address" name="customer_address" placeholder="Street address (optional)" />
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="sample-id">Sample ID</label>
-                  <input class="form-control" type="text" id="sample-id" name="external_sample_id" placeholder="External reference (optional)" />
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="customer-cnic">CNIC</label>
-                  <input class="form-control" type="text" id="customer-cnic" name="cnic" placeholder="Pakistan ID (optional)" />
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="sample-location">Sample Location</label>
-                <input class="form-control" type="text" id="sample-location" name="sample_location" placeholder="e.g. Left arm, Right arm (optional)" />
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="collection-date">Collection Date & Time *</label>
-                <input class="form-control" type="datetime-local" id="collection-date" name="collection_date" required />
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="sample-lab">Laboratory *</label>
-                  <select class="form-control" id="sample-lab" name="lab_id" required>
-                    <option value="">Select Laboratory…</option>
-                  </select>
+              </fieldset>
+
+              <!-- Patient Details (Single entry, shared across all samples) -->
+              <fieldset class="form-section">
+                <legend>Patient Details</legend>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="customer-name">Patient / Customer Name *</label>
+                    <input class="form-control" type="text" id="customer-name" name="customer_name" placeholder="Full name" required />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="customer-contact">Contact Number</label>
+                    <input class="form-control" type="tel" id="customer-contact" name="customer_contact" placeholder="+234 …" />
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="sample-test">Test *</label>
-                  <select class="form-control" id="sample-test" name="test_id" required>
-                    <option value="">Select Lab first…</option>
-                  </select>
+                  <label class="form-label" for="customer-address">Address</label>
+                  <input class="form-control" type="text" id="customer-address" name="customer_address" placeholder="Street address (optional)" />
                 </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="sample-notes">Notes</label>
-                <textarea class="form-control" id="sample-notes" name="notes" placeholder="Any special instructions or observations…" style="min-height:70px;"></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary btn-full btn-lg">Register Sample</button>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="customer-cnic">CNIC</label>
+                    <input class="form-control" type="text" id="customer-cnic" name="cnic" placeholder="Pakistan ID (optional)" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="sample-location">Sample Location</label>
+                    <input class="form-control" type="text" id="sample-location" name="sample_location" placeholder="e.g. Left arm, Right arm (optional)" />
+                  </div>
+                </div>
+              </fieldset>
+
+              <!-- Dynamic Samples Section -->
+              <fieldset class="form-section">
+                <legend>Samples (Add one or more)</legend>
+                <div class="samples-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style="width:45%;">Sample Name</th>
+                        <th style="width:35%;">Sample Type</th>
+                        <th style="width:20%;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="formSamplesBody">
+                      <!-- Rows injected via JS -->
+                    </tbody>
+                  </table>
+                </div>
+                <button type="button" id="addSampleRowBtn" class="btn-add-row">+ Add Sample Row</button>
+              </fieldset>
+
+              <button type="submit" class="btn btn-primary btn-full btn-lg">Submit Registration</button>
             </form>
           </div>
 
-          <!-- Confirmation panel -->
+          <!-- Side Panel: How it works + confirmation -->
           <div>
             <div id="intake-confirm" class="card card-elevated" style="display:none;"></div>
             <div class="card" style="margin-top:var(--sp-4);">
@@ -136,15 +163,15 @@
               <div style="display:flex;flex-direction:column;gap:var(--sp-3);">
                 <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
                   <div style="width:28px;height:28px;border-radius:50%;background:var(--clr-primary-g);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#fff;">1</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Submit the form — a unique sample number is generated automatically</div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Select lab & date, then add one or more sample rows</div>
                 </div>
                 <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
                   <div style="width:28px;height:28px;border-radius:50%;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#b45309;">2</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">The lab engineer picks it up and marks it "In Progress"</div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Samples receive structured IDs like <code>26-06-HEM-1001-001</code></div>
                 </div>
                 <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
                   <div style="width:28px;height:28px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#059669;">3</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">After analysis, a report is uploaded and status is set to "Completed"</div>
+                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Lab engineers pick up samples and process them</div>
                 </div>
               </div>
             </div>
@@ -161,12 +188,43 @@
           <table>
             <thead>
               <tr>
-                <th>Sample #</th><th>Customer</th><th>CNIC</th><th>Lab</th>
-                <th>Test</th><th>Status</th><th>Registered</th>
+                <th>Sample ID</th><th>Submission #</th><th>Customer</th><th>Lab</th>
+                <th>Type</th><th>Status</th><th>Registered</th>
               </tr>
             </thead>
             <tbody id="my-submissions-tbody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- ── TAB: ALL SAMPLES (Paginated Table) ─────────────── -->
+      <div id="rec-tab-all-samples" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Registered Samples</span>
+            <span id="total-sample-count" style="font-size:0.8rem;color:var(--txt-muted);"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Sample ID</th>
+                <th>Submission ID</th>
+                <th>Sample Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Registered</th>
+              </tr>
+            </thead>
+            <tbody id="displayTableBody">
+              <tr><td colspan="6" style="text-align:center;color:var(--txt-muted);">No samples registered yet.</td></tr>
+            </tbody>
+          </table>
+          <!-- Pagination Controls -->
+          <div class="pagination-container">
+            <button id="prevPageBtn" disabled>← Previous</button>
+            <span class="page-indicator" id="pageIndicator">Page 1 of 1</span>
+            <button id="nextPageBtn" disabled>Next →</button>
+          </div>
         </div>
       </div>
 
@@ -176,7 +234,7 @@
           <div style="display:flex;gap:var(--sp-3);align-items:center;">
             <div class="search-box" style="flex:1;padding:var(--sp-3) var(--sp-4);">
               <span style="font-size:1.1rem;">🔍</span>
-              <input type="text" id="lookup-input" placeholder="Search by sample number, patient name, CNIC, or contact…" style="background:none;border:none;outline:none;color:var(--txt-primary);font-size:0.9rem;flex:1;" />
+              <input type="text" id="lookup-input" placeholder="Search by Sample ID, Submission ID, Name, or CNIC…" style="background:none;border:none;outline:none;color:var(--txt-primary);font-size:0.9rem;flex:1;" />
             </div>
             <button class="btn btn-ghost" id="lookup-clear">Clear</button>
           </div>

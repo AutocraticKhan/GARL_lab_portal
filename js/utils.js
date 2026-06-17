@@ -288,3 +288,67 @@ function escHtml(str) {
 
 // ── Number formatting ─────────────────────────────────────────
 function zeroPad(n, len = 2) { return String(n).padStart(len, '0'); }
+
+// ── New Data Structure: Submission/Sample ID Generator ─────────
+/**
+ * Generate structured sample IDs in format: YY-MM-LAB-SUBID-SEQ
+ * @param {string} labCode - 3-char lab code (e.g. "HEM", "MIC")
+ * @param {number|string} submissionId - numeric submission ID
+ * @param {number} totalSamples - how many samples to generate
+ * @param {string} [dateString] - optional date string
+ * @returns {Array<{fullId: string, sampleNumber: string}>}
+ */
+function generateSampleIDs(labCode, submissionId, totalSamples, dateString) {
+  const dateObj = dateString ? new Date(dateString) : new Date();
+  const yy = zeroPad(dateObj.getFullYear() % 100, 2);
+  const mm = zeroPad(dateObj.getMonth() + 1, 2);
+  const lab = labCode.toUpperCase().substring(0, 3);
+  const sub = zeroPad(Number(submissionId), 4);
+
+  const generatedIds = [];
+  for (let i = 1; i <= totalSamples; i++) {
+    const sid = zeroPad(i, 3);
+    const fullId = `${yy}-${mm}-${lab}-${sub}-${sid}`;
+    generatedIds.push({
+      fullId: fullId,
+      sampleNumber: sid
+    });
+  }
+  return generatedIds;
+}
+
+// ── Lab code derivation from lab name ──────────────────────────
+/**
+ * Derive a short code from a lab name by taking the first word.
+ * Examples: "Hematology" → "HEM", "Blood Culture & Sensitivity" → "BLO"
+ * @param {string} labName
+ * @returns {string}
+ */
+function deriveLabCode(labName) {
+  if (!labName) return 'LAB';
+  const firstWord = labName.trim().split(/\s+/)[0];
+  return firstWord.toUpperCase().substring(0, 3);
+}
+
+// ── LocalStorage controllers for unified labPortalData ─────────
+function getStoredData() {
+  const defaultData = {
+    systemState: { nextSubmissionId: 1001 },
+    submissions: [],
+    samples: []
+  };
+  try {
+    const data = localStorage.getItem('labPortalData');
+    return data ? JSON.parse(data) : defaultData;
+  } catch (e) {
+    return defaultData;
+  }
+}
+
+function saveStoredData(data) {
+  try {
+    localStorage.setItem('labPortalData', JSON.stringify(data));
+  } catch (e) {
+    console.error('Storage quota exceeded for labPortalData', e);
+  }
+}
