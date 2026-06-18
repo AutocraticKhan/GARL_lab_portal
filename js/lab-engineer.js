@@ -107,7 +107,7 @@ function renderAssignedSamples() {
       const firstSeq = firstParts[firstParts.length - 1];
       const lastSeq  = lastParts[lastParts.length - 1];
       if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq}–${lastSeq}</strong>`;
+        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq} to ${lastSeq}</strong>`;
       } else {
         sampleRange = escHtml(sub.firstSampleId);
       }
@@ -157,7 +157,7 @@ function renderCompletedReports() {
       const firstSeq = firstParts[firstParts.length - 1];
       const lastSeq  = lastParts[lastParts.length - 1];
       if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq}–${lastSeq}</strong>`;
+        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq} to ${lastSeq}</strong>`;
       } else {
         sampleRange = escHtml(sub.firstSampleId);
       }
@@ -205,7 +205,7 @@ function openSubmissionPanel(submissionId) {
     const firstSeq = firstParts[firstParts.length - 1];
     const lastSeq  = lastParts[lastParts.length - 1];
     if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-      sampleRange = `${prefix}-${firstSeq}–${lastSeq}`;
+      sampleRange = `${prefix}-${firstSeq} to ${lastSeq}`;
     } else {
       sampleRange = sub.firstSampleId;
     }
