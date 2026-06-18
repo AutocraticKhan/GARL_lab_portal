@@ -608,8 +608,8 @@ function wireReceptionistEvents() {
   }
   if (mySubNext) {
     mySubNext.addEventListener('click', () => {
-      const rows = DB.samples.filter(s => s.collected_by === recSession.id);
-      const totalPages = Math.ceil(rows.length / MY_SUB_PER_PAGE) || 1;
+      const submissions = getMySubmissionGroups();
+      const totalPages = Math.ceil(submissions.length / MY_SUB_PER_PAGE) || 1;
       if (mySubPage < totalPages) { mySubPage++; renderMySubmissions(); }
     });
   }
@@ -637,39 +637,127 @@ function wireReceptionistEvents() {
   }
 }
 
-// ── My Submissions ────────────────────────────────────────────
+// ── Helper: get submissions collected by this receptionist ─────
+function getMySubmissionGroups() {
+  const mySamples = DB.samples.filter(s => s.collected_by === recSession.id);
+  const grouped = {};
+
+  mySamples.forEach(s => {
+    const subId = s.submissionId || 'standalone';
+    if (!grouped[subId]) {
+      grouped[subId] = {
+        submissionId: subId,
+        samples: [],
+        customer_name: s.customer_name || '',
+        lab_id: s.lab_id || '',
+        test_name: s.test_name || '',
+        created_at: s.created_at || '',
+      };
+    }
+    grouped[subId].samples.push(s);
+  });
+
+  return Object.values(grouped).map(g => {
+    const statuses = g.samples.map(s => s.status);
+    const statusOrder = ['completed', 'in_progress', 'assigned', 'received'];
+    let statusSummary = 'received';
+    for (const st of statusOrder) {
+      if (statuses.includes(st)) {
+        statusSummary = st;
+        break;
+      }
+    }
+    const allCompleted = g.samples.every(s => s.status === 'completed');
+    const hasReports = g.samples.every(s => !!getReportForSample(s.id));
+
+    // Sort samples by sequence
+    const sorted = [...g.samples].sort((a, b) => {
+      const aSeq = (a.sampleId || '').split('-').pop() || '';
+      const bSeq = (b.sampleId || '').split('-').pop() || '';
+      return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+    });
+
+    const firstSampleId = sorted.length > 0 ? (sorted[0].sampleId || '') : '';
+    const lastSampleId  = sorted.length > 0 ? (sorted[sorted.length - 1].sampleId || '') : '';
+    const dates = g.samples.map(s => s.created_at).filter(Boolean).sort();
+    const created_at = dates[0] || g.created_at;
+
+    return {
+      submissionId: g.submissionId,
+      samples: g.samples,
+      customer_name: g.customer_name,
+      lab_id: g.lab_id,
+      test_name: g.test_name,
+      sampleCount: g.samples.length,
+      statusSummary,
+      allCompleted,
+      hasReports,
+      firstSampleId,
+      lastSampleId,
+      created_at,
+    };
+  }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+// ── My Submissions (Grouped, with Generate Report button) ─────
 function renderMySubmissions() {
   const tbody = document.getElementById('my-submissions-tbody');
-  const rows = DB.samples
-    .filter(s => s.collected_by === recSession.id)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  let submissions = getMySubmissionGroups();
 
-  if (!rows.length) {
+  if (!submissions.length) {
     tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
     document.getElementById('my-sub-pagination').style.display = 'none';
     return;
   }
 
-  const totalPages = Math.ceil(rows.length / MY_SUB_PER_PAGE) || 1;
+  const totalPages = Math.ceil(submissions.length / MY_SUB_PER_PAGE) || 1;
   if (mySubPage < 1) mySubPage = 1;
   if (mySubPage > totalPages) mySubPage = totalPages;
 
   const startIndex = (mySubPage - 1) * MY_SUB_PER_PAGE;
   const endIndex = startIndex + MY_SUB_PER_PAGE;
-  const pageData = rows.slice(startIndex, endIndex);
+  const pageData = submissions.slice(startIndex, endIndex);
 
-  tbody.innerHTML = pageData.map(s => {
-    const lab = getLab(s.lab_id);
-    const elements = s.selectedElements || [];
+  tbody.innerHTML = pageData.map(sub => {
+    const lab = getLab(sub.lab_id);
+    const reports = getReportsForSubmission(sub.submissionId);
+    const reportNumbers = reports.map(r => r.report_number).filter(Boolean).join(', ');
+
+    // Build sample range for display
+    let sampleRange = '—';
+    if (sub.sampleCount === 1) {
+      sampleRange = escHtml(sub.firstSampleId);
+    } else if (sub.firstSampleId && sub.lastSampleId) {
+      const firstParts = sub.firstSampleId.split('-');
+      const lastParts  = sub.lastSampleId.split('-');
+      const prefix = firstParts.slice(0, -1).join('-');
+      const firstSeq = firstParts[firstParts.length - 1];
+      const lastSeq  = lastParts[lastParts.length - 1];
+      if (firstSeq && lastSeq && firstSeq !== lastSeq) {
+        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq}–${lastSeq}</strong>`;
+      } else {
+        sampleRange = escHtml(sub.firstSampleId);
+      }
+    }
+
     return `<tr>
-      <td><strong style="color:var(--clr-primary);font-size:0.82rem;">${escHtml(s.sampleId || s.id)}</strong></td>
-      <td class="muted">${escHtml(s.submissionId || '—')}</td>
-      <td>${escHtml(s.customer_name || '—')}</td>
+      <td><strong style="color:var(--clr-primary);font-size:0.82rem;">#${escHtml(sub.submissionId)}</strong></td>
+      <td>${escHtml(sub.customer_name || '—')}</td>
       <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
-      <td class="muted">${escHtml(s.sampleType || '—')}</td>
-      <td style="font-size:0.78rem;">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</td>
-      <td>${statusBadge(s.status === 'Registered' ? 'received' : s.status)}</td>
-      <td class="muted">${formatDateTime(s.created_at)}</td>
+      <td class="muted">${escHtml(sub.test_name || '—')}</td>
+      <td class="muted" style="font-family:monospace;font-size:0.75rem;">${sampleRange}</td>
+      <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
+      <td>${statusBadge(sub.statusSummary)}</td>
+      <td>
+        ${sub.allCompleted && !sub.hasReports
+          ? `<button class="btn btn-primary btn-sm" onclick="generateReportForSubmission('${sub.submissionId}')" style="height:28px;font-size:0.72rem;padding:0 10px;">
+               📄 Generate Report
+             </button>`
+          : sub.hasReports
+            ? `<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ ${reportNumbers}</span>`
+            : `<span style="font-size:0.72rem;color:var(--txt-muted);">—</span>`
+        }
+      </td>
     </tr>`;
   }).join('');
 
@@ -686,6 +774,43 @@ function renderMySubmissions() {
     prevBtn.disabled = mySubPage <= 1;
     nextBtn.disabled = mySubPage >= totalPages;
     if (pageIndicator) pageIndicator.textContent = `Page ${mySubPage} of ${totalPages}`;
+  }
+}
+
+// ── Generate Report for Submission ─────────────────────────────
+async function generateReportForSubmission(submissionId) {
+  // Find and disable the button that triggered this
+  const btn = document.querySelector(`button[onclick*="'${submissionId}'"]`);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+
+  try {
+    // Find the lab_id from any sample in this submission
+    const samples = DB.samples.filter(s => s.submissionId === submissionId);
+    if (!samples.length) {
+      showToast('No samples found in this submission.', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '📄 Generate Report';
+      return;
+    }
+
+    const labId = samples[0].lab_id;
+    const reports = await generateSubmissionReports(submissionId, labId, recSession.id, recSession.full_name);
+
+    if (reports.length > 0) {
+      const lab = getLab(labId);
+      const reportNums = reports.map(r => r.report_number).join(', ');
+      showToast(`Generated ${reports.length} report(s): ${reportNums}`, 'success');
+    } else {
+      showToast('No new reports generated (may already exist).', 'info');
+    }
+
+    renderMySubmissions();
+  } catch (err) {
+    console.error('[RECEPTIONIST] Report generation error:', err);
+    showToast('Error generating reports: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '📄 Generate Report';
   }
 }
 

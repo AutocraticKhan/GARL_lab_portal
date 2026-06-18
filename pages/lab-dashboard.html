@@ -137,49 +137,14 @@
       <!-- Populated by JS -->
     </div>
     <div class="side-panel-footer">
-      <button class="btn btn-accent" id="btn-mark-progress" style="display:none;">
-        ⚗️ Mark In Progress
-      </button>
-      <button class="btn btn-primary" id="btn-upload-report" style="display:none;">
-        📄 Upload Report
+      <button class="btn btn-success" id="btn-mark-all-complete" style="display:none;">
+        ✓ Mark All Complete
       </button>
     </div>
   </div>
 </div>
 
-<!-- ── MODAL: Upload Report ─────────────────────────────────── -->
-<div class="modal-backdrop" id="modal-upload-report">
-  <div class="modal">
-    <div class="modal-header">
-      <h2 class="modal-title">Upload Lab Report</h2>
-      <button class="modal-close" id="close-upload-modal">✕</button>
-    </div>
-    <form id="upload-report-form" novalidate>
-      <div class="form-group">
-        <label class="form-label">Report File (PDF)</label>
-        <div class="upload-zone">
-          <input type="file" id="report-file" name="report_file" accept=".pdf,.doc,.docx" />
-          <div class="upload-icon">📁</div>
-          <div class="upload-text">Click to browse or drag & drop your report file</div>
-          <div class="upload-hint">PDF, DOC, DOCX accepted · Stored locally in browser</div>
-        </div>
-        <div class="upload-chosen" id="file-chosen"></div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="report-notes">Report Notes / Summary</label>
-        <textarea class="form-control" id="report-notes" name="report_notes"
-                  placeholder="Brief findings or notes for this report…"></textarea>
-      </div>
-      <div style="padding:var(--sp-3);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:var(--r-md);font-size:0.78rem;color:#92400e;margin-bottom:var(--sp-4);">
-        ⚠ Files are stored in browser localStorage. Large files (>2 MB) may cause storage errors. For production, use Supabase Storage.
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" id="cancel-upload-modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Submit Report</button>
-      </div>
-    </form>
-  </div>
-</div>
+<!-- ── (Upload modal removed — lab engineer uses checkboxes for completion) ── -->
 
   <script src="../js/supabase-client.js"></script>
   <script src="../js/utils.js"></script>

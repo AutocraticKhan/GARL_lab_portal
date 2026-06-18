@@ -1,12 +1,11 @@
 /* ============================================================
    lab-engineer.js — Lab Engineer dashboard logic
-   (Grouped by submission — shows sample count & ID range)
+   (Grouped by submission — checkbox completion, no file upload)
    ============================================================ */
 'use strict';
 
 let engSession = null;
 let activeSubmissionId = null;
-let activeSampleId = null;
 
 // ── Init ──────────────────────────────────────────────────────
 async function initLabEngineer() {
@@ -51,43 +50,8 @@ function wireEngEvents() {
     if (e.target === document.getElementById('sample-panel-overlay')) closePanel('sample-panel-overlay');
   });
 
-  // Mark in-progress button
-  document.getElementById('btn-mark-progress').addEventListener('click', handleMarkInProgress);
-
-  // Upload report button (opens modal)
-  document.getElementById('btn-upload-report').addEventListener('click', () => {
-    if (!activeSampleId) return;
-    const sample = activeSampleId ? DB.samples.find(s => s.id === activeSampleId) : null;
-    if (!sample) return;
-    if (sample.status !== 'in_progress') {
-      showToast('Mark sample as "In Progress" before uploading a report.', 'warning');
-      return;
-    }
-    openModal('modal-upload-report');
-  });
-
-  // Upload report modal
-  document.getElementById('close-upload-modal').addEventListener('click', () => closeModal('modal-upload-report'));
-  document.getElementById('cancel-upload-modal').addEventListener('click', () => closeModal('modal-upload-report'));
-  document.getElementById('upload-report-form').addEventListener('submit', handleUploadReport);
-
-  // File picker display
-  const fileInput = document.getElementById('report-file');
-  if (fileInput) {
-    fileInput.addEventListener('change', () => {
-      const chosen = document.getElementById('file-chosen');
-      if (fileInput.files[0]) {
-        const sizeKB = (fileInput.files[0].size / 1024).toFixed(0);
-        chosen.textContent = `✓ ${fileInput.files[0].name} (${sizeKB} KB)`;
-        chosen.style.display = 'block';
-        if (fileInput.files[0].size > 2 * 1024 * 1024) {
-          showToast('Large file detected (>2 MB). Storage may be limited in localStorage mode.', 'warning');
-        }
-      } else {
-        chosen.style.display = 'none';
-      }
-    });
-  }
+  // Mark all complete button (in panel footer)
+  document.getElementById('btn-mark-all-complete').addEventListener('click', handleMarkAllComplete);
 
   // Assigned samples search
   document.getElementById('assigned-search').addEventListener('input', debounce(renderAssignedSamples, 250));
@@ -137,7 +101,6 @@ function renderAssignedSamples() {
     if (sub.sampleCount === 1) {
       sampleRange = escHtml(sub.firstSampleId);
     } else if (sub.firstSampleId && sub.lastSampleId) {
-      // Show only the varying part (last segment)
       const firstParts = sub.firstSampleId.split('-');
       const lastParts  = sub.lastSampleId.split('-');
       const prefix = firstParts.slice(0, -1).join('-');
@@ -212,10 +175,9 @@ function renderCompletedReports() {
   }).join('');
 }
 
-// ── Side Panel (Submission-level detail with individual sample listing) ──
+// ── Side Panel (Submission-level detail with checkboxes) ──
 function openSubmissionPanel(submissionId) {
   activeSubmissionId = submissionId;
-  activeSampleId = null;
 
   const submissions = getSubmissionsForLab(engSession.lab_id);
   const sub = submissions.find(s => s.submissionId === submissionId);
@@ -261,38 +223,40 @@ function openSubmissionPanel(submissionId) {
     .map(([st, cnt]) => `${st.replace('_', ' ')}: ${cnt}`)
     .join(' · ');
 
-  // Build individual sample rows
+  const allCompleted = sortedSamples.every(s => s.status === 'completed');
+
+  // Build individual sample rows with checkboxes
   const sampleRows = sortedSamples.map(s => {
     const elements = s.selectedElements || [];
     const elementLabels = elements.map(el => {
       const info = getElementInfo(el);
       return info ? `${el} (${info.name})` : el;
     }).join(', ');
-    const report = getReportForSample(s.id);
+    const isCompleted = s.status === 'completed';
     const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
 
-    return `<div class="submission-sample-row" data-sample-id="${s.id}" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:var(--clr-surface);${s.status === 'completed' ? 'opacity:0.7;' : ''}">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-2);">
-        <div>
-          <span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:var(--clr-primary);">${escHtml(sampleIdLabel)}</span>
-          <span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">${escHtml(s.sampleType || '—')}</span>
+    return `<div class="submission-sample-row" data-sample-id="${s.id}" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:${isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)'};">
+      <div style="display:flex;align-items:flex-start;gap:var(--sp-3);">
+        <!-- Checkbox -->
+        <div style="padding-top:2px;">
+          <input type="checkbox" class="sample-complete-chk" data-sample-id="${s.id}"
+                 ${isCompleted ? 'checked' : ''}
+                 onchange="toggleSampleComplete('${s.id}', this.checked)"
+                 style="width:18px;height:18px;cursor:pointer;accent-color:var(--clr-success);" />
         </div>
-        <div style="display:flex;align-items:center;gap:var(--sp-2);">
-          ${statusBadge(s.status)}
-          ${s.status !== 'completed' ? `
-            <button class="btn btn-sm ${s.status === 'assigned' ? 'btn-accent' : 'btn-primary'}" style="height:28px;font-size:0.72rem;padding:0 10px;"
-                    onclick="event.stopPropagation();actOnSample('${s.id}', '${s.status}')">
-              ${s.status === 'assigned' ? '⚗️ Start' : '📄 Report'}
-            </button>
-          ` : ''}
-          ${report && report.report_file_data ? `
-            <button class="btn btn-ghost btn-sm" style="height:28px;font-size:0.72rem;padding:0 8px;" onclick="event.stopPropagation();downloadReport('${report.id}')">⬇ Download</button>
-          ` : ''}
+        <!-- Details -->
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">
+            <div>
+              <span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:${isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)'};">${escHtml(sampleIdLabel)}</span>
+              <span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">${escHtml(s.sampleType || '—')}</span>
+            </div>
+            ${isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)}
+          </div>
+          <div style="font-size:0.75rem;color:var(--txt-secondary);">
+            <span><strong>Elements (${elements.length}):</strong> ${elements.length > 0 ? escHtml(elementLabels) : '—'}</span>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:var(--sp-1);font-size:0.75rem;color:var(--txt-secondary);">
-        <span><strong>Elements (${elements.length}):</strong> ${elements.length > 0 ? escHtml(elementLabels) : '—'}</span>
-        ${report ? `<span style="margin-left:var(--sp-3);">📄 ${escHtml(report.report_number)}</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -302,6 +266,7 @@ function openSubmissionPanel(submissionId) {
       <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">
         ${statusBadge(sub.statusSummary)}
         <span style="font-size:0.78rem;color:var(--txt-muted);">${statusSummaryStr}</span>
+        ${allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : ''}
       </div>
 
       <!-- Submission Summary Card -->
@@ -318,9 +283,17 @@ function openSubmissionPanel(submissionId) {
         <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sub.created_at)}</span></div>
       </div>
 
-      <!-- Individual Samples List -->
+      <!-- Individual Samples List with Select All -->
       <div>
-        <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);margin-bottom:var(--sp-3);text-transform:uppercase;letter-spacing:0.04em;">Samples in this Submission</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);">
+          <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;">Samples in this Submission</div>
+          ${!allCompleted ? `
+            <label style="display:flex;align-items:center;gap:var(--sp-2);font-size:0.78rem;color:var(--txt-secondary);cursor:pointer;">
+              <input type="checkbox" id="select-all-samples" onchange="toggleSelectAll(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--clr-success);" />
+              Select All
+            </label>
+          ` : ''}
+        </div>
         <div id="submission-samples-list">
           ${sampleRows}
         </div>
@@ -328,109 +301,88 @@ function openSubmissionPanel(submissionId) {
     </div>
   `;
 
-  // Hide the old action buttons (they're inline per-sample now)
-  document.getElementById('btn-mark-progress').style.display = 'none';
-  document.getElementById('btn-upload-report').style.display = 'none';
+  // Show/hide the Mark All Complete button
+  const markAllBtn = document.getElementById('btn-mark-all-complete');
+  if (markAllBtn) {
+    if (!allCompleted && sortedSamples.length > 0) {
+      markAllBtn.style.display = 'flex';
+      markAllBtn.textContent = `✓ Mark All Complete (${sortedSamples.length})`;
+    } else {
+      markAllBtn.style.display = 'none';
+    }
+  }
 
   openPanel('sample-panel-overlay');
 }
 
-// ── Action on individual sample (from within submission panel) ──
-async function actOnSample(sampleId, currentStatus) {
-  if (currentStatus === 'assigned') {
-    // Mark as in progress
-    activeSampleId = sampleId;
-    try {
-      await setSampleStatus(sampleId, 'in_progress', `Sample opened by ${engSession.full_name}`);
-      showToast('Sample marked as In Progress.', 'success');
-      renderAssignedSamples();
-      // Re-open the panel to refresh the view
-      if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
-    } catch (err) {
-      showToast('Error updating status: ' + err.message, 'error');
-    }
-  } else if (currentStatus === 'in_progress') {
-    // Open upload report modal
-    activeSampleId = sampleId;
-    openModal('modal-upload-report');
-  }
-}
-
-// ── Status transitions (from old panel buttons) ────────────────
-async function handleMarkInProgress() {
-  if (!activeSampleId) return;
+// ── Toggle a single sample's completion ────────────────────────
+async function toggleSampleComplete(sampleId, checked) {
   try {
-    await setSampleStatus(activeSampleId, 'in_progress', `Sample opened by ${engSession.full_name}`);
-    showToast('Sample marked as In Progress.', 'success');
-    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
-    renderAssignedSamples();
-  } catch (err) {
-    showToast('Error updating status: ' + err.message, 'error');
-  }
-}
-
-// ── Upload Report ─────────────────────────────────────────────
-async function handleUploadReport(e) {
-  e.preventDefault();
-  if (!activeSampleId) return;
-
-  const form    = e.target;
-  const fileEl  = document.getElementById('report-file');
-  const notes   = form.report_notes.value.trim();
-  const file    = fileEl.files[0];
-
-  const submitBtn = form.querySelector('[type=submit]');
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<span class="spinner"></span> Uploading…';
-
-  try {
-    const sample = getSample(activeSampleId);
-    const reportData = {
-      sample_id:   activeSampleId,
-      lab_id:      engSession.lab_id,
-      engineer_id: engSession.id,
-      report_notes: notes,
-      report_file_name: file ? file.name : 'manual-entry',
-    };
-
-    if (file) {
-      const base64 = await fileToBase64(file);
-      reportData.report_file_data = base64;
-      reportData.report_file_name = file.name;
+    if (checked) {
+      await setSampleStatus(sampleId, 'completed', `Sample completed by ${engSession.full_name}`);
+    } else {
+      // Revert back to assigned
+      await setSampleStatus(sampleId, 'assigned', `Sample reopened by ${engSession.full_name}`);
     }
-
-    const report = await createReport(reportData);
-    showToast(`Report ${report.report_number} uploaded successfully!`, 'success');
-    closeModal('modal-upload-report');
-    // Refresh the submission panel
-    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+    showToast(checked ? 'Sample marked as complete.' : 'Sample reopened.', 'success');
     renderAssignedSamples();
-    switchEngTab('eng-tab-completed');
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
   } catch (err) {
-    showToast('Upload failed: ' + err.message, 'error');
+    showToast('Error updating sample: ' + err.message, 'error');
   }
-  submitBtn.disabled = false;
-  submitBtn.innerHTML = 'Submit Report';
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('File read error'));
-    reader.readAsDataURL(file);
+// ── Toggle Select All checkboxes ───────────────────────────────
+function toggleSelectAll(checked) {
+  const checkboxes = document.querySelectorAll('.sample-complete-chk');
+  checkboxes.forEach(cb => {
+    if (cb.checked !== checked) {
+      cb.checked = checked;
+      // Trigger the change handler
+      const event = new Event('change', { bubbles: true });
+      cb.dispatchEvent(event);
+    }
   });
 }
 
-// ── Download Report ───────────────────────────────────────────
-function downloadReport(reportId) {
-  const report = getReport(reportId);
-  if (!report) return;
-  if (!report.report_file_data) { showToast('No file data stored for this report.', 'warning'); return; }
-  const link = document.createElement('a');
-  link.href     = report.report_file_data;
-  link.download = report.report_file_name || `${report.report_number}.pdf`;
-  link.click();
+// ── Mark All Complete (button in footer) ───────────────────────
+async function handleMarkAllComplete() {
+  if (!activeSubmissionId) return;
+
+  const submissions = getSubmissionsForLab(engSession.lab_id);
+  const sub = submissions.find(s => s.submissionId === activeSubmissionId);
+  if (!sub) return;
+
+  const incomplete = sub.samples.filter(s => s.status !== 'completed');
+  if (!incomplete.length) {
+    showToast('All samples are already complete.', 'info');
+    return;
+  }
+
+  const btn = document.getElementById('btn-mark-all-complete');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+
+  let successCount = 0;
+  let errorCount = 0;
+  for (const sample of incomplete) {
+    try {
+      await setSampleStatus(sample.id, 'completed', `Sample completed by ${engSession.full_name} (bulk)`);
+      successCount++;
+    } catch (err) {
+      errorCount++;
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.style.display = 'none'; }
+
+  if (errorCount === 0) {
+    showToast(`All ${successCount} samples marked complete!`, 'success');
+  } else {
+    showToast(`${successCount} completed, ${errorCount} failed.`, 'warning');
+  }
+
+  renderAssignedSamples();
+  if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
 }
 
 document.addEventListener('DOMContentLoaded', initLabEngineer);
