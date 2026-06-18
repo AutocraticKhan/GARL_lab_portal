@@ -107,22 +107,28 @@ function renderAssignedSamples() {
     .sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
 
   if (query) rows = rows.filter(s =>
+    s.sampleId?.toLowerCase().includes(query) ||
+    s.sampleNumber?.toLowerCase().includes(query) ||
+    s.sampleName?.toLowerCase().includes(query) ||
     s.sample_number?.toLowerCase().includes(query) ||
     s.customer_name?.toLowerCase().includes(query)
   );
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending samples${query ? ' matching your search' : ''}</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending samples${query ? ' matching your search' : ''}</p></div></td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map(s => {
     const test    = getTest(s.test_id);
     const overdue = test && daysBetween(s.created_at, new Date()) > Number(test.turnaround_days);
+    const sampleId = s.sampleId || s.sampleNumber || s.sampleName || s.sample_number || '—';
+    const elements = s.selectedElements || [];
     return `<tr class="clickable" onclick="openSamplePanel('${s.id}')">
-      <td><strong style="color:var(--clr-primary)">${escHtml(s.sample_number)}</strong></td>
+      <td><strong style="color:var(--clr-primary)">${escHtml(sampleId)}</strong></td>
       <td>${escHtml(s.customer_name)}</td>
       <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
+      <td style="font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(elements.join(', '))}">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</td>
       <td class="muted">${formatDate(s.collection_date)}</td>
       <td>${statusBadge(s.status)}</td>
       <td>${overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>'}</td>
@@ -138,16 +144,19 @@ function renderCompletedReports() {
     .sort((a,b) => new Date(b.completed_at || b.created_at)-new Date(a.completed_at || a.created_at));
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed reports yet</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed reports yet</p></div></td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(s => {
     const test   = getTest(s.test_id);
     const report = getReportForSample(s.id);
+    const sampleId = s.sampleId || s.sampleNumber || s.sampleName || s.sample_number || '—';
+    const elements = s.selectedElements || [];
     return `<tr>
-      <td><strong style="color:var(--clr-primary)">${escHtml(s.sample_number)}</strong></td>
+      <td><strong style="color:var(--clr-primary)">${escHtml(sampleId)}</strong></td>
       <td>${escHtml(s.customer_name)}</td>
       <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
+      <td style="font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(elements.join(', '))}">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</td>
       <td>${report ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${escHtml(report.report_number)}</code>` : '—'}</td>
       <td class="muted">${report ? formatDate(report.uploaded_at) : '—'}</td>
       <td>
@@ -170,16 +179,24 @@ function openSamplePanel(sampleId) {
   const events = getEventsForSample(sampleId);
 
   // Panel title
-  document.getElementById('panel-sample-number').textContent = sample.sample_number;
+  const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || sample.sample_number || 'Sample Details';
+  document.getElementById('panel-sample-number').textContent = sampleIdLabel;
 
   // Details
+  const elements = sample.selectedElements || [];
+  const elementLabels = elements.map(s => {
+    const info = getElementInfo(s);
+    return info ? `${s} (${info.name})` : s;
+  }).join(', ');
+
   document.getElementById('panel-body').innerHTML = `
     <div style="margin-bottom:var(--sp-5);">
       <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);">
         ${statusBadge(sample.status)}
         <span style="font-size:0.8rem;color:var(--txt-muted)">Last updated: ${formatDateTime(sample.in_progress_at || sample.created_at)}</span>
       </div>
-      <div class="detail-row"><span class="detail-label">Sample Number</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary)">${escHtml(sample.sample_number)}</span></div>
+      <div class="detail-row"><span class="detail-label">Sample Number</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary)">${escHtml(sampleIdLabel)}</span></div>
+      <div class="detail-row"><span class="detail-label">Elements</span><span class="detail-value" style="font-size:0.85rem;">${elements.length > 0 ? escHtml(elementLabels) : '—'}</span></div>
       <div class="detail-row"><span class="detail-label">Sample ID</span><span class="detail-value">${escHtml(sample.external_sample_id || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Patient Name</span><span class="detail-value">${escHtml(sample.customer_name)}</span></div>
       <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(sample.customer_contact || '—')}</span></div>
