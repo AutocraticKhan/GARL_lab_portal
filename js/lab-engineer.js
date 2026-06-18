@@ -1,9 +1,11 @@
 /* ============================================================
    lab-engineer.js — Lab Engineer dashboard logic
+   (Grouped by submission — shows sample count & ID range)
    ============================================================ */
 'use strict';
 
 let engSession = null;
+let activeSubmissionId = null;
 let activeSampleId = null;
 
 // ── Init ──────────────────────────────────────────────────────
@@ -54,6 +56,7 @@ function wireEngEvents() {
 
   // Upload report button (opens modal)
   document.getElementById('btn-upload-report').addEventListener('click', () => {
+    if (!activeSampleId) return;
     const sample = activeSampleId ? DB.samples.find(s => s.id === activeSampleId) : null;
     if (!sample) return;
     if (sample.status !== 'in_progress') {
@@ -90,169 +93,276 @@ function wireEngEvents() {
   document.getElementById('assigned-search').addEventListener('input', debounce(renderAssignedSamples, 250));
 }
 
-// ── Assigned Samples ──────────────────────────────────────────
+// ── Assigned Samples (Grouped by Submission) ─────────────────
 function renderAssignedSamples() {
   const query = (document.getElementById('assigned-search').value || '').toLowerCase();
   const tbody = document.getElementById('assigned-tbody');
   const lab   = getLab(engSession.lab_id);
 
-  // Stats
+  // Stats (individual samples)
   const allSamples = getSamplesForLab(engSession.lab_id);
   document.getElementById('stat-total').textContent   = allSamples.length;
   document.getElementById('stat-assigned').textContent = allSamples.filter(s => s.status === 'assigned').length;
   document.getElementById('stat-progress').textContent  = allSamples.filter(s => s.status === 'in_progress').length;
   document.getElementById('stat-done').textContent      = allSamples.filter(s => s.status === 'completed').length;
 
-  let rows = allSamples.filter(s => s.status !== 'completed')
-    .sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
+  // Get submissions (only ones with at least one non-completed sample)
+  let submissions = getSubmissionsForLab(engSession.lab_id)
+    .filter(sub => sub.samples.some(s => s.status !== 'completed'))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  if (query) rows = rows.filter(s =>
-    s.sampleId?.toLowerCase().includes(query) ||
-    s.sampleNumber?.toLowerCase().includes(query) ||
-    s.sampleName?.toLowerCase().includes(query) ||
-    s.sample_number?.toLowerCase().includes(query) ||
-    s.customer_name?.toLowerCase().includes(query)
-  );
+  if (query) {
+    submissions = submissions.filter(sub =>
+      sub.submissionId?.toLowerCase().includes(query) ||
+      sub.customer_name?.toLowerCase().includes(query) ||
+      sub.test_name?.toLowerCase().includes(query) ||
+      sub.firstSampleId?.toLowerCase().includes(query) ||
+      sub.lastSampleId?.toLowerCase().includes(query)
+    );
+  }
 
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending samples${query ? ' matching your search' : ''}</p></div></td></tr>`;
+  if (!submissions.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending submissions${query ? ' matching your search' : ''}</p></div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = rows.map(s => {
-    const test    = getTest(s.test_id);
-    const overdue = test && daysBetween(s.created_at, new Date()) > Number(test.turnaround_days);
-    const sampleId = s.sampleId || s.sampleNumber || s.sampleName || s.sample_number || '—';
-    const elements = s.selectedElements || [];
-    return `<tr class="clickable" onclick="openSamplePanel('${s.id}')">
-      <td><strong style="color:var(--clr-primary)">${escHtml(sampleId)}</strong></td>
-      <td>${escHtml(s.customer_name)}</td>
-      <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
-      <td style="font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(elements.join(', '))}">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</td>
-      <td class="muted">${formatDate(s.collection_date)}</td>
-      <td>${statusBadge(s.status)}</td>
+  tbody.innerHTML = submissions.map(sub => {
+    // Find a test for turnaround days (use first sample's test)
+    const firstSample = sub.samples[0];
+    const test = firstSample ? getTest(firstSample.test_id) : null;
+    const overdue = test && daysBetween(sub.created_at, new Date()) > Number(test.turnaround_days);
+
+    // Build sample range display
+    let sampleRange = '—';
+    if (sub.sampleCount === 1) {
+      sampleRange = escHtml(sub.firstSampleId);
+    } else if (sub.firstSampleId && sub.lastSampleId) {
+      // Show only the varying part (last segment)
+      const firstParts = sub.firstSampleId.split('-');
+      const lastParts  = sub.lastSampleId.split('-');
+      const prefix = firstParts.slice(0, -1).join('-');
+      const firstSeq = firstParts[firstParts.length - 1];
+      const lastSeq  = lastParts[lastParts.length - 1];
+      if (firstSeq && lastSeq && firstSeq !== lastSeq) {
+        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq}–${lastSeq}</strong>`;
+      } else {
+        sampleRange = escHtml(sub.firstSampleId);
+      }
+    }
+
+    return `<tr class="clickable" onclick="openSubmissionPanel('${sub.submissionId}')">
+      <td><strong style="color:var(--clr-primary)">#${escHtml(sub.submissionId)}</strong></td>
+      <td>${escHtml(sub.customer_name || '—')}</td>
+      <td class="muted">${escHtml(sub.test_name || '—')}</td>
+      <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
+      <td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">${sampleRange}</td>
+      <td>${statusBadge(sub.statusSummary)}</td>
       <td>${overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>'}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Completed Reports ─────────────────────────────────────────
+// ── Completed Reports (Grouped by Submission) ─────────────────
 function renderCompletedReports() {
   const tbody = document.getElementById('completed-tbody');
-  const rows  = getSamplesForLab(engSession.lab_id)
-    .filter(s => s.status === 'completed')
-    .sort((a,b) => new Date(b.completed_at || b.created_at)-new Date(a.completed_at || a.created_at));
+  const submissions = getSubmissionsForLab(engSession.lab_id)
+    .filter(sub => sub.samples.every(s => s.status === 'completed'))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed reports yet</p></div></td></tr>`;
+  if (!submissions.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed submissions yet</p></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map(s => {
-    const test   = getTest(s.test_id);
-    const report = getReportForSample(s.id);
-    const sampleId = s.sampleId || s.sampleNumber || s.sampleName || s.sample_number || '—';
-    const elements = s.selectedElements || [];
-    return `<tr>
-      <td><strong style="color:var(--clr-primary)">${escHtml(sampleId)}</strong></td>
-      <td>${escHtml(s.customer_name)}</td>
-      <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
-      <td style="font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(elements.join(', '))}">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</td>
-      <td>${report ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${escHtml(report.report_number)}</code>` : '—'}</td>
-      <td class="muted">${report ? formatDate(report.uploaded_at) : '—'}</td>
-      <td>
-        ${report && report.report_file_data
-          ? `<button class="btn btn-ghost btn-sm" onclick="downloadReport('${report.id}')">⬇ Download</button>`
-          : report ? `<span class="muted">Ref only</span>` : '—'}
-      </td>
+
+  tbody.innerHTML = submissions.map(sub => {
+    // Get all reports for this submission
+    const subReports = getReportsForSubmission(sub.submissionId);
+    const reportNumbers = subReports.map(r => r.report_number).filter(Boolean).join(', ');
+
+    // Use latest completed date
+    const completedDates = sub.samples.map(s => s.completed_at).filter(Boolean).sort().reverse();
+    const completedDate = completedDates[0] || sub.created_at;
+
+    // Build sample range display
+    let sampleRange = '—';
+    if (sub.sampleCount === 1) {
+      sampleRange = escHtml(sub.firstSampleId);
+    } else if (sub.firstSampleId && sub.lastSampleId) {
+      const firstParts = sub.firstSampleId.split('-');
+      const lastParts  = sub.lastSampleId.split('-');
+      const prefix = firstParts.slice(0, -1).join('-');
+      const firstSeq = firstParts[firstParts.length - 1];
+      const lastSeq  = lastParts[lastParts.length - 1];
+      if (firstSeq && lastSeq && firstSeq !== lastSeq) {
+        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq}–${lastSeq}</strong>`;
+      } else {
+        sampleRange = escHtml(sub.firstSampleId);
+      }
+    }
+
+    return `<tr class="clickable" onclick="openSubmissionPanel('${sub.submissionId}')">
+      <td><strong style="color:var(--clr-primary)">#${escHtml(sub.submissionId)}</strong></td>
+      <td>${escHtml(sub.customer_name || '—')}</td>
+      <td class="muted">${escHtml(sub.test_name || '—')}</td>
+      <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
+      <td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">${sampleRange}</td>
+      <td><code style="font-size:0.75rem;color:var(--clr-accent)">${escHtml(reportNumbers || '—')}</code></td>
+      <td class="muted">${formatDate(completedDate)}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Side Panel ────────────────────────────────────────────────
-function openSamplePanel(sampleId) {
-  activeSampleId = sampleId;
-  const sample = getSample(sampleId);
-  if (!sample) return;
+// ── Side Panel (Submission-level detail with individual sample listing) ──
+function openSubmissionPanel(submissionId) {
+  activeSubmissionId = submissionId;
+  activeSampleId = null;
 
-  const lab    = getLab(sample.lab_id);
-  const test   = getTest(sample.test_id);
-  const events = getEventsForSample(sampleId);
+  const submissions = getSubmissionsForLab(engSession.lab_id);
+  const sub = submissions.find(s => s.submissionId === submissionId);
+  if (!sub) return;
+
+  // Sort samples by sequence number
+  const sortedSamples = [...sub.samples].sort((a, b) => {
+    const aSeq = (a.sampleId || '').split('-').pop() || '';
+    const bSeq = (b.sampleId || '').split('-').pop() || '';
+    return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+  });
+
+  const lab = getLab(sub.lab_id);
+  const firstSample = sortedSamples[0];
+  const test = firstSample ? getTest(firstSample.test_id) : null;
+
+  // Build sample range display
+  let sampleRange = '—';
+  if (sub.sampleCount === 1) {
+    sampleRange = sub.firstSampleId;
+  } else if (sub.firstSampleId && sub.lastSampleId) {
+    const firstParts = sub.firstSampleId.split('-');
+    const lastParts  = sub.lastSampleId.split('-');
+    const prefix = firstParts.slice(0, -1).join('-');
+    const firstSeq = firstParts[firstParts.length - 1];
+    const lastSeq  = lastParts[lastParts.length - 1];
+    if (firstSeq && lastSeq && firstSeq !== lastSeq) {
+      sampleRange = `${prefix}-${firstSeq}–${lastSeq}`;
+    } else {
+      sampleRange = sub.firstSampleId;
+    }
+  }
 
   // Panel title
-  const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || sample.sample_number || 'Sample Details';
-  document.getElementById('panel-sample-number').textContent = sampleIdLabel;
+  document.getElementById('panel-sample-number').textContent = `Submission #${sub.submissionId} (${sub.sampleCount} samples)`;
 
-  // Details
-  const elements = sample.selectedElements || [];
-  const elementLabels = elements.map(s => {
-    const info = getElementInfo(s);
-    return info ? `${s} (${info.name})` : s;
-  }).join(', ');
+  // Count by status
+  const statusCounts = {};
+  sortedSamples.forEach(s => {
+    statusCounts[s.status] = (statusCounts[s.status] || 0) + 1;
+  });
+  const statusSummaryStr = Object.entries(statusCounts)
+    .map(([st, cnt]) => `${st.replace('_', ' ')}: ${cnt}`)
+    .join(' · ');
+
+  // Build individual sample rows
+  const sampleRows = sortedSamples.map(s => {
+    const elements = s.selectedElements || [];
+    const elementLabels = elements.map(el => {
+      const info = getElementInfo(el);
+      return info ? `${el} (${info.name})` : el;
+    }).join(', ');
+    const report = getReportForSample(s.id);
+    const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
+
+    return `<div class="submission-sample-row" data-sample-id="${s.id}" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:var(--clr-surface);${s.status === 'completed' ? 'opacity:0.7;' : ''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-2);">
+        <div>
+          <span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:var(--clr-primary);">${escHtml(sampleIdLabel)}</span>
+          <span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">${escHtml(s.sampleType || '—')}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--sp-2);">
+          ${statusBadge(s.status)}
+          ${s.status !== 'completed' ? `
+            <button class="btn btn-sm ${s.status === 'assigned' ? 'btn-accent' : 'btn-primary'}" style="height:28px;font-size:0.72rem;padding:0 10px;"
+                    onclick="event.stopPropagation();actOnSample('${s.id}', '${s.status}')">
+              ${s.status === 'assigned' ? '⚗️ Start' : '📄 Report'}
+            </button>
+          ` : ''}
+          ${report && report.report_file_data ? `
+            <button class="btn btn-ghost btn-sm" style="height:28px;font-size:0.72rem;padding:0 8px;" onclick="event.stopPropagation();downloadReport('${report.id}')">⬇ Download</button>
+          ` : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:var(--sp-1);font-size:0.75rem;color:var(--txt-secondary);">
+        <span><strong>Elements (${elements.length}):</strong> ${elements.length > 0 ? escHtml(elementLabels) : '—'}</span>
+        ${report ? `<span style="margin-left:var(--sp-3);">📄 ${escHtml(report.report_number)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 
   document.getElementById('panel-body').innerHTML = `
     <div style="margin-bottom:var(--sp-5);">
-      <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);">
-        ${statusBadge(sample.status)}
-        <span style="font-size:0.8rem;color:var(--txt-muted)">Last updated: ${formatDateTime(sample.in_progress_at || sample.created_at)}</span>
+      <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">
+        ${statusBadge(sub.statusSummary)}
+        <span style="font-size:0.78rem;color:var(--txt-muted);">${statusSummaryStr}</span>
       </div>
-      <div class="detail-row"><span class="detail-label">Sample Number</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary)">${escHtml(sampleIdLabel)}</span></div>
-      <div class="detail-row"><span class="detail-label">Elements</span><span class="detail-value" style="font-size:0.85rem;">${elements.length > 0 ? escHtml(elementLabels) : '—'}</span></div>
-      <div class="detail-row"><span class="detail-label">Sample ID</span><span class="detail-value">${escHtml(sample.external_sample_id || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Patient Name</span><span class="detail-value">${escHtml(sample.customer_name)}</span></div>
-      <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(sample.customer_contact || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(sample.cnic || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">${escHtml(sample.customer_address || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(sample.sample_location || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Collection Date</span><span class="detail-value">${formatDateTime(sample.collection_date)}</span></div>
-      <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
-      <div class="detail-row"><span class="detail-label">Turnaround</span><span class="detail-value">${test ? test.turnaround_days + ' days' : '—'}</span></div>
-      ${sample.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${escHtml(sample.notes)}</span></div>` : ''}
-    </div>
 
-    ${events.length ? `
-    <div>
-      <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--txt-muted);margin-bottom:var(--sp-3);">Activity Timeline</div>
-      <div style="display:flex;flex-direction:column;gap:var(--sp-2);">
-        ${events.map(ev => `
-          <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
-            <div style="width:8px;height:8px;border-radius:50%;background:var(--clr-primary);margin-top:5px;flex-shrink:0;"></div>
-            <div>
-              <div style="font-size:0.8rem;font-weight:600;">${escHtml(ev.note || ev.type)}</div>
-              <div style="font-size:0.72rem;color:var(--txt-muted);">${escHtml(ev.actor_name)} · ${formatDateTime(ev.timestamp)}</div>
-            </div>
-          </div>
-        `).join('')}
+      <!-- Submission Summary Card -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-5);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
+        <div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#${escHtml(sub.submissionId)}</span></div>
+        <div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">${sub.sampleCount}</span></div>
+        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">${escHtml(sampleRange)}</span></div>
+        <div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">${escHtml(sub.customer_name || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">${escHtml(firstSample?.customer_contact || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(firstSample?.cnic || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(firstSample?.sample_location || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || sub.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
+        <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sub.created_at)}</span></div>
       </div>
-    </div>` : ''}
+
+      <!-- Individual Samples List -->
+      <div>
+        <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);margin-bottom:var(--sp-3);text-transform:uppercase;letter-spacing:0.04em;">Samples in this Submission</div>
+        <div id="submission-samples-list">
+          ${sampleRows}
+        </div>
+      </div>
+    </div>
   `;
 
-  // Update action buttons
-  const btnProgress = document.getElementById('btn-mark-progress');
-  const btnUpload   = document.getElementById('btn-upload-report');
-
-  if (sample.status === 'assigned') {
-    btnProgress.style.display = 'flex';
-    btnUpload.style.display   = 'none';
-  } else if (sample.status === 'in_progress') {
-    btnProgress.style.display = 'none';
-    btnUpload.style.display   = 'flex';
-  } else {
-    btnProgress.style.display = 'none';
-    btnUpload.style.display   = 'none';
-  }
+  // Hide the old action buttons (they're inline per-sample now)
+  document.getElementById('btn-mark-progress').style.display = 'none';
+  document.getElementById('btn-upload-report').style.display = 'none';
 
   openPanel('sample-panel-overlay');
 }
 
-// ── Status transitions ────────────────────────────────────────
+// ── Action on individual sample (from within submission panel) ──
+async function actOnSample(sampleId, currentStatus) {
+  if (currentStatus === 'assigned') {
+    // Mark as in progress
+    activeSampleId = sampleId;
+    try {
+      await setSampleStatus(sampleId, 'in_progress', `Sample opened by ${engSession.full_name}`);
+      showToast('Sample marked as In Progress.', 'success');
+      renderAssignedSamples();
+      // Re-open the panel to refresh the view
+      if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+    } catch (err) {
+      showToast('Error updating status: ' + err.message, 'error');
+    }
+  } else if (currentStatus === 'in_progress') {
+    // Open upload report modal
+    activeSampleId = sampleId;
+    openModal('modal-upload-report');
+  }
+}
+
+// ── Status transitions (from old panel buttons) ────────────────
 async function handleMarkInProgress() {
   if (!activeSampleId) return;
   try {
     await setSampleStatus(activeSampleId, 'in_progress', `Sample opened by ${engSession.full_name}`);
     showToast('Sample marked as In Progress.', 'success');
-    // Refresh panel
-    openSamplePanel(activeSampleId);
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
     renderAssignedSamples();
   } catch (err) {
     showToast('Error updating status: ' + err.message, 'error');
@@ -284,7 +394,6 @@ async function handleUploadReport(e) {
     };
 
     if (file) {
-      // Read file as base64
       const base64 = await fileToBase64(file);
       reportData.report_file_data = base64;
       reportData.report_file_name = file.name;
@@ -293,7 +402,9 @@ async function handleUploadReport(e) {
     const report = await createReport(reportData);
     showToast(`Report ${report.report_number} uploaded successfully!`, 'success');
     closeModal('modal-upload-report');
-    closePanel('sample-panel-overlay');
+    // Refresh the submission panel
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+    renderAssignedSamples();
     switchEngTab('eng-tab-completed');
   } catch (err) {
     showToast('Upload failed: ' + err.message, 'error');

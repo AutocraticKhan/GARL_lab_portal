@@ -439,8 +439,81 @@ function getSamplesForLab(lab_id) {
   return DB.samples.filter(s => s.lab_id === lab_id);
 }
 
+/**
+ * Get samples for a lab grouped by submission.
+ * Returns an array of submission-grouped objects.
+ * @param {string} lab_id
+ * @returns {Array<{submissionId: string, samples: Array, customer_name: string, lab_id: string, test_name: string, sampleCount: number, sampleIds: string[], statusSummary: string, firstSampleId: string, lastSampleId: string, created_at: string}>}
+ */
+function getSubmissionsForLab(lab_id) {
+  const allSamples = getSamplesForLab(lab_id);
+  const grouped = {};
+
+  allSamples.forEach(s => {
+    const subId = s.submissionId || 'standalone';
+    if (!grouped[subId]) {
+      grouped[subId] = {
+        submissionId: subId,
+        samples: [],
+        customer_name: s.customer_name || '',
+        lab_id: s.lab_id || '',
+        test_name: s.test_name || '',
+        created_at: s.created_at || '',
+      };
+    }
+    grouped[subId].samples.push(s);
+  });
+
+  return Object.values(grouped).map(g => {
+    const sampleIds = g.samples.map(s => s.sampleId || s.sampleNumber || s.id).filter(Boolean);
+    const statuses = g.samples.map(s => s.status);
+    // Determine aggregate status (least progressed = highest priority)
+    const statusOrder = ['completed', 'in_progress', 'assigned', 'received'];
+    let statusSummary = 'received';
+    for (const st of statusOrder) {
+      if (statuses.includes(st)) {
+        statusSummary = st;
+        break;
+      }
+    }
+
+    // Sort samples by their sequence number within the sampleId
+    const sorted = [...g.samples].sort((a, b) => {
+      const aSeq = (a.sampleId || '').split('-').pop() || '';
+      const bSeq = (b.sampleId || '').split('-').pop() || '';
+      return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+    });
+
+    const firstSampleId = sorted.length > 0 ? (sorted[0].sampleId || sorted[0].sampleNumber || '') : '';
+    const lastSampleId  = sorted.length > 0 ? (sorted[sorted.length - 1].sampleId || sorted[sorted.length - 1].sampleNumber || '') : '';
+
+    // Use earliest created_at among samples
+    const dates = g.samples.map(s => s.created_at).filter(Boolean).sort();
+    const created_at = dates[0] || g.created_at;
+
+    return {
+      submissionId: g.submissionId,
+      samples: g.samples,
+      customer_name: g.customer_name,
+      lab_id: g.lab_id,
+      test_name: g.test_name,
+      sampleCount: g.samples.length,
+      sampleIds,
+      statusSummary,
+      firstSampleId,
+      lastSampleId,
+      created_at,
+    };
+  }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
 function getReportForSample(sample_id) {
   return DB.reports.find(r => r.sample_id === sample_id);
+}
+
+function getReportsForSubmission(submissionId) {
+  const sampleIds = DB.samples.filter(s => s.submissionId === submissionId).map(s => s.id);
+  return DB.reports.filter(r => sampleIds.includes(r.sample_id));
 }
 
 function getActiveLabs() {
