@@ -17,11 +17,14 @@
   <!-- Main -->
   <main class="main-content">
     <header class="topbar">
+      <img src="../logo/logo.png" alt="GARL Logo" class="topbar-logo-img" />
       <div style="flex:1;">
         <div class="topbar-title">Progress Report</div>
         <div class="topbar-subtitle">Sample throughput analytics across all laboratories</div>
       </div>
-      <button class="btn btn-primary btn-sm" id="btn-export-report">⬇ Export CSV</button>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" id="btn-export-report">⬇ Export CSV</button>
+      </div>
     </header>
 
     <div class="page-body page-animate">
@@ -86,24 +89,8 @@
         </div>
       </div>
 
-      <!-- Chart + Table layout -->
-      <div style="display:grid;grid-template-columns:1fr;gap:var(--sp-6);">
-
-        <!-- Chart Card -->
-        <div class="card card-elevated">
-          <div class="section-header">
-            <div>
-              <div class="section-title">Sample Volume by Laboratory</div>
-              <div class="section-subtitle">Breakdown by workflow stage</div>
-            </div>
-          </div>
-          <div style="position:relative;height:280px;">
-            <canvas id="report-chart"></canvas>
-          </div>
-        </div>
-
-        <!-- Per-Lab Table -->
-        <div class="table-wrap">
+      <!-- Per-Lab Table -->
+      <div class="table-wrap">
           <div class="table-toolbar">
             <span class="table-toolbar-title">Lab-by-Lab Breakdown</span>
           </div>
@@ -124,12 +111,10 @@
           </table>
         </div>
 
-      </div><!-- /grid -->
     </div><!-- /page-body -->
   </main>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="../js/supabase-client.js"></script>
 <script src="../js/utils.js"></script>
 <script src="../js/supabase.js"></script>

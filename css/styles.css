@@ -1000,3 +1000,28 @@ td.muted { color: var(--txt-secondary); font-size: 0.8rem; }
   font-weight: 700;
   letter-spacing: 0.05em;
 }
+
+/* ── Logo Watermark (all pages) ────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url('../logo/logo.png') no-repeat center center;
+  background-size: min(80vw, 80vh) auto;
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── Topbar Logo Image ─────────────────────────────────────── */
+.topbar-logo-img {
+  height: 40px;
+  width: auto;
+  opacity: 0.85;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.topbar-logo-img:hover {
+  opacity: 1;
+}
