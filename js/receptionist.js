@@ -25,12 +25,34 @@ async function initReceptionist() {
 }
 
 function switchRecTab(tabId) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const btn = document.querySelector(`[data-tab="${tabId}"]`);
-  const panel = document.getElementById(tabId);
-  if (btn) btn.classList.add('active');
-  if (panel) panel.classList.add('active');
+  // Sync top tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.dataset.tab === tabId) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
+  // Sync sidebar dashboard active state
+  const isDashboardTab = ['rec-tab-new', 'rec-tab-submissions', 'rec-tab-all-samples', 'rec-tab-lookup'].includes(tabId);
+  const dashboardBtn = document.getElementById('nav-receptionist-dashboard');
+  if (dashboardBtn) {
+    if (isDashboardTab) {
+      dashboardBtn.classList.add('active');
+    } else {
+      dashboardBtn.classList.remove('active');
+    }
+  }
+
+  // Sync panels
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    if (p.id === tabId) {
+      p.classList.add('active');
+    } else {
+      p.classList.remove('active');
+    }
+  });
 
   if (tabId === 'rec-tab-submissions') renderMySubmissions();
   if (tabId === 'rec-tab-all-samples') {
@@ -447,7 +469,7 @@ async function handleSubmissionSubmit(e) {
         test_name: ps.testName,
         selectedElements: ps.elements,
         elementCount: ps.elements.length,
-        status: 'registered',
+        status: 'received',
         customer_name: customerName,
         customer_contact: customerContact,
         customer_address: customerAddress,
@@ -521,12 +543,6 @@ function renderIntakeConfirmation(submission, samples, lab, labCode, customerNam
       <div class="detail-row"><span class="detail-label">Lab Code</span><span class="detail-value"><span class="lab-code-badge">${escHtml(labCode)}</span></span></div>
       <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${escHtml(submission.date)}</span></div>
       <div class="detail-row"><span class="detail-label">Samples</span><span class="detail-value">${samples.length}</span></div>
-    </div>
-    <div style="border-top:1px solid var(--clr-border);padding-top:var(--sp-3);">
-      <div style="font-size:0.75rem;font-weight:600;color:var(--txt-muted);margin-bottom:var(--sp-2);text-transform:uppercase;">Generated Sample IDs & Elements</div>
-      <div style="display:flex;flex-direction:column;gap:var(--sp-1);">
-        ${samples.map(s => `<code style="font-size:0.82rem;color:var(--clr-primary);">${escHtml(s.sampleId)} — ${escHtml(s.sampleType)} — ${(s.selectedElements || []).join(', ')} (${s.elementCount} elements)</code>`).join('')}
-      </div>
     </div>`;
 }
 
