@@ -12,7 +12,7 @@ const rowsPerPage = 10;
 let pendingSamples = [];
 let nextPseudoId = 1;
 let pendingPage = 1;
-const PENDING_PER_PAGE = 5;
+const PENDING_PER_PAGE = 10;
 let mySubPage = 1;
 const MY_SUB_PER_PAGE = 10;
 

@@ -299,12 +299,12 @@ async function createSubmission(data) {
     sampleCount: data.sampleCount || 0,
     createdAt: new Date().toISOString(),
   };
-  const ok = await supabaseUpsert('submissions', submission);
+  const ok = await supabaseUpsert('submissions', submission, 'submissionId');
   if (!ok) throw new Error('Failed to create submission in database');
   DB.submissions.push(submission);
   DB.systemState.nextSubmissionId = subId + 1;
   // Update system state in Supabase
-  await supabaseUpsert('system_state', { key: 'nextSubmissionId', value: String(DB.systemState.nextSubmissionId) });
+  await supabaseUpsert('system_state', { key: 'nextSubmissionId', value: String(DB.systemState.nextSubmissionId) }, 'key');
   return submission;
 }
 

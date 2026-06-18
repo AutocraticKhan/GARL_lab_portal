@@ -967,12 +967,14 @@ td.muted { color: var(--txt-secondary); font-size: 0.8rem; }
   letter-spacing: 0.02em;
 }
 
-.status-badge.registered {
+.status-badge.registered,
+.status-badge.received {
   background-color: #e0f2fe;
   color: #0369a1;
 }
 
-.status-badge.pending {
+.status-badge.pending,
+.status-badge.assigned {
   background-color: #fef3c7;
   color: #b45309;
 }
