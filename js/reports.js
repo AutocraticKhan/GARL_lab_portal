@@ -4,7 +4,6 @@
 'use strict';
 
 let reportSession = null;
-let chartInstance = null;
 
 // ── Build dynamic sidebar based on role ────────────────────────
 function buildProgressSidebar(session) {
@@ -190,7 +189,6 @@ function renderReport() {
   document.getElementById('completion-bar').style.width  = pct + '%';
 
   renderTable(rows);
-  renderChart(rows);
 }
 
 // ── Table ─────────────────────────────────────────────────────
@@ -247,92 +245,6 @@ function renderTable(rows) {
       </td>
     </tr>`;
   }
-}
-
-// ── Chart ─────────────────────────────────────────────────────
-function renderChart(rows) {
-  const canvas = document.getElementById('report-chart');
-  if (!canvas || !window.Chart) return;
-
-  const activeRows = rows.filter(r => r.total > 0);
-  if (!activeRows.length) {
-    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-    return;
-  }
-
-  const labels    = activeRows.map(r => r.lab_name);
-  const assigned  = activeRows.map(r => r.assigned);
-  const progress  = activeRows.map(r => r.in_progress);
-  const completed = activeRows.map(r => r.completed);
-
-  const chartData = {
-    labels,
-    datasets: [
-      {
-        label: 'Assigned',
-        data: assigned,
-        backgroundColor: 'rgba(245,158,11,0.7)',
-        borderColor: 'rgba(245,158,11,1)',
-        borderWidth: 1,
-        borderRadius: 6,
-      },
-      {
-        label: 'In Progress',
-        data: progress,
-        backgroundColor: 'rgba(168,85,247,0.7)',
-        borderColor: 'rgba(168,85,247,1)',
-        borderWidth: 1,
-        borderRadius: 6,
-      },
-      {
-        label: 'Completed',
-        data: completed,
-        backgroundColor: 'rgba(16,185,129,0.7)',
-        borderColor: 'rgba(16,185,129,1)',
-        borderWidth: 1,
-        borderRadius: 6,
-      },
-    ],
-  };
-
-  if (chartInstance) {
-    chartInstance.data = chartData;
-    chartInstance.update();
-    return;
-  }
-
-  chartInstance = new Chart(canvas, {
-    type: 'bar',
-    data: chartData,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: { color: '#475569', font: { family: 'Inter', size: 12 } },
-        },
-        tooltip: {
-          backgroundColor: '#ffffff',
-          titleColor: '#0f172a',
-          bodyColor: '#475569',
-          borderColor: 'rgba(0,0,0,0.1)',
-          borderWidth: 1,
-        },
-      },
-      scales: {
-        x: {
-          stacked: false,
-          ticks: { color: '#475569', font: { family: 'Inter' } },
-          grid: { color: 'rgba(0,0,0,0.05)' },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { color: '#475569', stepSize: 1, font: { family: 'Inter' } },
-          grid: { color: 'rgba(0,0,0,0.05)' },
-        },
-      },
-    },
-  });
 }
 
 // ── CSV Export ────────────────────────────────────────────────
