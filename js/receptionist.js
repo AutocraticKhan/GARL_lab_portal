@@ -6,13 +6,15 @@
 
 let recSession = null;
 let currentPage = 1;
-const rowsPerPage = 5;
+const rowsPerPage = 10;
 
 // ── In-memory sample data store (indexed by row number) ──────
 let pendingSamples = [];
 let nextPseudoId = 1;
 let pendingPage = 1;
 const PENDING_PER_PAGE = 5;
+let mySubPage = 1;
+const MY_SUB_PER_PAGE = 10;
 
 async function initReceptionist() {
   recSession = requireAuth('receptionist');
@@ -596,6 +598,22 @@ function wireReceptionistEvents() {
   // Initial pending table render
   renderPendingTable();
 
+  // My Submissions pagination
+  const mySubPrev = document.getElementById('mySubPrevBtn');
+  const mySubNext = document.getElementById('mySubNextBtn');
+  if (mySubPrev) {
+    mySubPrev.addEventListener('click', () => {
+      if (mySubPage > 1) { mySubPage--; renderMySubmissions(); }
+    });
+  }
+  if (mySubNext) {
+    mySubNext.addEventListener('click', () => {
+      const rows = DB.samples.filter(s => s.collected_by === recSession.id);
+      const totalPages = Math.ceil(rows.length / MY_SUB_PER_PAGE) || 1;
+      if (mySubPage < totalPages) { mySubPage++; renderMySubmissions(); }
+    });
+  }
+
   // Submission form submit
   document.getElementById('submissionForm').addEventListener('submit', handleSubmissionSubmit);
 
@@ -628,10 +646,19 @@ function renderMySubmissions() {
 
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
+    document.getElementById('my-sub-pagination').style.display = 'none';
     return;
   }
 
-  tbody.innerHTML = rows.map(s => {
+  const totalPages = Math.ceil(rows.length / MY_SUB_PER_PAGE) || 1;
+  if (mySubPage < 1) mySubPage = 1;
+  if (mySubPage > totalPages) mySubPage = totalPages;
+
+  const startIndex = (mySubPage - 1) * MY_SUB_PER_PAGE;
+  const endIndex = startIndex + MY_SUB_PER_PAGE;
+  const pageData = rows.slice(startIndex, endIndex);
+
+  tbody.innerHTML = pageData.map(s => {
     const lab = getLab(s.lab_id);
     const elements = s.selectedElements || [];
     return `<tr>
@@ -645,6 +672,21 @@ function renderMySubmissions() {
       <td class="muted">${formatDateTime(s.created_at)}</td>
     </tr>`;
   }).join('');
+
+  // Update pagination controls
+  const pagination = document.getElementById('my-sub-pagination');
+  const prevBtn = document.getElementById('mySubPrevBtn');
+  const nextBtn = document.getElementById('mySubNextBtn');
+  const pageIndicator = document.getElementById('mySubPageIndicator');
+
+  if (totalPages <= 1) {
+    pagination.style.display = 'none';
+  } else {
+    pagination.style.display = '';
+    prevBtn.disabled = mySubPage <= 1;
+    nextBtn.disabled = mySubPage >= totalPages;
+    if (pageIndicator) pageIndicator.textContent = `Page ${mySubPage} of ${totalPages}`;
+  }
 }
 
 // ── Paginated Samples Table ───────────────────────────────────

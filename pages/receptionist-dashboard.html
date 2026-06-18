@@ -19,17 +19,8 @@
     </div>
     <nav class="sidebar-nav">
       <p class="sidebar-section-label">Samples</p>
-      <button class="nav-item active" onclick="switchRecTab('rec-tab-new');setNavActive(this)">
-        <span class="nav-icon">➕</span> New Submission
-      </button>
-      <button class="nav-item" onclick="switchRecTab('rec-tab-submissions');setNavActive(this)">
-        <span class="nav-icon">📋</span> My Submissions
-      </button>
-      <button class="nav-item" onclick="switchRecTab('rec-tab-all-samples');setNavActive(this)">
-        <span class="nav-icon">📊</span> All Samples
-      </button>
-      <button class="nav-item" onclick="switchRecTab('rec-tab-lookup');setNavActive(this)">
-        <span class="nav-icon">🔍</span> Sample Lookup
+      <button class="nav-item active" id="nav-receptionist-dashboard" onclick="switchRecTab('rec-tab-new')">
+        <span class="nav-icon">➕</span> Receptionist Dashboard
       </button>
       <p class="sidebar-section-label">Reports</p>
       <button class="nav-item" onclick="window.location.href='progress-report.html'">
@@ -253,6 +244,11 @@
             </thead>
             <tbody id="my-submissions-tbody"></tbody>
           </table>
+          <div class="pagination-container" id="my-sub-pagination" style="display:none;">
+            <button id="mySubPrevBtn" disabled>← Previous</button>
+            <span class="page-indicator" id="mySubPageIndicator">Page 1 of 1</span>
+            <button id="mySubNextBtn" disabled>Next →</button>
+          </div>
         </div>
       </div>
 
@@ -312,11 +308,6 @@
 <script src="../js/db.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/receptionist.js"></script>
-<script>
-function setNavActive(el) {
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  el.classList.add('active');
-}
-</script>
+
 </body>
 </html>
