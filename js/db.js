@@ -247,6 +247,22 @@ async function updateLab(id, patch) {
   return DB.labs[idx];
 }
 
+async function deleteLab(id) {
+  const engineers = DB.users.filter(u => u.lab_id === id && u.active);
+  if (engineers.length) throw new Error(`Cannot delete: ${engineers.length} active engineer(s) assigned.`);
+  const pending = DB.samples.filter(s => s.lab_id === id && s.status !== 'completed');
+  if (pending.length) throw new Error(`Cannot delete: ${pending.length} pending sample(s) in this lab.`);
+  // Cascade-delete all tests belonging to this lab
+  const labTests = DB.tests.filter(t => t.lab_id === id);
+  for (const t of labTests) {
+    await supabaseDelete('tests', t.id);
+  }
+  DB.tests = DB.tests.filter(t => t.lab_id !== id);
+  const ok = await supabaseDelete('labs', id);
+  if (!ok) throw new Error('Failed to delete lab from database');
+  DB.labs = DB.labs.filter(l => l.id !== id);
+}
+
 /* Tests */
 async function createTest(data) {
   const test = { id: generateId('tst'), created_at: new Date().toISOString(), active: true, ...data };
@@ -263,6 +279,14 @@ async function updateTest(id, patch) {
   if (!ok) throw new Error('Failed to update test in database');
   DB.tests[idx] = { ...DB.tests[idx], ...patch };
   return DB.tests[idx];
+}
+
+async function deleteTest(id) {
+  const usedSamples = DB.samples.filter(s => s.test_id === id);
+  if (usedSamples.length) throw new Error(`Cannot delete: ${usedSamples.length} sample(s) reference this test.`);
+  const ok = await supabaseDelete('tests', id);
+  if (!ok) throw new Error('Failed to delete test from database');
+  DB.tests = DB.tests.filter(t => t.id !== id);
 }
 
 /* Submissions */

@@ -19,17 +19,8 @@
     </div>
     <nav class="sidebar-nav">
       <p class="sidebar-section-label">Management</p>
-      <button class="nav-item active" data-tab="tab-users" onclick="switchTab('tab-users');setNavActive(this)">
-        <span class="nav-icon">👥</span> Users
-      </button>
-      <button class="nav-item" data-tab="tab-labs" onclick="switchTab('tab-labs');setNavActive(this)">
-        <span class="nav-icon">🏥</span> Labs
-      </button>
-      <button class="nav-item" data-tab="tab-tests" onclick="switchTab('tab-tests');setNavActive(this)">
-        <span class="nav-icon">🔬</span> Analytical Tests
-      </button>
-      <button class="nav-item" data-tab="tab-samples" onclick="switchTab('tab-samples');setNavActive(this)">
-        <span class="nav-icon">🧫</span> All Samples
+      <button class="nav-item active" id="nav-admin-dashboard" onclick="switchTab('tab-users')">
+        <span class="nav-icon">👥</span> Admin Dashboard
       </button>
       <p class="sidebar-section-label">Reports</p>
       <button class="nav-item" onclick="window.location.href='progress-report.html'">
@@ -260,10 +251,11 @@
 <div class="modal-backdrop" id="modal-test">
   <div class="modal">
     <div class="modal-header">
-      <h2 class="modal-title">Add Lab Test</h2>
+      <h2 class="modal-title" id="test-modal-title">Add Lab Test</h2>
       <button class="modal-close" id="close-test-modal">✕</button>
     </div>
     <form id="create-test-form" novalidate>
+      <input type="hidden" id="create-test-id" />
       <div class="form-group">
         <label class="form-label" for="test-lab-select">Laboratory</label>
         <select class="form-control" id="test-lab-select" name="lab_id" required>
@@ -326,12 +318,6 @@
 <script src="../js/auth.js"></script>
 <script src="../js/admin.js"></script>
 <script>
-function setNavActive(el) {
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  el.classList.add('active');
-  const titles = { 'tab-users':'User Management', 'tab-labs':'Lab Management', 'tab-tests':'Test Management', 'tab-samples':'All Samples' };
-  document.getElementById('topbar-title').textContent = titles[el.dataset.tab] || 'Admin';
-}
 
 // ── Supabase connection check ────────────────────────────────
 async function handleCheckConnection() {

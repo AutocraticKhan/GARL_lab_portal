@@ -200,6 +200,12 @@ button, input, select, textarea { font-family: inherit; }
   border-color: rgba(16,185,129,0.25);
   color: #059669;
 }
+.btn-delete {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+.btn-delete:hover { background: #b91c1c; border-color: #b91c1c; }
 .btn-sm { padding: var(--sp-1) var(--sp-3); font-size: 0.8rem; }
 .btn-lg { padding: var(--sp-3) var(--sp-8); font-size: 1rem; }
 .btn-full { width: 100%; justify-content: center; }

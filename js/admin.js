@@ -13,18 +13,57 @@ async function initAdmin() {
   renderSidebarUser();
   wireLogout();
   switchTab('tab-users');
-  renderUsers();
   wireAdminEvents();
 }
 
 // ── Tab switching ─────────────────────────────────────────────
 function switchTab(tabId) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const btn = document.querySelector(`[data-tab="${tabId}"]`);
-  const panel = document.getElementById(tabId);
-  if (btn) btn.classList.add('active');
-  if (panel) panel.classList.add('active');
+  // Update active state of top tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.dataset.tab === tabId) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
+  // Update active state of sidebar navigation items
+  const isDashboardTab = ['tab-users', 'tab-labs', 'tab-tests', 'tab-samples'].includes(tabId);
+  const dashboardBtn = document.getElementById('nav-admin-dashboard');
+  if (dashboardBtn) {
+    if (isDashboardTab) {
+      dashboardBtn.classList.add('active');
+    } else {
+      dashboardBtn.classList.remove('active');
+    }
+  }
+
+  // Update active state of tab panels
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    if (p.id === tabId) {
+      p.classList.add('active');
+    } else {
+      p.classList.remove('active');
+    }
+  });
+
+  // Update topbar title to match selected tab
+  const titles = { 
+    'tab-users': 'User Management', 
+    'tab-labs': 'Lab Management', 
+    'tab-tests': 'Test Management', 
+    'tab-samples': 'All Samples' 
+  };
+  const titleEl = document.getElementById('topbar-title');
+  if (titleEl) {
+    titleEl.textContent = titles[tabId] || 'Admin';
+  }
+
+  // Render the active tab's data
+  if (tabId === 'tab-users')   renderUsers();
+  if (tabId === 'tab-labs')    renderLabs();
+  if (tabId === 'tab-tests')   renderTests();
+  if (tabId === 'tab-samples') renderAllSamples();
 }
 
 // ── Wire events ───────────────────────────────────────────────
@@ -32,12 +71,7 @@ function wireAdminEvents() {
   // Tabs
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      switchTab(tab);
-      if (tab === 'tab-users')   renderUsers();
-      if (tab === 'tab-labs')    renderLabs();
-      if (tab === 'tab-tests')   renderTests();
-      if (tab === 'tab-samples') renderAllSamples();
+      switchTab(btn.dataset.tab);
     });
   });
 
@@ -68,6 +102,9 @@ function wireAdminEvents() {
   // Create Test
   document.getElementById('btn-create-test').addEventListener('click', () => {
     document.getElementById('create-test-form').reset();
+    document.getElementById('test-modal-title').textContent = 'Add Lab Test';
+    document.getElementById('create-test-id').value = '';
+    document.querySelector('#create-test-form [type=submit]').textContent = 'Add Test';
     populateLabSelect('test-lab-select');
     populateTestTypeSelect();
     openModal('modal-test');
@@ -222,6 +259,7 @@ function renderLabs() {
           <button class="btn btn-${lab.active ? 'danger' : 'success'} btn-sm" onclick="handleToggleLab('${lab.id}')">
             ${lab.active ? 'Deactivate' : 'Activate'}
           </button>
+          <button class="btn btn-delete btn-sm" onclick="handleDeleteLab('${lab.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -278,6 +316,24 @@ async function handleToggleLab(id) {
   }
 }
 
+async function handleDeleteLab(id) {
+  const lab = getLab(id);
+  if (!lab) return;
+  const labTests = DB.tests.filter(t => t.lab_id === id);
+  let warningMessage = `Are you sure you want to delete lab "${lab.lab_name}"? This action cannot be undone.`;
+  if (labTests.length > 0) {
+    warningMessage += `\n\nWARNING: This lab has ${labTests.length} associated test(s). Deleting this lab will CASCADE and delete all of these tests too!`;
+  }
+  if (!confirm(warningMessage)) return;
+  try {
+    await deleteLab(id);
+    renderLabs();
+    showToast('Lab deleted successfully.', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
 // ── TEST MANAGEMENT ───────────────────────────────────────────
 function renderTests() {
   const tbody = document.getElementById('tests-tbody');
@@ -296,9 +352,13 @@ function renderTests() {
       <td class="muted">${t.turnaround_days} day${t.turnaround_days == 1 ? '' : 's'}</td>
       <td>${t.active !== false ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
       <td>
-        <button class="btn btn-${t.active !== false ? 'danger' : 'success'} btn-sm" onclick="handleToggleTest('${t.id}')">
-          ${t.active !== false ? 'Deactivate' : 'Activate'}
-        </button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="editTest('${t.id}')">Edit</button>
+          <button class="btn btn-${t.active !== false ? 'danger' : 'success'} btn-sm" onclick="handleToggleTest('${t.id}')">
+            ${t.active !== false ? 'Deactivate' : 'Activate'}
+          </button>
+          <button class="btn btn-delete btn-sm" onclick="handleDeleteTest('${t.id}')">Delete</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -307,6 +367,7 @@ function renderTests() {
 async function handleCreateTest(e) {
   e.preventDefault();
   const form = e.target;
+  const id   = document.getElementById('create-test-id').value;
   const data = {
     lab_id:          form.lab_id.value,
     test_type:       form.test_type.value,
@@ -316,12 +377,47 @@ async function handleCreateTest(e) {
   };
   if (!data.lab_id || !data.test_type || !data.test_name || !data.test_code) { showToast('All fields are required.', 'error'); return; }
   try {
-    await createTest(data);
-    showToast('Test created.', 'success');
+    if (id) {
+      await updateTest(id, data);
+      showToast('Test updated.', 'success');
+    } else {
+      await createTest(data);
+      showToast('Test created.', 'success');
+    }
     closeModal('modal-test');
     renderTests();
   } catch (err) {
-    showToast('Error creating test: ' + err.message, 'error');
+    showToast('Error saving test: ' + err.message, 'error');
+  }
+}
+
+function editTest(id) {
+  const test = getTest(id);
+  if (!test) return;
+  const form = document.getElementById('create-test-form');
+  document.getElementById('test-modal-title').textContent = 'Edit Test';
+  document.getElementById('create-test-id').value = id;
+  populateLabSelect('test-lab-select');
+  populateTestTypeSelect();
+  form.lab_id.value          = test.lab_id;
+  form.test_type.value       = test.test_type;
+  form.test_name.value       = test.test_name;
+  form.test_code.value       = test.test_code;
+  form.turnaround_days.value = test.turnaround_days;
+  form.querySelector('[type=submit]').textContent = 'Save Test';
+  openModal('modal-test');
+}
+
+async function handleDeleteTest(id) {
+  const test = getTest(id);
+  if (!test) return;
+  if (!confirm(`Delete test "${test.test_name}"? This action cannot be undone.`)) return;
+  try {
+    await deleteTest(id);
+    renderTests();
+    showToast('Test deleted successfully.', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 
