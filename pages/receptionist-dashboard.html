@@ -74,7 +74,7 @@
               <!-- Submission Metadata -->
               <fieldset class="form-section">
                 <legend>Submission Information</legend>
-                <div class="form-row">
+                <div class="form-row" style="grid-template-columns:1fr 0.6fr 0.8fr;">
                   <div class="form-group">
                     <label class="form-label" for="submission-lab">Laboratory *</label>
                     <select class="form-control" id="submission-lab" name="lab_id" required>
@@ -82,14 +82,14 @@
                     </select>
                   </div>
                   <div class="form-group">
+                    <label class="form-label">Lab Code</label>
+                    <div id="lab-code-display" style="font-size:0.9rem;color:var(--txt-muted);padding:var(--sp-2) 0;">
+                      Select a lab to auto-generate code
+                    </div>
+                  </div>
+                  <div class="form-group">
                     <label class="form-label" for="submission-date">Date *</label>
                     <input class="form-control" type="date" id="submission-date" name="date" required />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Lab Code</label>
-                  <div id="lab-code-display" style="font-size:0.9rem;color:var(--txt-muted);padding:var(--sp-2) 0;">
-                    Select a lab to auto-generate code
                   </div>
                 </div>
               </fieldset>
