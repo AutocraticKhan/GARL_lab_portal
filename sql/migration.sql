@@ -122,6 +122,9 @@ ON CONFLICT (key) DO NOTHING;
 INSERT INTO system_state (key, value) VALUES ('submissionYear', '2026')
 ON CONFLICT (key) DO NOTHING;
 
+-- Add requires_elements flag to tests (default true, admin-control for element selection)
+ALTER TABLE tests ADD COLUMN IF NOT EXISTS requires_elements BOOLEAN DEFAULT true NOT NULL;
+
 -- Enable Row Level Security (optional, can be disabled for simplicity)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE labs ENABLE ROW LEVEL SECURITY;

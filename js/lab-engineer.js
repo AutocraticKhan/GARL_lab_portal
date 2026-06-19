@@ -228,10 +228,14 @@ function openSubmissionPanel(submissionId) {
   // Build individual sample rows with checkboxes
   const sampleRows = sortedSamples.map(s => {
     const elements = s.selectedElements || [];
-    const elementLabels = elements.map(el => {
-      const info = getElementInfo(el);
-      return info ? `${el} (${info.name})` : el;
-    }).join(', ');
+    const testForSample = s.test_id ? getTest(s.test_id) : null;
+    const requiresElems = testForSample ? testForSample.requires_elements !== false : true;
+    const elementLabels = elements.length > 0
+      ? elements.map(el => {
+          const info = getElementInfo(el);
+          return info ? `${el} (${info.name})` : el;
+        }).join(', ')
+      : (requiresElems ? '—' : 'No elements required');
     const isCompleted = s.status === 'completed';
     const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
 
@@ -254,7 +258,7 @@ function openSubmissionPanel(submissionId) {
             ${isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)}
           </div>
           <div style="font-size:0.75rem;color:var(--txt-secondary);">
-            <span><strong>Elements (${elements.length}):</strong> ${elements.length > 0 ? escHtml(elementLabels) : '—'}</span>
+            <span><strong>Elements (${elements.length}):</strong> ${escHtml(elementLabels)}</span>
           </div>
         </div>
       </div>

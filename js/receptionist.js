@@ -347,7 +347,10 @@ function handleBulkAdd() {
     showToast('Please select a test type.', 'warning');
     return;
   }
-  if (elements.length === 0) {
+  // Check if this test requires elements
+  const test = getTest(testId);
+  const requiresElements = test ? test.requires_elements !== false : true;
+  if (requiresElements && elements.length === 0) {
     showToast('Please select at least one element.', 'warning');
     return;
   }
@@ -391,6 +394,28 @@ function populateBulkTestDropdown() {
     opt.textContent = t.test_name;
     sel.appendChild(opt);
   });
+}
+
+// ── Toggle element picker visibility based on test requires_elements ──
+function toggleElementPickerForTest() {
+  const testId = document.getElementById('bulkTestType').value;
+  const elementPicker = document.getElementById('bulkElementPicker');
+  const elementLabel = document.querySelector('label[for="bulkElementPicker"]') || 
+    document.querySelector('label[style*="font-size:0.78rem;font-weight:600;display:block"]');
+  
+  if (!testId) {
+    // No test selected - show picker but mark it optional
+    if (elementPicker) elementPicker.style.opacity = '0.5';
+    return;
+  }
+  
+  const test = getTest(testId);
+  const requiresElements = test ? test.requires_elements !== false : true;
+  
+  if (elementPicker) {
+    elementPicker.style.opacity = requiresElements ? '1' : '0.4';
+    elementPicker.style.pointerEvents = requiresElements ? 'auto' : 'none';
+  }
 }
 
 // ── Auto-select default test when AAS lab is chosen ────────────
@@ -565,6 +590,7 @@ function wireReceptionistEvents() {
       document.getElementById('lab-code-display').innerHTML =
         lab ? `<span class="lab-code-badge">${code}</span>` : 'Select a lab to auto-generate code';
       populateBulkTestDropdown();
+      toggleElementPickerForTest();
     });
   }
 
@@ -582,6 +608,14 @@ function wireReceptionistEvents() {
   populateBulkTestDropdown();
   autoSelectDefaultTest();
   document.getElementById('bulkAddSamplesBtn').addEventListener('click', handleBulkAdd);
+
+  // Wire test change to toggle element picker
+  const bulkTestSel = document.getElementById('bulkTestType');
+  if (bulkTestSel) {
+    bulkTestSel.addEventListener('change', toggleElementPickerForTest);
+  }
+  // Initial toggle state
+  setTimeout(toggleElementPickerForTest, 100);
 
   // Initialize bulk element picker
   initBulkElementPicker();

@@ -118,7 +118,7 @@
             <thead>
               <tr>
                 <th>Test Name</th><th>Code</th><th>Lab</th>
-                <th>Test Type</th><th>Turnaround</th><th>Status</th><th>Actions</th>
+                <th>Test Type</th><th>Turnaround</th><th>Elements</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody id="tests-tbody"></tbody>
@@ -282,6 +282,12 @@
       <div class="form-group">
         <label class="form-label" for="input-turnaround">Turnaround (days)</label>
         <input class="form-control" type="number" id="input-turnaround" name="turnaround_days" min="1" max="30" value="1" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:var(--sp-2);cursor:pointer;">
+          <input type="checkbox" id="input-requires-elements" name="requires_elements" checked style="width:18px;height:18px;accent-color:var(--clr-primary);" />
+          <span>Require Elements Selection <span style="color:var(--txt-muted);font-weight:400;">(uncheck for tests like crushing/prep where elements aren't needed)</span></span>
+        </label>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" id="cancel-test-modal">Cancel</button>

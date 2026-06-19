@@ -344,12 +344,14 @@ function renderTests() {
   tbody.innerHTML = DB.tests.map(t => {
     const lab = getLab(t.lab_id);
     const typeLabel = t.test_type ? getTestTypeLabel(t.test_type) : '—';
+    const requiresElems = t.requires_elements !== false;
     return `<tr>
       <td><strong>${escHtml(t.test_name)}</strong></td>
       <td class="muted"><code>${escHtml(t.test_code)}</code></td>
       <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
       <td><span class="badge badge-info" style="font-size:0.7rem;">${escHtml(typeLabel)}</span></td>
       <td class="muted">${t.turnaround_days} day${t.turnaround_days == 1 ? '' : 's'}</td>
+      <td>${requiresElems ? '<span class="badge badge-completed" style="background:rgba(16,185,129,0.1);color:#059669;">Elements</span>' : '<span class="badge badge-inactive" style="background:rgba(239,68,68,0.1);color:#dc2626;">No Elements</span>'}</td>
       <td>${t.active !== false ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
       <td>
         <div style="display:flex;gap:6px;">
@@ -374,6 +376,7 @@ async function handleCreateTest(e) {
     test_name:       form.test_name.value.trim(),
     test_code:       form.test_code.value.trim().toUpperCase(),
     turnaround_days: form.turnaround_days.value,
+    requires_elements: document.getElementById('input-requires-elements').checked,
   };
   if (!data.lab_id || !data.test_type || !data.test_name || !data.test_code) { showToast('All fields are required.', 'error'); return; }
   try {
@@ -404,6 +407,7 @@ function editTest(id) {
   form.test_name.value       = test.test_name;
   form.test_code.value       = test.test_code;
   form.turnaround_days.value = test.turnaround_days;
+  document.getElementById('input-requires-elements').checked = test.requires_elements !== false;
   form.querySelector('[type=submit]').textContent = 'Save Test';
   openModal('modal-test');
 }
