@@ -209,20 +209,29 @@
           <!-- Side Panel: How it works + confirmation -->
           <div>
             <div id="intake-confirm" class="card card-elevated" style="display:none;"></div>
-            <div class="card" style="margin-top:var(--sp-4);">
-              <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);margin-bottom:var(--sp-3);text-transform:uppercase;letter-spacing:0.04em;">How it works</div>
-              <div style="display:flex;flex-direction:column;gap:var(--sp-3);">
-                <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
-                  <div style="width:28px;height:28px;border-radius:50%;background:var(--clr-primary-g);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#fff;">1</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Select lab & date, then add one or more sample rows</div>
+            <div class="card" style="margin-top:var(--sp-4);padding:var(--sp-5);">
+              <div style="font-size:0.72rem;font-weight:700;color:var(--txt-muted);margin-bottom:var(--sp-4);text-transform:uppercase;letter-spacing:0.08em;">📖 How it works</div>
+              <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+                <div style="display:flex;gap:var(--sp-4);align-items:flex-start;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:var(--clr-primary-g);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;flex-shrink:0;color:#fff;box-shadow:0 2px 8px rgba(59,130,246,0.3);">1</div>
+                  <div style="flex:1;">
+                    <div style="font-size:0.84rem;font-weight:600;color:var(--txt-primary);margin-bottom:2px;">Configure submission</div>
+                    <div style="font-size:0.78rem;color:var(--txt-secondary);line-height:1.5;">Select a laboratory and date, then add sample rows using the bulk generator above.</div>
+                  </div>
                 </div>
-                <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
-                  <div style="width:28px;height:28px;border-radius:50%;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#b45309;">2</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Samples receive structured IDs like <code>26-06-AAS-1001-001</code></div>
+                <div style="display:flex;gap:var(--sp-4);align-items:flex-start;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;flex-shrink:0;color:#fff;box-shadow:0 2px 8px rgba(245,158,11,0.3);">2</div>
+                  <div style="flex:1;">
+                    <div style="font-size:0.84rem;font-weight:600;color:var(--txt-primary);margin-bottom:2px;">Auto-generated IDs</div>
+                    <div style="font-size:0.78rem;color:var(--txt-secondary);line-height:1.5;">Each sample gets a structured ID like <code style="background:var(--clr-bg-3);padding:1px 6px;border-radius:4px;font-size:0.72rem;font-weight:600;color:var(--clr-primary);">26-06-AAS-1001-001</code></div>
+                  </div>
                 </div>
-                <div style="display:flex;gap:var(--sp-3);align-items:flex-start;">
-                  <div style="width:28px;height:28px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:#059669;">3</div>
-                  <div style="font-size:0.82rem;color:var(--txt-secondary);">Lab engineers pick up samples and process them</div>
+                <div style="display:flex;gap:var(--sp-4);align-items:flex-start;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;flex-shrink:0;color:#fff;box-shadow:0 2px 8px rgba(16,185,129,0.3);">3</div>
+                  <div style="flex:1;">
+                    <div style="font-size:0.84rem;font-weight:600;color:var(--txt-primary);margin-bottom:2px;">Engineers process</div>
+                    <div style="font-size:0.78rem;color:var(--txt-secondary);line-height:1.5;">Lab engineers pick up samples from the queue, run tests, and complete analysis.</div>
+                  </div>
                 </div>
               </div>
             </div>

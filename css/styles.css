@@ -482,6 +482,38 @@ td.muted { color: var(--txt-secondary); font-size: 0.8rem; }
 .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: var(--sp-3); }
 .empty-state p { font-size: 0.875rem; }
 
+/* ── Bulk Element Chips ───────────────────────────────────── */
+.bulk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  background: var(--clr-primary-g, #3b82f6);
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  color: #ffffff;
+  user-select: none;
+}
+.bulk-chip:hover {
+  background: #2563eb !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+.bulk-chip:active {
+  background: #1d4ed8 !important;
+}
+.bulk-chip-remove {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #fca5a5;
+  margin-left: 2px;
+  line-height: 1;
+  pointer-events: none;
+}
+
 /* ── Tabs ─────────────────────────────────────────────────── */
 .tab-bar {
   display: flex;

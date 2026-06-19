@@ -199,17 +199,16 @@ function setBulkElements(symbols) {
 
   const chips = unique.map(s => {
     const info = getElementInfo(s);
-    return `<span class="bulk-chip" data-symbol="${s}" style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;background:var(--clr-primary-g, #dbeafe);border-radius:10px;font-size:0.7rem;font-weight:500;line-height:1.4;">
+    return `<span class="bulk-chip" data-symbol="${s}" style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;background:var(--clr-primary-g, #dbeafe);border-radius:10px;font-size:0.7rem;font-weight:600;line-height:1.4;cursor:pointer;">
       ${s}
-      <span class="bulk-chip-remove" style="cursor:pointer;margin-left:2px;font-size:0.7rem;color:#666;">×</span>
+      <span class="bulk-chip-remove">×</span>
     </span>`;
   }).join('');
   chipsContainer.innerHTML = chips;
 
-  chipsContainer.querySelectorAll('.bulk-chip-remove').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  chipsContainer.querySelectorAll('.bulk-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
       e.stopPropagation();
-      const chip = btn.closest('.bulk-chip');
       const symbol = chip.dataset.symbol;
       setBulkElements(getBulkElements().filter(s => s !== symbol));
     });
