@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS elements (
 -- Insert default system state
 INSERT INTO system_state (key, value) VALUES ('nextSubmissionId', '1001')
 ON CONFLICT (key) DO NOTHING;
+INSERT INTO system_state (key, value) VALUES ('submissionYear', '2026')
+ON CONFLICT (key) DO NOTHING;
 
 -- Enable Row Level Security (optional, can be disabled for simplicity)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

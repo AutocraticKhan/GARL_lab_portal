@@ -12,7 +12,7 @@ const DB = {
   reports: [],
   events:  [],
   submissions: [],
-  systemState: { nextSubmissionId: 1001 },
+  systemState: { nextSubmissionId: 1001, submissionYear: null },
   elements: [],
 };
 
@@ -192,6 +192,7 @@ async function initDB() {
     const stateMap = {};
     stateData.forEach(s => { stateMap[s.key] = s.value; });
     DB.systemState.nextSubmissionId = parseInt(stateMap.nextSubmissionId, 10) || 1001;
+    DB.systemState.submissionYear = stateMap.submissionYear ? parseInt(stateMap.submissionYear, 10) : null;
   }
 
   // Normalise boolean fields
@@ -291,6 +292,14 @@ async function deleteTest(id) {
 
 /* Submissions */
 async function createSubmission(data) {
+  // Year-aware reset: if the year has changed, reset submission counter
+  const currentYear = new Date().getFullYear();
+  if (DB.systemState.submissionYear !== currentYear) {
+    DB.systemState.nextSubmissionId = 1001;
+    DB.systemState.submissionYear = currentYear;
+    // Persist the updated year to Supabase
+    await supabaseUpsert('system_state', { key: 'submissionYear', value: String(currentYear) }, 'key');
+  }
   const subId = DB.systemState.nextSubmissionId;
   const submission = {
     submissionId: String(subId),
