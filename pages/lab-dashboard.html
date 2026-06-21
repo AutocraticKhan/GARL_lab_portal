@@ -145,7 +145,26 @@
   </div>
 </div>
 
-<!-- ── (Upload modal removed — lab engineer uses checkboxes for completion) ── -->
+<!-- ── SPECTROSCOPY DATASHEET MODAL ────────────────────────── -->
+<div class="side-panel-overlay" id="spectroscopy-overlay">
+  <div class="side-panel" style="max-width:900px;width:90%;">
+    <div class="side-panel-header">
+      <div class="side-panel-title">Spectroscopy Analysis Datasheet</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="printSpectroscopy()" style="display:flex;align-items:center;gap:6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 1.252a1.125 1.125 0 0 1-1.12 1.25H7.232a1.125 1.125 0 0 1-1.12-1.25L6.34 18m11.318 0a3 3 0 1 0 0-6H6.34a3 3 0 1 0 0 6m11.318 0H6.34m12-3V9.75A3.75 3.75 0 0 0 14.625 6h-5.25a3.75 3.75 0 0 0-3.75 3.75V15m11.25-3H4.875" />
+          </svg>
+          Print
+        </button>
+        <button class="modal-close" id="close-spectroscopy-panel">✕</button>
+      </div>
+    </div>
+    <div class="side-panel-body" id="spectroscopy-body" style="padding:0;background:#f1f5f9;overflow-y:auto;">
+      <!-- Dynamically populated by JS -->
+    </div>
+  </div>
+</div>
 
   <script src="../js/supabase-client.js"></script>
   <script src="../js/utils.js"></script>

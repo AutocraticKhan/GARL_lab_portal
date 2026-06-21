@@ -53,6 +53,12 @@ function wireEngEvents() {
   // Mark all complete button (in panel footer)
   document.getElementById('btn-mark-all-complete').addEventListener('click', handleMarkAllComplete);
 
+  // Spectroscopy modal close
+  document.getElementById('close-spectroscopy-panel').addEventListener('click', () => closePanel('spectroscopy-overlay'));
+  document.getElementById('spectroscopy-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('spectroscopy-overlay')) closePanel('spectroscopy-overlay');
+  });
+
   // Assigned samples search
   document.getElementById('assigned-search').addEventListener('input', debounce(renderAssignedSamples, 250));
 }
@@ -274,7 +280,7 @@ function openSubmissionPanel(submissionId) {
       </div>
 
       <!-- Submission Summary Card -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-5);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
         <div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#${escHtml(sub.submissionId)}</span></div>
         <div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">${sub.sampleCount}</span></div>
         <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">${escHtml(sampleRange)}</span></div>
@@ -285,6 +291,16 @@ function openSubmissionPanel(submissionId) {
         <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || sub.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
         <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sub.created_at)}</span></div>
+      </div>
+
+      <!-- Spectroscopy Datasheet Button -->
+      <div style="margin-bottom:var(--sp-4);">
+        <button onclick="openSpectroscopyForm('${sub.submissionId}')" class="btn btn-primary" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.85rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+          </svg>
+          📋 Spectroscopy Analysis Datasheet
+        </button>
       </div>
 
       <!-- Individual Samples List with Select All -->
@@ -387,6 +403,193 @@ async function handleMarkAllComplete() {
 
   renderAssignedSamples();
   if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+}
+
+// ── SPECTROSCOPY DATASHEET ─────────────────────────────────────
+
+const SPECTROSCOPY_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page { size: A4 portrait; margin: 12mm 15mm 12mm 15mm; }
+  @media print {
+    body { background: #fff !important; color: #000 !important; }
+    .no-print { display: none !important; }
+    .print-container { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 0 !important; width: 210mm !important; background: transparent !important; }
+    .spectro-page { box-shadow: none !important; border: none !important; margin: 0 auto !important; page-break-after: always; }
+    tr { page-break-inside: avoid; }
+  }
+  .writing-row { height: 10.5mm; }
+`;
+
+function openSpectroscopyForm(submissionId) {
+  const submissions = getSubmissionsForLab(engSession.lab_id);
+  const sub = submissions.find(s => s.submissionId === submissionId);
+  if (!sub) { showToast('Submission not found', 'error'); return; }
+
+  // Sort samples by sequence
+  const sortedSamples = [...sub.samples].sort((a, b) => {
+    const aSeq = (a.sampleId || '').split('-').pop() || '';
+    const bSeq = (b.sampleId || '').split('-').pop() || '';
+    return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+  });
+
+  const lab = getLab(sub.lab_id);
+
+  // Collect all unique element symbols across all samples
+  const uniqueElements = [...new Set(
+    sortedSamples.flatMap(s => s.selectedElements || [])
+  )].sort();
+
+  const sampleRange = sub.sampleCount === 1
+    ? (sub.firstSampleId || '—')
+    : `${sub.firstSampleId || '—'} to ${sub.lastSampleId || '—'}`;
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Determine page splitting for elements (max 6 per page)
+  const maxColsPerPage = 6;
+  const elementPages = [];
+  if (uniqueElements.length === 0) {
+    elementPages.push([]);
+  } else {
+    let remaining = [...uniqueElements];
+    while (remaining.length > 0) {
+      const colsThisPage = Math.min(remaining.length, maxColsPerPage);
+      // Try to balance across pages
+      const pagesNeeded = Math.ceil(uniqueElements.length / maxColsPerPage);
+      const perPage = Math.ceil(uniqueElements.length / pagesNeeded);
+      const chunk = remaining.splice(0, perPage);
+      elementPages.push(chunk);
+    }
+  }
+
+  // Build the HTML for all pages
+  let pagesHtml = '';
+  elementPages.forEach((elementsChunk, pageIdx) => {
+    const isMultiPage = elementPages.length > 1;
+
+    pagesHtml += `
+    <div class="spectro-page print-container" style="width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);${isMultiPage ? '' : ''}">
+      ${isMultiPage ? `<div style="text-align:right;font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:4px;">Page ${pageIdx + 1} of ${elementPages.length}</div>` : ''}
+
+      <!-- Document Header -->
+      <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">
+        <div>
+          <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>
+          <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES RAW METRIC REPORT</p>
+        </div>
+        <div style="text-align:right;">
+          <span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>
+        </div>
+      </div>
+
+      <!-- Pre-filled Metadata -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;font-size:13px;margin-bottom:24px;">
+        <div style="display:flex;align-items:flex-end;gap:8px;">
+          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Department:</span>
+          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${escHtml(lab?.lab_name || '—')}</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;">
+          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Date of Analysis:</span>
+          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${today}</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;grid-column:1/-1;">
+          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Customer Name:</span>
+          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${escHtml(sub.customer_name || '—')}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;grid-column:1/-1;">
+          <div style="display:flex;align-items:flex-end;gap:8px;">
+            <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Instrument Model:</span>
+            <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;">
+              <span style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;">
+              <span style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <table style="width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;">
+        <thead>
+          <tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">
+            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>
+            <th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>
+            ${elementsChunk.map(el => {
+              const info = getElementInfo(el);
+              return `<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;">${escHtml(el)}${info ? `<br><span style="font-weight:400;font-size:7px;color:#64748b;">${escHtml(info.name)}</span>` : ''}</th>`;
+            }).join('')}
+            ${elementsChunk.length > 0 ? `<th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th>` : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedSamples.map((sample, idx) => {
+            const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
+            const sampleElements = sample.selectedElements || [];
+            return `<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
+              <td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">${idx + 1}</td>
+              <td style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">${escHtml(sampleIdLabel)}</td>
+              ${elementsChunk.map(el => {
+                const hasEl = sampleElements.includes(el);
+                return `<td style="border-right:1px solid #94a3b8;text-align:center;${hasEl ? '' : 'background:#f8fafc;'};padding:2px;">${hasEl ? '&nbsp;' : '<span style="color:#cbd5e1;font-size:8px;">—</span>'}</td>`;
+              }).join('')}
+              ${elementsChunk.length > 0 ? `<td style="text-align:center;padding:2px;">&nbsp;</td>` : ''}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+
+      <!-- Remarks + Signature -->
+      <div>
+        <div style="margin-bottom:20px;">
+          <span style="font-size:9px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Analytical Notes / Remarks</span>
+          <div style="border-bottom:1px dashed #94a3b8;height:18px;margin-bottom:8px;"></div>
+          <div style="border-bottom:1px dashed #94a3b8;height:18px;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:11px;">
+          <div>
+            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Analyst Signature</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
+              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;font-family:monospace;font-size:11px;font-weight:600;color:#0f172a;padding-left:4px;display:flex;align-items:center;">${escHtml(engSession?.full_name || '')}</div>
+            </div>
+          </div>
+          <div>
+            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Verified / Reviewed By</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
+              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  // Inject into the spectroscopy modal
+  const body = document.getElementById('spectroscopy-body');
+  body.innerHTML = `
+    <style>${SPECTROSCOPY_STYLES}</style>
+    <div style="padding:16px 0;">
+      ${pagesHtml}
+    </div>
+  `;
+
+  openPanel('spectroscopy-overlay');
+}
+
+// ── Print the spectroscopy datasheet ──────────────────────────
+function printSpectroscopy() {
+  window.print();
 }
 
 document.addEventListener('DOMContentLoaded', initLabEngineer);
