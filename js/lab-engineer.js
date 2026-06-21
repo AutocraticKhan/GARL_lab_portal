@@ -239,7 +239,8 @@ function openSubmissionPanel(submissionId) {
     const elementLabels = elements.length > 0
       ? elements.map(el => {
           const info = getElementInfo(el);
-          return info ? `${el} (${info.name})` : el;
+          const sym = normalizeElementSymbol(el);
+          return info ? `${sym} (${info.name})` : sym;
         }).join(', ')
       : (requiresElems ? '—' : 'No elements required');
     const isCompleted = s.status === 'completed';
@@ -442,9 +443,9 @@ function openSpectroscopyForm(submissionId) {
 
   const lab = getLab(sub.lab_id);
 
-  // Collect all unique element symbols across all samples
+  // Collect all unique element symbols across all samples (normalized casing)
   const uniqueElements = [...new Set(
-    sortedSamples.flatMap(s => s.selectedElements || [])
+    sortedSamples.flatMap(s => (s.selectedElements || []).map(el => normalizeElementSymbol(el)))
   )].sort();
 
   const sampleRange = sub.sampleCount === 1
@@ -528,7 +529,8 @@ function openSpectroscopyForm(submissionId) {
             <th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>
             ${elementsChunk.map(el => {
               const info = getElementInfo(el);
-              return `<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;">${escHtml(el)}${info ? `<br><span style="font-weight:400;font-size:7px;color:#64748b;">${escHtml(info.name)}</span>` : ''}</th>`;
+              const sym = normalizeElementSymbol(el);
+              return `<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">${escHtml(sym)}${info ? `<br><span style="font-weight:400;font-size:7px;color:#64748b;">${escHtml(info.name)}</span>` : ''}</th>`;
             }).join('')}
             ${elementsChunk.length > 0 ? `<th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th>` : ''}
           </tr>
@@ -536,7 +538,7 @@ function openSpectroscopyForm(submissionId) {
         <tbody>
           ${sortedSamples.map((sample, idx) => {
             const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
-            const sampleElements = sample.selectedElements || [];
+            const sampleElements = (sample.selectedElements || []).map(el => normalizeElementSymbol(el));
             return `<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
               <td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">${idx + 1}</td>
               <td style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">${escHtml(sampleIdLabel)}</td>

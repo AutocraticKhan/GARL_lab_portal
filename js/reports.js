@@ -32,7 +32,7 @@ function buildProgressSidebar(session) {
   sidebar.innerHTML = [
     '<div class="sidebar-logo">',
     '  <div class="sidebar-logo-icon">🧪</div>',
-    '  <div class="sidebar-logo-text">GARL Portal<span>' + (isReceptionist ? 'Receptionist' : 'Admin Panel') + '</span></div>',
+    '  <div class="sidebar-logo-text">Geoscience Advanced Research Laboratories<span>' + (isReceptionist ? 'Receptionist' : 'Admin Panel') + '</span></div>',
     '</div>',
     '<nav class="sidebar-nav">',
     navItems,

@@ -253,7 +253,8 @@ function renderPendingTable() {
     tbody.innerHTML = pageData.map(ps => {
       const elementLabels = ps.elements.map(s => {
         const info = getElementInfo(s);
-        return info ? `${s} (${info.name})` : s;
+        const sym = normalizeElementSymbol(s);
+        return info ? `${sym} (${info.name})` : sym;
       }).join(', ');
       return `<tr data-row-num="${ps.rowNum}">
         <td style="font-weight:600;font-size:0.78rem;color:var(--clr-primary);font-family:monospace;">${escHtml(ps.previewId)}</td>
@@ -873,7 +874,7 @@ function renderSamplesTable() {
         <td class="muted">${escHtml(sample.submissionId || '—')}</td>
         <td>${escHtml(sample.sampleName || sample.customer_name || '—')}</td>
         <td class="muted">${escHtml(sample.sampleType || '—')}</td>
-        <td style="font-size:0.78rem;">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</td>
+        <td style="font-size:0.78rem;">${elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—'}</td>
         <td><span class="status-badge ${(sample.status || '').toLowerCase().replace(/\s+/g, '_')}">${escHtml(sample.status || '—')}</span></td>
         <td class="muted">${formatDateTime(sample.created_at)}</td>
       `;
@@ -926,7 +927,7 @@ function renderLookup() {
         <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(s.cnic || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(s.test_name || '—')}</span></div>
-        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Elements (${elements.length})</span><span class="detail-value">${elements.length > 0 ? escHtml(elements.join(', ')) : '—'}</span></div>
+        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Elements (${elements.length})</span><span class="detail-value">${elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—'}</span></div>
       </div>
       ${report ? `<div style="margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:rgba(16,185,129,0.1);border-radius:var(--r-md);font-size:0.8rem;color:#059669;">📄 Report: ${escHtml(report.report_number)}</div>` : ''}
     </div>`;
@@ -1007,7 +1008,8 @@ function openRecSubmissionPanel(submissionId) {
     const elementLabels = elements.length > 0
       ? elements.map(el => {
           const info = getElementInfo(el);
-          return info ? `${el} (${info.name})` : el;
+          const sym = normalizeElementSymbol(el);
+          return info ? `${sym} (${info.name})` : sym;
         }).join(', ')
       : (requiresElems ? '—' : 'No elements required');
     const isCompleted = s.status === 'completed';

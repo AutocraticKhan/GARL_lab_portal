@@ -280,14 +280,30 @@ function initials(name) {
 // ── Escape HTML ───────────────────────────────────────────────
 function escHtml(str) {
   return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"');
 }
 
 // ── Number formatting ─────────────────────────────────────────
 function zeroPad(n, len = 2) { return String(n).padStart(len, '0'); }
+
+// ── Normalise element symbol to proper capitalisation ─────────
+/**
+ * Given a raw element symbol string (e.g. "AU", "au", "Au"),
+ * return the properly capitalised form from the elements library.
+ * Falls back to capitalising first letter + lowercasing the rest.
+ * @param {string} symbol
+ * @returns {string}
+ */
+function normalizeElementSymbol(symbol) {
+  if (!symbol) return '';
+  const info = getElementInfo(symbol);
+  if (info) return info.symbol;
+  // Fallback: capitalise first letter, lowercase the rest
+  return symbol.charAt(0).toUpperCase() + symbol.slice(1).toLowerCase();
+}
 
 // ── New Data Structure: Submission/Sample ID Generator ─────────
 /**
