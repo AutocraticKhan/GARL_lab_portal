@@ -293,6 +293,7 @@ function openSubmissionPanel(submissionId) {
         <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sub.created_at)}</span></div>
       </div>
 
+      ${test && test.requires_elements !== false ? `
       <!-- Spectroscopy Datasheet Button -->
       <div style="margin-bottom:var(--sp-4);">
         <button onclick="openSpectroscopyForm('${sub.submissionId}')" class="btn btn-primary" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.85rem;">
@@ -302,6 +303,7 @@ function openSubmissionPanel(submissionId) {
           📋 Spectroscopy Analysis Datasheet
         </button>
       </div>
+      ` : ''}
 
       <!-- Individual Samples List with Select All -->
       <div>
@@ -582,14 +584,54 @@ function openSpectroscopyForm(submissionId) {
     <div style="padding:16px 0;">
       ${pagesHtml}
     </div>
+    <!-- hidden container with raw HTML for printing -->
+    <div id="spectro-print-source" style="display:none;">${pagesHtml}</div>
   `;
 
   openPanel('spectroscopy-overlay');
 }
 
-// ── Print the spectroscopy datasheet ──────────────────────────
+// ── Print the spectroscopy datasheet in a clean new window ──
 function printSpectroscopy() {
-  window.print();
+  const source = document.getElementById('spectro-print-source');
+  if (!source) { showToast('No datasheet to print. Please open the form first.', 'warning'); return; }
+
+  const pagesHtml = source.innerHTML;
+
+  const fullDoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spectroscopy Analysis Datasheet - Print</title>
+  <style>
+    ${SPECTROSCOPY_STYLES}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; display: block; padding: 0; }
+    .spectro-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }
+    .spectro-page:last-child { page-break-after: auto; }
+    .print-container { box-shadow: none !important; border: none !important; }
+  </style>
+</head>
+<body>
+  ${pagesHtml}
+</body>
+</html>`;
+
+  const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+  if (!printWin) {
+    showToast('Popup blocked! Please allow popups for this site to print.', 'error');
+    return;
+  }
+  printWin.document.write(fullDoc);
+  printWin.document.close();
+  printWin.focus();
+
+  // Wait for fonts/resources to load, then print
+  setTimeout(() => {
+    printWin.print();
+    printWin.onafterprint = () => printWin.close();
+  }, 500);
 }
 
 document.addEventListener('DOMContentLoaded', initLabEngineer);
