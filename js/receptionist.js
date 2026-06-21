@@ -659,6 +659,12 @@ function wireReceptionistEvents() {
     if (currentPage < totalPages) { currentPage++; renderSamplesTable(); }
   });
 
+  // Side panel close
+  document.getElementById('close-rec-sample-panel').addEventListener('click', () => closePanel('rec-sample-panel-overlay'));
+  document.getElementById('rec-sample-panel-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('rec-sample-panel-overlay')) closePanel('rec-sample-panel-overlay');
+  });
+
   // Sample lookup
   const lookupInput = document.getElementById('lookup-input');
   if (lookupInput) {
@@ -738,7 +744,7 @@ function renderMySubmissions() {
   let submissions = getMySubmissionGroups();
 
   if (!submissions.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
     document.getElementById('my-sub-pagination').style.display = 'none';
     return;
   }
@@ -773,7 +779,7 @@ function renderMySubmissions() {
       }
     }
 
-    return `<tr>
+    return `<tr class="clickable" onclick="openRecSubmissionPanel('${sub.submissionId}')">
       <td><strong style="color:var(--clr-primary);font-size:0.82rem;">#${escHtml(sub.submissionId)}</strong></td>
       <td>${escHtml(sub.customer_name || '—')}</td>
       <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
@@ -781,16 +787,6 @@ function renderMySubmissions() {
       <td class="muted" style="font-family:monospace;font-size:0.75rem;">${sampleRange}</td>
       <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
       <td>${statusBadge(sub.statusSummary)}</td>
-      <td>
-        ${sub.allCompleted && !sub.hasReports
-          ? `<button class="btn btn-primary btn-sm" onclick="generateReportForSubmission('${sub.submissionId}')" style="height:28px;font-size:0.72rem;padding:0 10px;">
-               📄 Generate Report
-             </button>`
-          : sub.hasReports
-            ? `<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ ${reportNumbers}</span>`
-            : `<span style="font-size:0.72rem;color:var(--txt-muted);">—</span>`
-        }
-      </td>
     </tr>`;
   }).join('');
 
@@ -935,6 +931,139 @@ function renderLookup() {
       ${report ? `<div style="margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:rgba(16,185,129,0.1);border-radius:var(--r-md);font-size:0.8rem;color:#059669;">📄 Report: ${escHtml(report.report_number)}</div>` : ''}
     </div>`;
   }).join('');
+}
+
+// ── SIDE PANEL: Open Submission Details (read-only) ──────────
+function openRecSubmissionPanel(submissionId) {
+  // Get submission data from all samples
+  const samples = DB.samples.filter(s => s.submissionId === submissionId);
+  if (!samples.length) {
+    showToast('Submission not found.', 'error');
+    return;
+  }
+
+  // Sort samples by sequence number
+  const sortedSamples = [...samples].sort((a, b) => {
+    const aSeq = (a.sampleId || '').split('-').pop() || '';
+    const bSeq = (b.sampleId || '').split('-').pop() || '';
+    return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+  });
+
+  const lab = getLab(samples[0].lab_id);
+  const firstSample = sortedSamples[0];
+  const test = firstSample ? getTest(firstSample.test_id) : null;
+
+  // Build submission summary
+  const sampleCount = samples.length;
+  const firstSampleId = sortedSamples.length > 0 ? (sortedSamples[0].sampleId || '') : '';
+  const lastSampleId  = sortedSamples.length > 0 ? (sortedSamples[sortedSamples.length - 1].sampleId || '') : '';
+
+  let sampleRange = '—';
+  if (sampleCount === 1) {
+    sampleRange = firstSampleId;
+  } else if (firstSampleId && lastSampleId) {
+    const firstParts = firstSampleId.split('-');
+    const lastParts  = lastSampleId.split('-');
+    const prefix = firstParts.slice(0, -1).join('-');
+    const firstSeq = firstParts[firstParts.length - 1];
+    const lastSeq  = lastParts[lastParts.length - 1];
+    if (firstSeq && lastSeq && firstSeq !== lastSeq) {
+      sampleRange = `${prefix}-${firstSeq} to ${lastSeq}`;
+    } else {
+      sampleRange = firstSampleId;
+    }
+  }
+
+  // Count by status
+  const statusCounts = {};
+  sortedSamples.forEach(s => {
+    statusCounts[s.status] = (statusCounts[s.status] || 0) + 1;
+  });
+  const statusSummaryStr = Object.entries(statusCounts)
+    .map(([st, cnt]) => `${st.replace('_', ' ')}: ${cnt}`)
+    .join(' · ');
+
+  const allCompleted = sortedSamples.every(s => s.status === 'completed');
+
+  // Get status summary for the whole submission
+  const statuses = sortedSamples.map(s => s.status);
+  const statusOrder = ['completed', 'in_progress', 'assigned', 'received'];
+  let statusSummary = 'received';
+  for (const st of statusOrder) {
+    if (statuses.includes(st)) {
+      statusSummary = st;
+      break;
+    }
+  }
+
+  // Panel title
+  document.getElementById('rec-panel-sample-number').textContent = `Submission #${submissionId} (${sampleCount} samples)`;
+
+  // Build individual sample rows (read-only — no checkboxes)
+  const sampleRows = sortedSamples.map(s => {
+    const elements = s.selectedElements || [];
+    const testForSample = s.test_id ? getTest(s.test_id) : null;
+    const requiresElems = testForSample ? testForSample.requires_elements !== false : true;
+    const elementLabels = elements.length > 0
+      ? elements.map(el => {
+          const info = getElementInfo(el);
+          return info ? `${el} (${info.name})` : el;
+        }).join(', ')
+      : (requiresElems ? '—' : 'No elements required');
+    const isCompleted = s.status === 'completed';
+    const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
+
+    return `<div class="submission-sample-row" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:${isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)'};">
+      <div style="display:flex;align-items:flex-start;gap:var(--sp-3);">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">
+            <div>
+              <span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:${isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)'};">${escHtml(sampleIdLabel)}</span>
+              <span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">${escHtml(s.sampleType || '—')}</span>
+            </div>
+            ${isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)}
+          </div>
+          <div style="font-size:0.75rem;color:var(--txt-secondary);">
+            <span><strong>Elements (${elements.length}):</strong> ${escHtml(elementLabels)}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('rec-panel-body').innerHTML = `
+    <div style="margin-bottom:var(--sp-5);">
+      <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">
+        ${statusBadge(statusSummary)}
+        <span style="font-size:0.78rem;color:var(--txt-muted);">${statusSummaryStr}</span>
+        ${allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : ''}
+      </div>
+
+      <!-- Submission Summary Card -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
+        <div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#${escHtml(submissionId)}</span></div>
+        <div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">${sampleCount}</span></div>
+        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">${escHtml(sampleRange)}</span></div>
+        <div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">${escHtml(firstSample?.customer_name || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">${escHtml(firstSample?.customer_contact || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(firstSample?.cnic || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(firstSample?.sample_location || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || samples[0]?.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
+        <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sortedSamples[0]?.created_at)}</span></div>
+      </div>
+
+      <!-- Samples List -->
+      <div>
+        <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:var(--sp-3);">Samples in this Submission</div>
+        <div id="rec-submission-samples-list">
+          ${sampleRows}
+        </div>
+      </div>
+    </div>
+  `;
+
+  openPanel('rec-sample-panel-overlay');
 }
 
 document.addEventListener('DOMContentLoaded', initReceptionist);

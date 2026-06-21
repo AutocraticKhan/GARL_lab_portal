@@ -249,7 +249,7 @@
             <thead>
               <tr>
                 <th>Submission #</th><th>Customer</th><th>Lab</th>
-                <th>Test</th><th>Sample Range</th><th>Samples</th><th>Status</th><th>Report</th>
+                <th>Test</th><th>Sample Range</th><th>Samples</th><th>Status</th>
               </tr>
             </thead>
             <tbody id="my-submissions-tbody"></tbody>
@@ -310,6 +310,19 @@
 
     </div><!-- /page-body -->
   </main>
+</div>
+
+<!-- ── SIDE PANEL: Submission Sample Details (read-only) ────── -->
+<div class="side-panel-overlay" id="rec-sample-panel-overlay">
+  <div class="side-panel">
+    <div class="side-panel-header">
+      <div class="side-panel-title" id="rec-panel-sample-number">Submission Details</div>
+      <button class="modal-close" id="close-rec-sample-panel">✕</button>
+    </div>
+    <div class="side-panel-body" id="rec-panel-body">
+      <!-- Populated by JS -->
+    </div>
+  </div>
 </div>
 
 <script src="../js/supabase-client.js"></script>
