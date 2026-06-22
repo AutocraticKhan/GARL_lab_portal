@@ -744,8 +744,8 @@ function renderMySubmissions() {
   const tbody = document.getElementById('my-submissions-tbody');
   let submissions = getMySubmissionGroups();
 
-  if (!submissions.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
+    if (!submissions.length) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
     document.getElementById('my-sub-pagination').style.display = 'none';
     return;
   }
@@ -780,6 +780,10 @@ function renderMySubmissions() {
       }
     }
 
+    // Get the latest completion date across all samples
+    const completedDates = sub.samples.map(s => s.completed_at).filter(Boolean).sort().reverse();
+    const completedDate = completedDates[0] || null;
+
     return `<tr class="clickable" onclick="openRecSubmissionPanel('${sub.submissionId}')">
       <td><strong style="color:var(--clr-primary);font-size:0.82rem;">#${escHtml(sub.submissionId)}</strong></td>
       <td>${escHtml(sub.customer_name || '—')}</td>
@@ -788,6 +792,7 @@ function renderMySubmissions() {
       <td class="muted" style="font-family:monospace;font-size:0.75rem;">${sampleRange}</td>
       <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
       <td>${statusBadge(sub.statusSummary)}</td>
+      <td class="muted" style="font-size:0.75rem;">${completedDate ? formatDate(completedDate) : '—'}</td>
     </tr>`;
   }).join('');
 
@@ -1053,6 +1058,7 @@ function openRecSubmissionPanel(submissionId) {
         <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
         <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || samples[0]?.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
         <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sortedSamples[0]?.created_at)}</span></div>
+        ${allCompleted ? `<div class="detail-row"><span class="detail-label">Analysis Completed</span><span class="detail-value" style="font-weight:600;color:var(--clr-success);">${formatDate(sortedSamples.map(s => s.completed_at).filter(Boolean).sort().reverse()[0])}</span></div>` : ''}
       </div>
 
       <!-- Samples List -->

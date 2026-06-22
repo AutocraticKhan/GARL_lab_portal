@@ -132,19 +132,23 @@ function aggregateData(filters) {
     const completed  = samples.filter(s => s.status === 'completed').length;
     const pending    = received + assigned + inProgress;
 
-    // Average turnaround: days from created_at to report.uploaded_at for completed
+    // Average turnaround: days from created_at to completed_at for completed
     const completedSamples = samples.filter(s => s.status === 'completed');
     let avgTurnaround = '—';
+    let latestCompletionDate = null;
     if (completedSamples.length) {
       const total_days = completedSamples.reduce((sum, s) => {
-        const report = getReportForSample(s.id);
-        if (report && report.uploaded_at) {
-          return sum + daysBetween(s.created_at, report.uploaded_at);
+        if (s.completed_at) {
+          return sum + daysBetween(s.created_at, s.completed_at);
         }
         return sum;
       }, 0);
       const avg = (total_days / completedSamples.length).toFixed(1);
       avgTurnaround = `${avg} day${avg == 1 ? '' : 's'}`;
+
+      // Get latest completion date
+      const completionDates = completedSamples.map(s => s.completed_at).filter(Boolean).sort().reverse();
+      latestCompletionDate = completionDates[0] || null;
     }
 
     return {
@@ -159,6 +163,7 @@ function aggregateData(filters) {
       completed,
       pending,
       avg_turnaround: avgTurnaround,
+      latest_completion: latestCompletionDate,
     };
   });
 }
@@ -195,7 +200,7 @@ function renderReport() {
 function renderTable(rows) {
   const tbody = document.getElementById('report-tbody');
   if (!rows.length || rows.every(r => r.total === 0)) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📊</div><p>No data for selected filters</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📊</div><p>No data for selected filters</p></div></td></tr>`;
     return;
   }
 
@@ -216,6 +221,7 @@ function renderTable(rows) {
           <span style="font-size:0.78rem;color:var(--txt-secondary);min-width:32px;">${pct}%</span>
         </div>
       </td>
+      <td style="text-align:center;font-size:0.75rem;color:var(--txt-secondary);">${r.latest_completion ? formatDate(r.latest_completion) : '—'}</td>
     </tr>`;
   }).join('');
 
@@ -229,6 +235,10 @@ function renderTable(rows) {
       completed: a.completed+r.completed, pending: a.pending+r.pending,
     }), { total:0, estimations:0, assigned:0, in_progress:0, completed:0, pending:0 });
     const tp = Math.round((t.completed/t.total)*100);
+    // Get the overall latest completion date
+    const allCompletionDates = rows2.flatMap(r => r.latest_completion ? [r.latest_completion] : []).sort().reverse();
+    const allLatestCompletion = allCompletionDates[0] || null;
+
     tbody.innerHTML += `<tr style="border-top:2px solid var(--clr-border-2);background:rgba(0,0,0,0.02);">
       <td><strong>All Labs</strong></td>
       <td style="text-align:center;font-weight:800;">${t.total}</td>
@@ -243,6 +253,7 @@ function renderTable(rows) {
           <span style="font-size:0.78rem;color:var(--txt-secondary);min-width:32px;">${tp}%</span>
         </div>
       </td>
+      <td style="text-align:center;font-size:0.75rem;color:var(--txt-secondary);">${allLatestCompletion ? formatDate(allLatestCompletion) : '—'}</td>
     </tr>`;
   }
 }
