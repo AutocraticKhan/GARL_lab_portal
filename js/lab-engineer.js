@@ -306,16 +306,10 @@ function openSubmissionPanel(submissionId) {
       </div>
       ` : ''}
 
-      <!-- Individual Samples List with Select All -->
+      <!-- Individual Samples List -->
       <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);">
+        <div style="display:flex;align-items:center;margin-bottom:var(--sp-3);">
           <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;">Samples in this Submission</div>
-          ${!allCompleted ? `
-            <label style="display:flex;align-items:center;gap:var(--sp-2);font-size:0.78rem;color:var(--txt-secondary);cursor:pointer;">
-              <input type="checkbox" id="select-all-samples" onchange="toggleSelectAll(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--clr-success);" />
-              Select All
-            </label>
-          ` : ''}
         </div>
         <div id="submission-samples-list">
           ${sampleRows}
@@ -353,19 +347,6 @@ async function toggleSampleComplete(sampleId, checked) {
   } catch (err) {
     showToast('Error updating sample: ' + err.message, 'error');
   }
-}
-
-// ── Toggle Select All checkboxes ───────────────────────────────
-function toggleSelectAll(checked) {
-  const checkboxes = document.querySelectorAll('.sample-complete-chk');
-  checkboxes.forEach(cb => {
-    if (cb.checked !== checked) {
-      cb.checked = checked;
-      // Trigger the change handler
-      const event = new Event('change', { bubbles: true });
-      cb.dispatchEvent(event);
-    }
-  });
 }
 
 // ── Mark All Complete (button in footer) ───────────────────────
