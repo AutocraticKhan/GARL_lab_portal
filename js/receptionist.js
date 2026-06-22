@@ -549,19 +549,11 @@ function resetForm() {
   renderSamplesTable();
 }
 
-// ── Confirmation Card ─────────────────────────────────────────
+// ── Confirmation Modal ─────────────────────────────────────────
 function renderIntakeConfirmation(submission, samples, lab, labCode, customerName, customerContact, cnic, sampleLocation) {
-  const box = document.getElementById('intake-confirm');
-  box.style.display = 'block';
-  box.innerHTML = `
-    <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);">
-      <div style="font-size:2rem;">✅</div>
-      <div>
-        <div style="font-size:1rem;font-weight:700;color:var(--clr-success);">Submission Registered</div>
-        <div style="font-size:0.8rem;color:var(--txt-secondary);">Successfully saved to the system</div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-4);">
+  const body = document.getElementById('intake-confirm-body');
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">
       <div class="detail-row"><span class="detail-label">Submission #</span><span class="detail-value" style="font-size:1rem;font-weight:700;color:var(--clr-primary);">${escHtml(submission.submissionId)}</span></div>
       <div class="detail-row"><span class="detail-label">Patient</span><span class="detail-value">${escHtml(customerName || '—')}</span></div>
       <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(customerContact || '—')}</span></div>
@@ -571,6 +563,7 @@ function renderIntakeConfirmation(submission, samples, lab, labCode, customerNam
       <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${escHtml(submission.date)}</span></div>
       <div class="detail-row"><span class="detail-label">Samples</span><span class="detail-value">${samples.length}</span></div>
     </div>`;
+  openModal('modal-intake-confirm');
 }
 
 // ── Event Wiring ───────────────────────────────────────────────
@@ -665,6 +658,23 @@ function wireReceptionistEvents() {
   document.getElementById('rec-sample-panel-overlay').addEventListener('click', (e) => {
     if (e.target === document.getElementById('rec-sample-panel-overlay')) closePanel('rec-sample-panel-overlay');
   });
+
+  // Intake confirmation modal close wiring
+  const closeIntakeBtns = [
+    document.getElementById('close-intake-modal'),
+    document.getElementById('close-intake-modal-btn')
+  ];
+  closeIntakeBtns.forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => closeModal('modal-intake-confirm'));
+    }
+  });
+  const modalOverlay = document.getElementById('modal-intake-confirm');
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal('modal-intake-confirm');
+    });
+  }
 
   // Sample lookup
   const lookupInput = document.getElementById('lookup-input');

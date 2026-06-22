@@ -60,9 +60,9 @@
 
       <!-- ── TAB: NEW SUBMISSION (Multi-Sample) ─────────────── -->
       <div id="rec-tab-new" class="tab-panel active">
-        <div style="display:grid;grid-template-columns:1fr 380px;gap:var(--sp-6);">
+        <div class="rec-main-grid" style="display:grid;grid-template-columns:1fr;gap:var(--sp-6);max-width:1400px;margin:0 auto;padding-right:var(--sp-4);">
           <!-- Submission Form -->
-          <div class="card card-elevated">
+          <div class="card card-elevated" style="max-width:100%;width:100%;">
             <div class="section-header">
               <div>
                 <div class="section-title">Create New Submission</div>
@@ -127,7 +127,7 @@
               <fieldset class="form-section">
                 <legend>Bulk Sample Generator</legend>
                 <div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-bottom:var(--sp-4);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
-                  <div style="display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap;">
+                  <div class="bulk-generator-row" style="display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap;">
                     <div style="display:flex;gap:var(--sp-2);align-items:center;flex:1;min-width:160px;">
                       <label style="font-size:0.78rem;font-weight:600;white-space:nowrap;">Sample Type</label>
                       <select id="bulkSampleType" class="form-control" style="flex:1;min-width:100px;">
@@ -156,7 +156,7 @@
                              placeholder="Sample Numbers" style="width:70px;" />
                     </div>
                   </div>
-                  <div style="display:flex;gap:var(--sp-2);align-items:flex-start;flex-wrap:wrap;">
+                  <div class="bulk-generator-elements-row" style="display:flex;gap:var(--sp-2);align-items:flex-start;flex-wrap:wrap;">
                     <div style="flex:1;min-width:280px;">
                       <label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:var(--sp-1);">Elements</label>
                       <div id="bulkElementPicker" style="position:relative;">
@@ -204,37 +204,6 @@
 
               <button type="submit" class="btn btn-primary btn-full btn-lg">Submit Registration</button>
             </form>
-          </div>
-
-          <!-- Side Panel: How it works + confirmation -->
-          <div>
-            <div id="intake-confirm" class="card card-elevated" style="display:none;"></div>
-            <div class="card" style="margin-top:var(--sp-4);padding:var(--sp-5);">
-              <div style="font-size:0.72rem;font-weight:700;color:var(--txt-muted);margin-bottom:var(--sp-4);text-transform:uppercase;letter-spacing:0.08em;">📖 How it works</div>
-              <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
-                <div style="display:flex;gap:var(--sp-4);align-items:flex-start;">
-                  <div style="width:32px;height:32px;border-radius:50%;background:var(--clr-primary-g);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;flex-shrink:0;color:#fff;box-shadow:0 2px 8px rgba(59,130,246,0.3);">1</div>
-                  <div style="flex:1;">
-                    <div style="font-size:0.84rem;font-weight:600;color:var(--txt-primary);margin-bottom:2px;">Configure submission</div>
-                    <div style="font-size:0.78rem;color:var(--txt-secondary);line-height:1.5;">Select a laboratory and date, then add sample rows using the bulk generator above.</div>
-                  </div>
-                </div>
-                <div style="display:flex;gap:var(--sp-4);align-items:flex-start;">
-                  <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;flex-shrink:0;color:#fff;box-shadow:0 2px 8px rgba(245,158,11,0.3);">2</div>
-                  <div style="flex:1;">
-                    <div style="font-size:0.84rem;font-weight:600;color:var(--txt-primary);margin-bottom:2px;">Auto-generated IDs</div>
-                    <div style="font-size:0.78rem;color:var(--txt-secondary);line-height:1.5;">Each sample gets a structured ID like <code style="background:var(--clr-bg-3);padding:1px 6px;border-radius:4px;font-size:0.72rem;font-weight:600;color:var(--clr-primary);">26-06-AAS-1001-001</code></div>
-                  </div>
-                </div>
-                <div style="display:flex;gap:var(--sp-4);align-items:flex-start;">
-                  <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;flex-shrink:0;color:#fff;box-shadow:0 2px 8px rgba(16,185,129,0.3);">3</div>
-                  <div style="flex:1;">
-                    <div style="font-size:0.84rem;font-weight:600;color:var(--txt-primary);margin-bottom:2px;">Engineers process</div>
-                    <div style="font-size:0.78rem;color:var(--txt-secondary);line-height:1.5;">Lab engineers pick up samples from the queue, run tests, and complete analysis.</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -321,6 +290,22 @@
     </div>
     <div class="side-panel-body" id="rec-panel-body">
       <!-- Populated by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ── CONFIRMATION MODAL (Submission Success) ─────────────── -->
+<div class="modal-backdrop" id="modal-intake-confirm">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title">✅ Submission Registered</h2>
+      <button class="modal-close" id="close-intake-modal">✕</button>
+    </div>
+    <div class="modal-body" id="intake-confirm-body" style="padding:var(--sp-6);">
+      <!-- Populated by JS -->
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" id="close-intake-modal-btn">OK</button>
     </div>
   </div>
 </div>
