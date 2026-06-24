@@ -557,6 +557,7 @@ function openSpectroscopyForm(submissionId) {
           <tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">
             <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>
             <th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>
+            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>
             ${elementsChunk.map(el => {
               const info = getElementInfo(el);
               const sym = normalizeElementSymbol(el);
@@ -572,6 +573,7 @@ function openSpectroscopyForm(submissionId) {
             return `<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
               <td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">${idx + 1}</td>
               <td style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">${escHtml(sampleIdLabel)}</td>
+              <td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
               ${elementsChunk.map(el => {
                 const hasEl = sampleElements.includes(el);
                 return `<td style="border-right:1px solid #94a3b8;text-align:center;${hasEl ? '' : 'background:#f8fafc;'};padding:2px;">${hasEl ? '&nbsp;' : '<span style="color:#cbd5e1;font-size:8px;">—</span>'}</td>`;
@@ -608,6 +610,197 @@ function openSpectroscopyForm(submissionId) {
       </div>
     </div>`;
   });
+
+  // Inject into the spectroscopy modal
+  const body = document.getElementById('spectroscopy-body');
+  body.innerHTML = `
+    <style>${SPECTROSCOPY_STYLES}</style>
+    <div style="padding:16px 0;">
+      ${pagesHtml}
+    </div>
+    <!-- hidden container with raw HTML for printing -->
+    <div id="spectro-print-source" style="display:none;">${pagesHtml}</div>
+  `;
+
+  openPanel('spectroscopy-overlay');
+}
+
+// ── BLANK SPECTROSCOPY DATASHEET (fully manual entry) ──────────
+function openBlankSpectroscopyForm() {
+  // Prompt for sample count
+  const sampleCountStr = prompt('Number of samples:', '5');
+  if (sampleCountStr === null) return;
+  const sampleCount = parseInt(sampleCountStr, 10);
+  if (isNaN(sampleCount) || sampleCount < 1) {
+    showToast('Please enter a valid number of samples.', 'warning');
+    return;
+  }
+
+  // Prompt for element count
+  const elemCountStr = prompt('Number of elements:', '4');
+  if (elemCountStr === null) return;
+  const elemCount = parseInt(elemCountStr, 10);
+  if (isNaN(elemCount) || elemCount < 1) {
+    showToast('Please enter a valid number of elements.', 'warning');
+    return;
+  }
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Build generic element column headers
+  const elementHeaders = Array.from({ length: elemCount }, (_, i) =>
+    `<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">Elem.<br><span style="font-weight:400;font-size:7px;color:#64748b;">${i + 1}</span></th>`
+  ).join('');
+
+  // Build body rows — all cells are empty writing spaces
+  const bodyRows = Array.from({ length: sampleCount }, (_, idx) => {
+    const elementCells = Array.from({ length: elemCount }, () =>
+      `<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monoserif;border-bottom:1px dashed #94a3b8;">&nbsp;</td>`
+    ).join('');
+
+    return `<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
+      <td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">${idx + 1}</td>
+      <td class="writing-row" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
+      <td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
+      ${elementCells}
+      <td class="writing-row" style="text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
+    </tr>`;
+  }).join('');
+
+  const pagesHtml = `
+    <div class="spectro-page print-container" style="width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+      <!-- Document Header -->
+      <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">
+        <div>
+          <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>
+          <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>
+        </div>
+        <div style="text-align:right;">
+          <span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>
+        </div>
+      </div>
+
+      <!-- Pre-filled Metadata -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;font-size:13px;margin-bottom:24px;">
+        <div style="display:flex;align-items:flex-end;gap:8px;">
+          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Department:</span>
+          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;">
+          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Date of Analysis:</span>
+          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${today}</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;grid-column:1/-1;">
+          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Customer Name:</span>
+          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;grid-column:1/-1;">
+          <div style="display:flex;align-items:flex-end;gap:8px;">
+            <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Instrument Model:</span>
+            <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;">
+            <label onclick="toggleInstrument('aas')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+              <span id="inst-chk-aas" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
+            </label>
+            <label onclick="toggleInstrument('mpaes')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+              <span id="inst-chk-mpaes" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
+            </label>
+            <label onclick="toggleInstrument('icpms')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+              <span id="inst-chk-icpms" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> ICP-MS
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instrument Vitals -->
+      <div id="vitals-section" style="margin-bottom:24px;display:none;">
+        <!-- AAS Vitals -->
+        <div id="vitals-aas" style="display:none;">
+          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#eef2ff;border-radius:4px;border-left:3px solid #6366f1;">AAS Instrument Vitals</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Wavelength (nm)</span><input type="text" class="vital-input" data-vital="aas-wavelength" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Slit Width (nm)</span><input type="text" class="vital-input" data-vital="aas-slit" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp Current (mA)</span><input type="text" class="vital-input" data-vital="aas-current" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Flame Type</span><input type="text" class="vital-input" data-vital="aas-flame" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Fuel Flow (L/min)</span><input type="text" class="vital-input" data-vital="aas-fuel" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxidant Flow (L/min)</span><input type="text" class="vital-input" data-vital="aas-oxidant" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Burner Height (mm)</span><input type="text" class="vital-input" data-vital="aas-burner" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Background Correction</span><input type="text" class="vital-input" data-vital="aas-bg" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+          </div>
+        </div>
+        <!-- MP-AES Vitals -->
+        <div id="vitals-mpaes" style="display:none;">
+          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fef3c7;border-radius:4px;border-left:3px solid #f59e0b;">MP-AES Instrument Vitals</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Wavelength (nm)</span><input type="text" class="vital-input" data-vital="mpaes-wavelength" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="mpaes-plasma" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Auxiliary Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="mpaes-aux" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer Pressure (kPa)</span><input type="text" class="vital-input" data-vital="mpaes-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Viewing Position</span><input type="text" class="vital-input" data-vital="mpaes-view" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Integration Time (s)</span><input type="text" class="vital-input" data-vital="mpaes-integration" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Replicates</span><input type="text" class="vital-input" data-vital="mpaes-replicates" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+          </div>
+        </div>
+        <!-- ICP-MS Vitals -->
+        <div id="vitals-icpms" style="display:none;">
+          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fce7f3;border-radius:4px;border-left:3px solid #ec4899;">ICP-MS Instrument Vitals</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">RF Power (W)</span><input type="text" class="vital-input" data-vital="icpms-rfpower" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="icpms-plasma" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Auxiliary Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="icpms-aux" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="icpms-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Sampling Depth (mm)</span><input type="text" class="vital-input" data-vital="icpms-depth" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Collision/Reaction Gas</span><input type="text" class="vital-input" data-vital="icpms-gas" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Scan Mode</span><input type="text" class="vital-input" data-vital="icpms-scan" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Dwell Time (ms)</span><input type="text" class="vital-input" data-vital="icpms-dwell" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Replicates</span><input type="text" class="vital-input" data-vital="icpms-replicates" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <table style="width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;">
+        <thead>
+          <tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">
+            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>
+            <th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>
+            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>
+            ${elementHeaders}
+            <th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bodyRows}
+        </tbody>
+      </table>
+
+      <!-- Remarks + Signature -->
+      <div>
+        <div style="margin-bottom:20px;">
+          <span style="font-size:9px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Analytical Notes / Remarks</span>
+          <div style="border-bottom:1px dashed #94a3b8;height:18px;margin-bottom:8px;"></div>
+          <div style="border-bottom:1px dashed #94a3b8;height:18px;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:11px;">
+          <div>
+            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Analyst Signature</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
+              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>
+            </div>
+          </div>
+          <div>
+            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Verified / Reviewed By</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
+              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
 
   // Inject into the spectroscopy modal
   const body = document.getElementById('spectroscopy-body');
