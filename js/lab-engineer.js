@@ -465,7 +465,7 @@ function openSpectroscopyForm(submissionId) {
       <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">
         <div>
           <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>
-          <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES RAW METRIC REPORT</p>
+          <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>
         </div>
         <div style="text-align:right;">
           <span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>
@@ -492,12 +492,61 @@ function openSpectroscopyForm(submissionId) {
             <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
           </div>
           <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;">
-            <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;">
-              <span style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
+            <label onclick="toggleInstrument('aas')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+              <span id="inst-chk-aas" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
             </label>
-            <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;">
-              <span style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
+            <label onclick="toggleInstrument('mpaes')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+              <span id="inst-chk-mpaes" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
             </label>
+            <label onclick="toggleInstrument('icpms')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+              <span id="inst-chk-icpms" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> ICP-MS
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instrument Vitals -->
+      <div id="vitals-section" style="margin-bottom:24px;display:none;">
+        <!-- AAS Vitals -->
+        <div id="vitals-aas" style="display:none;">
+          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#eef2ff;border-radius:4px;border-left:3px solid #6366f1;">AAS Instrument Vitals</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Wavelength (nm)</span><input type="text" class="vital-input" data-vital="aas-wavelength" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Slit Width (nm)</span><input type="text" class="vital-input" data-vital="aas-slit" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp Current (mA)</span><input type="text" class="vital-input" data-vital="aas-current" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Flame Type</span><input type="text" class="vital-input" data-vital="aas-flame" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Fuel Flow (L/min)</span><input type="text" class="vital-input" data-vital="aas-fuel" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxidant Flow (L/min)</span><input type="text" class="vital-input" data-vital="aas-oxidant" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Burner Height (mm)</span><input type="text" class="vital-input" data-vital="aas-burner" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Background Correction</span><input type="text" class="vital-input" data-vital="aas-bg" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+          </div>
+        </div>
+        <!-- MP-AES Vitals -->
+        <div id="vitals-mpaes" style="display:none;">
+          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fef3c7;border-radius:4px;border-left:3px solid #f59e0b;">MP-AES Instrument Vitals</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Wavelength (nm)</span><input type="text" class="vital-input" data-vital="mpaes-wavelength" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="mpaes-plasma" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Auxiliary Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="mpaes-aux" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer Pressure (kPa)</span><input type="text" class="vital-input" data-vital="mpaes-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Viewing Position</span><input type="text" class="vital-input" data-vital="mpaes-view" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Integration Time (s)</span><input type="text" class="vital-input" data-vital="mpaes-integration" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Replicates</span><input type="text" class="vital-input" data-vital="mpaes-replicates" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+          </div>
+        </div>
+        <!-- ICP-MS Vitals -->
+        <div id="vitals-icpms" style="display:none;">
+          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fce7f3;border-radius:4px;border-left:3px solid #ec4899;">ICP-MS Instrument Vitals</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">RF Power (W)</span><input type="text" class="vital-input" data-vital="icpms-rfpower" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="icpms-plasma" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Auxiliary Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="icpms-aux" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer Gas Flow (L/min)</span><input type="text" class="vital-input" data-vital="icpms-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Sampling Depth (mm)</span><input type="text" class="vital-input" data-vital="icpms-depth" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Collision/Reaction Gas</span><input type="text" class="vital-input" data-vital="icpms-gas" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Scan Mode</span><input type="text" class="vital-input" data-vital="icpms-scan" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Dwell Time (ms)</span><input type="text" class="vital-input" data-vital="icpms-dwell" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+            <div><span style="font-size:9px;font-weight:600;color:#475569;">Replicates</span><input type="text" class="vital-input" data-vital="icpms-replicates" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
           </div>
         </div>
       </div>
@@ -579,7 +628,48 @@ function printSpectroscopy() {
   const source = document.getElementById('spectro-print-source');
   if (!source) { showToast('No datasheet to print. Please open the form first.', 'warning'); return; }
 
-  const pagesHtml = source.innerHTML;
+  let pagesHtml = source.innerHTML;
+
+  // Capture live instrument vitals state and inject into print HTML
+  // Determine which instrument is selected
+  const selectedInst = ['aas', 'mpaes', 'icpms'].find(inst => {
+    const chk = document.getElementById('inst-chk-' + inst);
+    return chk && chk.textContent === '✓';
+  });
+
+  if (selectedInst) {
+    // Build vitals HTML with live values
+    let vitalsHtml = '';
+    const vitalLabels = {
+      aas: { wavelength: 'Wavelength (nm)', slit: 'Slit Width (nm)', current: 'Lamp Current (mA)', flame: 'Flame Type', fuel: 'Fuel Flow (L/min)', oxidant: 'Oxidant Flow (L/min)', burner: 'Burner Height (mm)', bg: 'Background Correction' },
+      mpaes: { wavelength: 'Wavelength (nm)', plasma: 'Plasma Gas Flow (L/min)', aux: 'Auxiliary Gas Flow (L/min)', nebulizer: 'Nebulizer Pressure (kPa)', view: 'Viewing Position', integration: 'Integration Time (s)', replicates: 'Replicates' },
+      icpms: { rfpower: 'RF Power (W)', plasma: 'Plasma Gas Flow (L/min)', aux: 'Auxiliary Gas Flow (L/min)', nebulizer: 'Nebulizer Gas Flow (L/min)', depth: 'Sampling Depth (mm)', gas: 'Collision/Reaction Gas', scan: 'Scan Mode', dwell: 'Dwell Time (ms)', replicates: 'Replicates' }
+    };
+
+    const instName = { aas: 'AAS', mpaes: 'MP-AES', icpms: 'ICP-MS' }[selectedInst];
+
+    // Collect values from live DOM
+    const vitalInputs = document.querySelectorAll('#vitals-' + selectedInst + ' .vital-input');
+    const rows = [];
+    vitalInputs.forEach(input => {
+      const label = input.previousElementSibling ? input.previousElementSibling.textContent : '';
+      const value = input.value || '';
+      if (label) {
+        rows.push(`<tr><td style="padding:4px 8px;border:1px solid #cbd5e1;font-size:10px;font-weight:600;color:#334155;white-space:nowrap;">${escHtml(label)}</td><td style="padding:4px 8px;border:1px solid #cbd5e1;font-size:10px;font-family:monospace;color:#0f172a;">${escHtml(value) || '—'}</td></tr>`);
+      }
+    });
+
+    vitalsHtml = `
+      <div style="margin-bottom:18px;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">
+        <div style="font-size:9px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;padding:5px 8px;background:#f1f5f9;border-bottom:1px solid #cbd5e1;">Instrument Vitals — ${instName}</div>
+        <table style="width:100%;border-collapse:collapse;">
+          ${rows.join('')}
+        </table>
+      </div>`;
+
+    // Inject vitals before the data table in each page
+    pagesHtml = pagesHtml.replace(/<!-- Data Table -->/g, vitalsHtml + '<!-- Data Table -->');
+  }
 
   const fullDoc = `<!DOCTYPE html>
 <html lang="en">
@@ -615,6 +705,41 @@ function printSpectroscopy() {
     printWin.print();
     printWin.onafterprint = () => printWin.close();
   }, 500);
+}
+
+// ── Toggle instrument selection and vitals ──────────────────────
+function toggleInstrument(instrument) {
+  // Clear all check marks
+  document.querySelectorAll('[id^="inst-chk-"]').forEach(el => {
+    el.style.background = 'transparent';
+    el.textContent = '';
+  });
+  // Hide all vitals sections
+  document.querySelectorAll('[id^="vitals-"]').forEach(el => {
+    if (el.id !== 'vitals-section') el.style.display = 'none';
+  });
+  document.getElementById('vitals-section').style.display = 'none';
+
+  if (!instrument) return;
+
+  // Check the selected instrument
+  const chk = document.getElementById('inst-chk-' + instrument);
+  if (chk) {
+    chk.style.background = '#1e293b';
+    chk.textContent = '✓';
+    chk.style.color = '#fff';
+    chk.style.fontSize = '11px';
+    chk.style.display = 'flex';
+    chk.style.alignItems = 'center';
+    chk.style.justifyContent = 'center';
+  }
+
+  // Show corresponding vitals
+  const vitalsDiv = document.getElementById('vitals-' + instrument);
+  if (vitalsDiv) {
+    vitalsDiv.style.display = 'block';
+    document.getElementById('vitals-section').style.display = 'block';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', initLabEngineer);
