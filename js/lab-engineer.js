@@ -411,6 +411,10 @@ const SPECTROSCOPY_STYLES = `
 `;
 
 function openSpectroscopyForm(submissionId) {
+  // Reset blank-sheet UI: show blank sheet button, hide input row
+  document.getElementById('blank-sheet-inputs').style.display = 'none';
+  document.getElementById('btn-blank-sheet').style.display = 'flex';
+
   const submissions = getSubmissionsForLab(engSession.lab_id);
   const sub = submissions.find(s => s.submissionId === submissionId);
   if (!sub) { showToast('Submission not found', 'error'); return; }
@@ -627,23 +631,35 @@ function openSpectroscopyForm(submissionId) {
 
 // ── BLANK SPECTROSCOPY DATASHEET (fully manual entry) ──────────
 function openBlankSpectroscopyForm() {
-  // Prompt for sample count
-  const sampleCountStr = prompt('Number of samples:', '5');
-  if (sampleCountStr === null) return;
+  // Show the input row, hide the blank sheet button
+  document.getElementById('blank-sheet-inputs').style.display = 'flex';
+  document.getElementById('btn-blank-sheet').style.display = 'none';
+  // Clear previous content
+  document.getElementById('spectroscopy-body').innerHTML = '';
+  // Reset inputs to defaults
+  document.getElementById('blank-samples-count').value = 5;
+  document.getElementById('blank-elements-count').value = 4;
+}
+
+// ── Generate blank spectroscopy sheet from input values ─────────
+function generateBlankSpectroscopy() {
+  const sampleCountStr = document.getElementById('blank-samples-count').value;
+  const elemCountStr = document.getElementById('blank-elements-count').value;
   const sampleCount = parseInt(sampleCountStr, 10);
+  const elemCount = parseInt(elemCountStr, 10);
+
   if (isNaN(sampleCount) || sampleCount < 1) {
     showToast('Please enter a valid number of samples.', 'warning');
     return;
   }
-
-  // Prompt for element count
-  const elemCountStr = prompt('Number of elements:', '4');
-  if (elemCountStr === null) return;
-  const elemCount = parseInt(elemCountStr, 10);
   if (isNaN(elemCount) || elemCount < 1) {
     showToast('Please enter a valid number of elements.', 'warning');
     return;
   }
+
+  // Hide input row, show blank sheet button again
+  document.getElementById('blank-sheet-inputs').style.display = 'none';
+  document.getElementById('btn-blank-sheet').style.display = 'flex';
 
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -812,8 +828,6 @@ function openBlankSpectroscopyForm() {
     <!-- hidden container with raw HTML for printing -->
     <div id="spectro-print-source" style="display:none;">${pagesHtml}</div>
   `;
-
-  openPanel('spectroscopy-overlay');
 }
 
 // ── Print the spectroscopy datasheet in a clean new window ──
