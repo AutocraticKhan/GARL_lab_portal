@@ -59,6 +59,15 @@ function wireEngEvents() {
     if (e.target === document.getElementById('spectroscopy-overlay')) closePanel('spectroscopy-overlay');
   });
 
+  // Instrument toggle labels (use event delegation since labels are dynamically created)
+  document.getElementById('spectroscopy-overlay').addEventListener('click', function(e) {
+    const label = e.target.closest('.inst-label');
+    if (label) {
+      const inst = label.getAttribute('data-inst');
+      toggleInstrument(inst);
+    }
+  });
+
   // Assigned samples search
   document.getElementById('assigned-search').addEventListener('input', debounce(renderAssignedSamples, 250));
 }
@@ -92,17 +101,15 @@ function renderAssignedSamples() {
   }
 
   if (!submissions.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending submissions${query ? ' matching your search' : ''}</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending submissions' + (query ? ' matching your search' : '') + '</p></div></td></tr>';
     return;
   }
 
   tbody.innerHTML = submissions.map(sub => {
-    // Find a test for turnaround days (use first sample's test)
     const firstSample = sub.samples[0];
     const test = firstSample ? getTest(firstSample.test_id) : null;
     const overdue = test && daysBetween(sub.created_at, new Date()) > Number(test.turnaround_days);
 
-    // Build sample range display
     let sampleRange = '—';
     if (sub.sampleCount === 1) {
       sampleRange = escHtml(sub.firstSampleId);
@@ -113,21 +120,21 @@ function renderAssignedSamples() {
       const firstSeq = firstParts[firstParts.length - 1];
       const lastSeq  = lastParts[lastParts.length - 1];
       if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq} to ${lastSeq}</strong>`;
+        sampleRange = escHtml(prefix) + '-<strong>' + firstSeq + ' to ' + lastSeq + '</strong>';
       } else {
         sampleRange = escHtml(sub.firstSampleId);
       }
     }
 
-    return `<tr class="clickable" onclick="openSubmissionPanel('${sub.submissionId}')">
-      <td><strong style="color:var(--clr-primary)">#${escHtml(sub.submissionId)}</strong></td>
-      <td>${escHtml(sub.customer_name || '—')}</td>
-      <td class="muted">${escHtml(sub.test_name || '—')}</td>
-      <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
-      <td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">${sampleRange}</td>
-      <td>${statusBadge(sub.statusSummary)}</td>
-      <td>${overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>'}</td>
-    </tr>`;
+    return '<tr class="clickable" onclick="openSubmissionPanel(\'' + sub.submissionId + '\')">' +
+      '<td><strong style="color:var(--clr-primary)">#' + escHtml(sub.submissionId) + '</strong></td>' +
+      '<td>' + escHtml(sub.customer_name || '—') + '</td>' +
+      '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
+      '<td style="text-align:center;font-weight:600;">' + sub.sampleCount + '</td>' +
+      '<td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">' + sampleRange + '</td>' +
+      '<td>' + statusBadge(sub.statusSummary) + '</td>' +
+      '<td>' + (overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>') + '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -139,20 +146,17 @@ function renderCompletedReports() {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (!submissions.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed submissions yet</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed submissions yet</p></div></td></tr>';
     return;
   }
 
   tbody.innerHTML = submissions.map(sub => {
-    // Get all reports for this submission
     const subReports = getReportsForSubmission(sub.submissionId);
     const reportNumbers = subReports.map(r => r.report_number).filter(Boolean).join(', ');
 
-    // Use latest completed date
     const completedDates = sub.samples.map(s => s.completed_at).filter(Boolean).sort().reverse();
     const completedDate = completedDates[0] || sub.created_at;
 
-    // Build sample range display
     let sampleRange = '—';
     if (sub.sampleCount === 1) {
       sampleRange = escHtml(sub.firstSampleId);
@@ -163,21 +167,21 @@ function renderCompletedReports() {
       const firstSeq = firstParts[firstParts.length - 1];
       const lastSeq  = lastParts[lastParts.length - 1];
       if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq} to ${lastSeq}</strong>`;
+        sampleRange = escHtml(prefix) + '-<strong>' + firstSeq + ' to ' + lastSeq + '</strong>';
       } else {
         sampleRange = escHtml(sub.firstSampleId);
       }
     }
 
-    return `<tr class="clickable" onclick="openSubmissionPanel('${sub.submissionId}')">
-      <td><strong style="color:var(--clr-primary)">#${escHtml(sub.submissionId)}</strong></td>
-      <td>${escHtml(sub.customer_name || '—')}</td>
-      <td class="muted">${escHtml(sub.test_name || '—')}</td>
-      <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
-      <td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">${sampleRange}</td>
-      <td><code style="font-size:0.75rem;color:var(--clr-accent)">${escHtml(reportNumbers || '—')}</code></td>
-      <td class="muted">${formatDate(completedDate)}</td>
-    </tr>`;
+    return '<tr class="clickable" onclick="openSubmissionPanel(\'' + sub.submissionId + '\')">' +
+      '<td><strong style="color:var(--clr-primary)">#' + escHtml(sub.submissionId) + '</strong></td>' +
+      '<td>' + escHtml(sub.customer_name || '—') + '</td>' +
+      '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
+      '<td style="text-align:center;font-weight:600;">' + sub.sampleCount + '</td>' +
+      '<td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">' + sampleRange + '</td>' +
+      '<td><code style="font-size:0.75rem;color:var(--clr-accent)">' + escHtml(reportNumbers || '—') + '</code></td>' +
+      '<td class="muted">' + formatDate(completedDate) + '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -189,7 +193,6 @@ function openSubmissionPanel(submissionId) {
   const sub = submissions.find(s => s.submissionId === submissionId);
   if (!sub) return;
 
-  // Sort samples by sequence number
   const sortedSamples = [...sub.samples].sort((a, b) => {
     const aSeq = (a.sampleId || '').split('-').pop() || '';
     const bSeq = (b.sampleId || '').split('-').pop() || '';
@@ -200,7 +203,6 @@ function openSubmissionPanel(submissionId) {
   const firstSample = sortedSamples[0];
   const test = firstSample ? getTest(firstSample.test_id) : null;
 
-  // Build sample range display
   let sampleRange = '—';
   if (sub.sampleCount === 1) {
     sampleRange = sub.firstSampleId;
@@ -211,27 +213,24 @@ function openSubmissionPanel(submissionId) {
     const firstSeq = firstParts[firstParts.length - 1];
     const lastSeq  = lastParts[lastParts.length - 1];
     if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-      sampleRange = `${prefix}-${firstSeq} to ${lastSeq}`;
+      sampleRange = prefix + '-' + firstSeq + ' to ' + lastSeq;
     } else {
       sampleRange = sub.firstSampleId;
     }
   }
 
-  // Panel title
-  document.getElementById('panel-sample-number').textContent = `Submission #${sub.submissionId} (${sub.sampleCount} samples)`;
+  document.getElementById('panel-sample-number').textContent = 'Submission #' + sub.submissionId + ' (' + sub.sampleCount + ' samples)';
 
-  // Count by status
   const statusCounts = {};
   sortedSamples.forEach(s => {
     statusCounts[s.status] = (statusCounts[s.status] || 0) + 1;
   });
   const statusSummaryStr = Object.entries(statusCounts)
-    .map(([st, cnt]) => `${st.replace('_', ' ')}: ${cnt}`)
+    .map(([st, cnt]) => st.replace('_', ' ') + ': ' + cnt)
     .join(' · ');
 
   const allCompleted = sortedSamples.every(s => s.status === 'completed');
 
-  // Build individual sample rows with checkboxes
   const sampleRows = sortedSamples.map(s => {
     const elements = s.selectedElements || [];
     const testForSample = s.test_id ? getTest(s.test_id) : null;
@@ -240,90 +239,83 @@ function openSubmissionPanel(submissionId) {
       ? elements.map(el => {
           const info = getElementInfo(el);
           const sym = normalizeElementSymbol(el);
-          return info ? `${sym} (${info.name})` : sym;
+          return info ? sym + ' (' + info.name + ')' : sym;
         }).join(', ')
       : (requiresElems ? '—' : 'No elements required');
     const isCompleted = s.status === 'completed';
     const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
 
-    return `<div class="submission-sample-row" data-sample-id="${s.id}" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:${isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)'};">
-      <div style="display:flex;align-items:flex-start;gap:var(--sp-3);">
-        <!-- Checkbox -->
-        <div style="padding-top:2px;">
-          <input type="checkbox" class="sample-complete-chk" data-sample-id="${s.id}"
-                 ${isCompleted ? 'checked' : ''}
-                 onchange="toggleSampleComplete('${s.id}', this.checked)"
-                 style="width:18px;height:18px;cursor:pointer;accent-color:var(--clr-success);" />
-        </div>
-        <!-- Details -->
-        <div style="flex:1;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">
-            <div>
-              <span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:${isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)'};">${escHtml(sampleIdLabel)}</span>
-              <span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">${escHtml(s.sampleType || '—')}</span>
-            </div>
-            ${isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)}
-          </div>
-          <div style="font-size:0.75rem;color:var(--txt-secondary);">
-            <span><strong>Elements (${elements.length}):</strong> ${escHtml(elementLabels)}</span>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    return '<div class="submission-sample-row" data-sample-id="' + s.id + '" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:' + (isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)') + ';">' +
+      '<div style="display:flex;align-items:flex-start;gap:var(--sp-3);">' +
+        '<div style="padding-top:2px;">' +
+          '<input type="checkbox" class="sample-complete-chk" data-sample-id="' + s.id + '" ' +
+                 (isCompleted ? 'checked' : '') + ' ' +
+                 'onchange="toggleSampleComplete(\'' + s.id + '\', this.checked)" ' +
+                 'style="width:18px;height:18px;cursor:pointer;accent-color:var(--clr-success);" />' +
+        '</div>' +
+        '<div style="flex:1;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">' +
+            '<div>' +
+              '<span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:' + (isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)') + ';">' + escHtml(sampleIdLabel) + '</span>' +
+              '<span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">' + escHtml(s.sampleType || '—') + '</span>' +
+            '</div>' +
+            (isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)) +
+          '</div>' +
+          '<div style="font-size:0.75rem;color:var(--txt-secondary);">' +
+            '<span><strong>Elements (' + elements.length + '):</strong> ' + escHtml(elementLabels) + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
 
-  document.getElementById('panel-body').innerHTML = `
-    <div style="margin-bottom:var(--sp-5);">
-      <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">
-        ${statusBadge(sub.statusSummary)}
-        <span style="font-size:0.78rem;color:var(--txt-muted);">${statusSummaryStr}</span>
-        ${allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : ''}
-      </div>
+  document.getElementById('panel-body').innerHTML =
+    '<div style="margin-bottom:var(--sp-5);">' +
+      '<div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">' +
+        statusBadge(sub.statusSummary) +
+        '<span style="font-size:0.78rem;color:var(--txt-muted);">' + statusSummaryStr + '</span>' +
+        (allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : '') +
+      '</div>' +
 
-      <!-- Submission Summary Card -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
-        <div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#${escHtml(sub.submissionId)}</span></div>
-        <div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">${sub.sampleCount}</span></div>
-        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">${escHtml(sampleRange)}</span></div>
-        <div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">${escHtml(sub.customer_name || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">${escHtml(firstSample?.customer_contact || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(firstSample?.cnic || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(firstSample?.sample_location || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || sub.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
-        <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sub.created_at)}</span></div>
-      </div>
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">' +
+        '<div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#' + escHtml(sub.submissionId) + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">' + sub.sampleCount + '</span></div>' +
+        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">' + escHtml(sampleRange) + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">' + escHtml(sub.customer_name || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">' + escHtml(firstSample?.customer_contact || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(firstSample?.cnic || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">' + escHtml(firstSample?.sample_location || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">' + escHtml(test?.test_name || sub.test_name || '—') + (test ? ' <code style="font-size:0.75rem;color:var(--clr-accent)">' + test.test_code + '</code>' : '') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">' + formatDate(sub.created_at) + '</span></div>' +
+      '</div>' +
 
-      ${test && test.requires_elements !== false ? `
-      <!-- Spectroscopy Datasheet Button -->
-      <div style="margin-bottom:var(--sp-4);">
-        <button onclick="openSpectroscopyForm('${sub.submissionId}')" class="btn btn-primary" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.85rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-          </svg>
-          📋 Spectroscopy Analysis Datasheet
-        </button>
-      </div>
-      ` : ''}
+      (test && test.requires_elements !== false ?
+      '<div style="margin-bottom:var(--sp-4);">' +
+        '<button onclick="openSpectroscopyForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.85rem;">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />' +
+          '</svg>' +
+          '📋 Spectroscopy Analysis Datasheet' +
+        '</button>' +
+      '</div>' : '') +
 
-      <!-- Individual Samples List -->
-      <div>
-        <div style="display:flex;align-items:center;margin-bottom:var(--sp-3);">
-          <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;">Samples in this Submission</div>
-        </div>
-        <div id="submission-samples-list">
-          ${sampleRows}
-        </div>
-      </div>
-    </div>
-  `;
+      '<div>' +
+        '<div style="display:flex;align-items:center;margin-bottom:var(--sp-3);">' +
+          '<div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;">Samples in this Submission</div>' +
+        '</div>' +
+        '<div id="submission-samples-list">' +
+          sampleRows +
+        '</div>' +
+      '</div>' +
+    '</div>';
 
   // Show/hide the Mark All Complete button
   const markAllBtn = document.getElementById('btn-mark-all-complete');
   if (markAllBtn) {
     if (!allCompleted && sortedSamples.length > 0) {
       markAllBtn.style.display = 'flex';
-      markAllBtn.textContent = `✓ Mark All Complete (${sortedSamples.length})`;
+      markAllBtn.textContent = '✓ Mark All Complete (' + sortedSamples.length + ')';
     } else {
       markAllBtn.style.display = 'none';
     }
@@ -336,10 +328,9 @@ function openSubmissionPanel(submissionId) {
 async function toggleSampleComplete(sampleId, checked) {
   try {
     if (checked) {
-      await setSampleStatus(sampleId, 'completed', `Sample completed by ${engSession.full_name}`);
+      await setSampleStatus(sampleId, 'completed', 'Sample completed by ' + engSession.full_name);
     } else {
-      // Revert back to assigned
-      await setSampleStatus(sampleId, 'assigned', `Sample reopened by ${engSession.full_name}`);
+      await setSampleStatus(sampleId, 'assigned', 'Sample reopened by ' + engSession.full_name);
     }
     showToast(checked ? 'Sample marked as complete.' : 'Sample reopened.', 'success');
     renderAssignedSamples();
@@ -370,7 +361,7 @@ async function handleMarkAllComplete() {
   let errorCount = 0;
   for (const sample of incomplete) {
     try {
-      await setSampleStatus(sample.id, 'completed', `Sample completed by ${engSession.full_name} (bulk)`);
+      await setSampleStatus(sample.id, 'completed', 'Sample completed by ' + engSession.full_name + ' (bulk)');
       successCount++;
     } catch (err) {
       errorCount++;
@@ -380,38 +371,187 @@ async function handleMarkAllComplete() {
   if (btn) { btn.disabled = false; btn.style.display = 'none'; }
 
   if (errorCount === 0) {
-    showToast(`All ${successCount} samples marked complete!`, 'success');
+    showToast('All ' + successCount + ' samples marked complete!', 'success');
   } else {
-    showToast(`${successCount} completed, ${errorCount} failed.`, 'warning');
+    showToast(successCount + ' completed, ' + errorCount + ' failed.', 'warning');
   }
 
   renderAssignedSamples();
   if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
 }
 
+// ── Helpers for building spectro page DOM ──────────────────────
+
+/**
+ * Create the metadata section rows for a spectro page
+ */
+function buildSpectroMeta(labName, today, customerName) {
+  const metaEl = document.createElement('div');
+  metaEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;font-size:13px;margin-bottom:24px;';
+
+  const metaItems = [
+    { label: 'Department:', value: labName, fullWidth: false },
+    { label: 'Date of Analysis:', value: today, fullWidth: false },
+    { label: 'Customer Name:', value: customerName, fullWidth: true },
+  ];
+
+  metaItems.forEach(item => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:flex-end;gap:8px';
+    if (item.fullWidth) row.style.gridColumn = '1 / -1';
+    const labelSpan = document.createElement('span');
+    labelSpan.style.cssText = 'font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;';
+    labelSpan.textContent = item.label;
+    const valueDiv = document.createElement('div');
+    valueDiv.style.cssText = 'flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;';
+    valueDiv.textContent = item.value;
+    row.appendChild(labelSpan);
+    row.appendChild(valueDiv);
+    metaEl.appendChild(row);
+  });
+
+  // Instrument checkboxes row (full width)
+  const instRow = document.createElement('div');
+  instRow.style.cssText = 'display:grid;grid-template-columns:2fr 1fr;gap:12px;grid-column:1/-1;';
+
+  const instLabelDiv = document.createElement('div');
+  instLabelDiv.style.cssText = 'display:flex;align-items:flex-end;gap:8px;';
+  const instLabelSpan = document.createElement('span');
+  instLabelSpan.style.cssText = 'font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;';
+  instLabelSpan.textContent = 'Instrument Model:';
+  const instValueDiv = document.createElement('div');
+  instValueDiv.style.cssText = 'flex:1;border-bottom:1px dashed #94a3b8;height:22px;';
+  instLabelDiv.appendChild(instLabelSpan);
+  instLabelDiv.appendChild(instValueDiv);
+
+  const instChecksDiv = document.createElement('div');
+  instChecksDiv.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;';
+
+  const instruments = [
+    { id: 'aas', label: 'AAS' },
+    { id: 'mpaes', label: 'MP-AES' },
+    { id: 'icpms', label: 'ICP-MS' }
+  ];
+  instruments.forEach(inst => {
+    const lbl = document.createElement('label');
+    lbl.className = 'inst-label';
+    lbl.setAttribute('data-inst', inst.id);
+    lbl.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;';
+    const chkSpan = document.createElement('span');
+    chkSpan.className = 'inst-chk';
+    chkSpan.id = 'inst-chk-' + inst.id;
+    chkSpan.style.cssText = 'width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;';
+    lbl.appendChild(chkSpan);
+    lbl.appendChild(document.createTextNode(' ' + inst.label));
+    instChecksDiv.appendChild(lbl);
+  });
+
+  instRow.appendChild(instLabelDiv);
+  instRow.appendChild(instChecksDiv);
+  metaEl.appendChild(instRow);
+
+  return metaEl;
+}
+
+/**
+ * Create the vitals section for a spectro page using templates
+ */
+function buildSpectroVitals() {
+  const vitalsEl = document.createElement('div');
+  vitalsEl.id = 'vitals-section';
+  vitalsEl.style.cssText = 'margin-bottom:24px;display:none;';
+
+  ['aas', 'mpaes', 'icpms'].forEach(inst => {
+    const frag = bindTemplate('spectro-vitals-' + inst, {});
+    vitalsEl.appendChild(frag);
+  });
+
+  return vitalsEl;
+}
+
+/**
+ * Create a data table for spectro page (using innerHTML for clean tabular structure)
+ */
+function buildSpectroTable(sortedSamples, elementsChunk) {
+  const tableWrap = document.createElement('div');
+
+  const table = document.createElement('table');
+  table.style.cssText = 'width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;';
+
+  // Build header row HTML
+  let headerHtml =
+    '<tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">' +
+    '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>' +
+    '<th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>' +
+    '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>';
+
+  elementsChunk.forEach(el => {
+    const info = getElementInfo(el);
+    const sym = normalizeElementSymbol(el);
+    headerHtml += '<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">' + escHtml(sym) + (info ? '<br><span style="font-weight:400;font-size:7px;color:#64748b;">' + escHtml(info.name) + '</span>' : '') + '</th>';
+  });
+
+  if (elementsChunk.length > 0) {
+    headerHtml += '<th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th>';
+  }
+  headerHtml += '</tr>';
+
+  // Build body rows HTML
+  let bodyHtml = '';
+  sortedSamples.forEach((sample, idx) => {
+    const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
+    const sampleElements = (sample.selectedElements || []).map(el => normalizeElementSymbol(el));
+    bodyHtml += '<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">' +
+      '<td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">' + (idx + 1) + '</td>' +
+      '<td style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">' + escHtml(sampleIdLabel) + '</td>' +
+      '<td style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
+      elementsChunk.map(el => {
+        const hasEl = sampleElements.includes(el);
+        return '<td style="border-right:1px solid #94a3b8;text-align:center;' + (hasEl ? '' : 'background:#f8fafc;') + 'padding:2px;">' + (hasEl ? '&nbsp;' : '<span style="color:#cbd5e1;font-size:8px;">—</span>') + '</td>';
+      }).join('') +
+      (elementsChunk.length > 0 ? '<td style="text-align:center;padding:2px;">&nbsp;</td>' : '') +
+    '</tr>';
+  });
+
+  table.innerHTML = '<thead>' + headerHtml + '</thead><tbody>' + bodyHtml + '</tbody>';
+  tableWrap.appendChild(table);
+  return tableWrap;
+}
+
+/**
+ * Create signature section for spectro page
+ */
+function buildSpectroSignatures() {
+  const div = document.createElement('div');
+
+  div.innerHTML =
+    '<div style="margin-bottom:20px;">' +
+      '<span style="font-size:9px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Analytical Notes / Remarks</span>' +
+      '<div style="border-bottom:1px dashed #94a3b8;height:18px;margin-bottom:8px;"></div>' +
+      '<div style="border-bottom:1px dashed #94a3b8;height:18px;"></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:11px;">' +
+      '<div>' +
+        '<span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Analyst Signature</span>' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>' +
+          '<div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;font-family:monospace;font-size:11px;font-weight:600;color:#0f172a;padding-left:4px;display:flex;align-items:center;">' + escHtml(engSession?.full_name || '') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div>' +
+        '<span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Verified / Reviewed By</span>' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>' +
+          '<div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  return div;
+}
+
 // ── SPECTROSCOPY DATASHEET ─────────────────────────────────────
-
-const SPECTROSCOPY_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-  
-  body {
-    font-family: 'Inter', sans-serif;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  @page { size: A4 portrait; margin: 12mm 15mm 12mm 15mm; }
-  @media print {
-    body { background: #fff !important; color: #000 !important; }
-    .no-print { display: none !important; }
-    .print-container { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 0 !important; width: 210mm !important; background: transparent !important; }
-    .spectro-page { box-shadow: none !important; border: none !important; margin: 0 auto !important; page-break-after: always; }
-    tr { page-break-inside: avoid; }
-  }
-  .writing-row { height: 10.5mm; }
-`;
-
 function openSpectroscopyForm(submissionId) {
-  // Reset blank-sheet UI: show blank sheet button, hide input row
   document.getElementById('blank-sheet-inputs').style.display = 'none';
   document.getElementById('btn-blank-sheet').style.display = 'flex';
 
@@ -419,7 +559,6 @@ function openSpectroscopyForm(submissionId) {
   const sub = submissions.find(s => s.submissionId === submissionId);
   if (!sub) { showToast('Submission not found', 'error'); return; }
 
-  // Sort samples by sequence
   const sortedSamples = [...sub.samples].sort((a, b) => {
     const aSeq = (a.sampleId || '').split('-').pop() || '';
     const bSeq = (b.sampleId || '').split('-').pop() || '';
@@ -428,18 +567,10 @@ function openSpectroscopyForm(submissionId) {
 
   const lab = getLab(sub.lab_id);
 
-  // Collect all unique element symbols across all samples (normalized casing)
   const uniqueElements = [...new Set(
     sortedSamples.flatMap(s => (s.selectedElements || []).map(el => normalizeElementSymbol(el)))
   )].sort();
 
-  const sampleRange = sub.sampleCount === 1
-    ? (sub.firstSampleId || '—')
-    : `${sub.firstSampleId || '—'} to ${sub.lastSampleId || '—'}`;
-
-  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  // Determine page splitting for elements (max 6 per page)
   const maxColsPerPage = 6;
   const elementPages = [];
   if (uniqueElements.length === 0) {
@@ -447,8 +578,6 @@ function openSpectroscopyForm(submissionId) {
   } else {
     let remaining = [...uniqueElements];
     while (remaining.length > 0) {
-      const colsThisPage = Math.min(remaining.length, maxColsPerPage);
-      // Try to balance across pages
       const pagesNeeded = Math.ceil(uniqueElements.length / maxColsPerPage);
       const perPage = Math.ceil(uniqueElements.length / pagesNeeded);
       const chunk = remaining.splice(0, perPage);
@@ -456,490 +585,231 @@ function openSpectroscopyForm(submissionId) {
     }
   }
 
-  // Build the HTML for all pages
-  let pagesHtml = '';
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Build all pages
+  const pagesContainer = document.createElement('div');
+  pagesContainer.style.cssText = 'padding:16px 0;';
+
   elementPages.forEach((elementsChunk, pageIdx) => {
     const isMultiPage = elementPages.length > 1;
 
-    pagesHtml += `
-    <div class="spectro-page print-container" style="width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);${isMultiPage ? '' : ''}">
-      ${isMultiPage ? `<div style="text-align:right;font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:4px;">Page ${pageIdx + 1} of ${elementPages.length}</div>` : ''}
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'spectro-page print-container';
+    pageDiv.style.cssText = 'width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);';
 
-      <!-- Document Header -->
-      <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">
-        <div>
-          <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>
-          <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>
-        </div>
-        <div style="text-align:right;">
-          <span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>
-        </div>
-      </div>
+    if (isMultiPage) {
+      const pageNo = document.createElement('div');
+      pageNo.style.cssText = 'text-align:right;font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:4px;';
+      pageNo.textContent = 'Page ' + (pageIdx + 1) + ' of ' + elementPages.length;
+      pageDiv.appendChild(pageNo);
+    }
 
-      <!-- Pre-filled Metadata -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;font-size:13px;margin-bottom:24px;">
-        <div style="display:flex;align-items:flex-end;gap:8px;">
-          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Department:</span>
-          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${escHtml(lab?.lab_name || '—')}</div>
-        </div>
-        <div style="display:flex;align-items:flex-end;gap:8px;">
-          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Date of Analysis:</span>
-          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${today}</div>
-        </div>
-        <div style="display:flex;align-items:flex-end;gap:8px;grid-column:1/-1;">
-          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Customer Name:</span>
-          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${escHtml(sub.customer_name || '—')}</div>
-        </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;grid-column:1/-1;">
-          <div style="display:flex;align-items:flex-end;gap:8px;">
-            <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Instrument Model:</span>
-            <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;">
-            <label onclick="toggleInstrument('aas')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
-              <span id="inst-chk-aas" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
-            </label>
-            <label onclick="toggleInstrument('mpaes')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
-              <span id="inst-chk-mpaes" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
-            </label>
-            <label onclick="toggleInstrument('icpms')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
-              <span id="inst-chk-icpms" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> ICP-MS
-            </label>
-          </div>
-        </div>
-      </div>
+    // Header
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;';
+    headerDiv.innerHTML =
+      '<div>' +
+        '<h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>' +
+        '<p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>' +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>' +
+      '</div>';
+    pageDiv.appendChild(headerDiv);
 
-      <!-- Instrument Vitals -->
-      <div id="vitals-section" style="margin-bottom:24px;display:none;">
-        <!-- AAS Vitals -->
-        <div id="vitals-aas" style="display:none;">
-          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#eef2ff;border-radius:4px;border-left:3px solid #6366f1;">AAS Instrument Vitals (Pre-Analysis Checklist)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temperature & humidity</span><input type="text" class="vital-input" data-vital="aas-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 22°C / 45%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" class="vital-input" data-vital="aas-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. OK / Not OK" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp type installed & element match</span><input type="text" class="vital-input" data-vital="aas-lamp-type" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. HCL-Cu" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp energy/intensity (valid range)</span><input type="text" class="vital-input" data-vital="aas-lamp-energy" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Within range / Out of range" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp warm-up time completed</span><input type="text" class="vital-input" data-vital="aas-warmup" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Yes / No" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Burner head condition (clean, no blockage)</span><input type="text" class="vital-input" data-vital="aas-burner-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Clean / Needs cleaning" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer condition & flow check</span><input type="text" class="vital-input" data-vital="aas-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. OK / Not OK" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Fuel gas (acetylene) pressure & level</span><input type="text" class="vital-input" data-vital="aas-fuel-gas" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 10 psi / ~80%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxidant (air/N₂O) pressure</span><input type="text" class="vital-input" data-vital="aas-oxidant-pressure" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 40 psi" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain trap water level</span><input type="text" class="vital-input" data-vital="aas-drain-trap" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Adequate / Inadequate" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Flame ignition check (stable flame)</span><input type="text" class="vital-input" data-vital="aas-flame-ignition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Stable / Unstable" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Background corrector (D₂ / Zeeman)</span><input type="text" class="vital-input" data-vital="aas-bg-corrector" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. On / Off" /></div>
-          </div>
-        </div>
-        <!-- MP-AES Vitals -->
-        <div id="vitals-mpaes" style="display:none;">
-          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fef3c7;border-radius:4px;border-left:3px solid #f59e0b;">MP-AES Instrument Vitals (Pre-Analysis Checklist)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temperature & humidity</span><input type="text" class="vital-input" data-vital="mpaes-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 22°C / 45%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" class="vital-input" data-vital="mpaes-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. OK / Not OK" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nitrogen supply pressure & purity</span><input type="text" class="vital-input" data-vital="mpaes-nitrogen" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 80 psi / 99.999%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Water trap level (not overfilled)</span><input type="text" class="vital-input" data-vital="mpaes-water-trap-level" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. OK / Overfilled" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Water trap drainage confirmed (not blocked)</span><input type="text" class="vital-input" data-vital="mpaes-drainage" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Confirmed / Blocked" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Detector temperature (stabilized)</span><input type="text" class="vital-input" data-vital="mpaes-detector-temp" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Stabilized / Not stabilized" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch condition (clean, no deposits/cracks)</span><input type="text" class="vital-input" data-vital="mpaes-torch-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Clean / Needs replacement" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch properly seated & secured</span><input type="text" class="vital-input" data-vital="mpaes-torch-seated" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Yes / No" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer & spray chamber clean</span><input type="text" class="vital-input" data-vital="mpaes-nebulizer-clean" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. OK / Needs cleaning" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma ignition & stability confirmed</span><input type="text" class="vital-input" data-vital="mpaes-plasma-stability" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. Stable / Unstable" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain tube flow (not blocked)</span><input type="text" class="vital-input" data-vital="mpaes-drain-flow" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. OK / Blocked" /></div>
-          </div>
-        </div>
-        <!-- ICP-MS Vitals -->
-        <div id="vitals-icpms" style="display:none;">
-          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fce7f3;border-radius:4px;border-left:3px solid #ec4899;">ICP-MS Instrument Vitals (Pre-Analysis Checklist)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temp & humidity (20–22°C)</span><input type="text" class="vital-input" data-vital="icpms-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 21°C / 40%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" class="vital-input" data-vital="icpms-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Argon pressure & purity (≥99.999%)</span><input type="text" class="vital-input" data-vital="icpms-argon" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 100 psi / 5.0" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Cooling water temp & flow rate</span><input type="text" class="vital-input" data-vital="icpms-cooling-water" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 20°C / 5 L/min" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Roughing pump oil level & condition</span><input type="text" class="vital-input" data-vital="icpms-rough-pump" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Turbo pump vacuum (<5×10⁻⁷ mbar)</span><input type="text" class="vital-input" data-vital="icpms-turbo-pump" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Interface cones (sampler/skimmer) clean</span><input type="text" class="vital-input" data-vital="icpms-cones" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch condition (clean, no cracks)</span><input type="text" class="vital-input" data-vital="icpms-torch-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch position (correctly aligned)</span><input type="text" class="vital-input" data-vital="icpms-torch-alignment" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Spray chamber & nebulizer condition</span><input type="text" class="vital-input" data-vital="icpms-spray-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain flow (peristaltic pump tubing)</span><input type="text" class="vital-input" data-vital="icpms-drain-flow" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma ignition & stability (~1550 W)</span><input type="text" class="vital-input" data-vital="icpms-plasma-stability" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Mass calibration / tuning check</span><input type="text" class="vital-input" data-vital="icpms-calibration" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Detector voltage within valid range</span><input type="text" class="vital-input" data-vital="icpms-detector-voltage" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxide (CeO/Ce <3%) & doubly charged (<3%)</span><input type="text" class="vital-input" data-vital="icpms-oxide-ratio" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Background counts (low mass baseline)</span><input type="text" class="vital-input" data-vital="icpms-background" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Internal standard signal stable</span><input type="text" class="vital-input" data-vital="icpms-istd-stable" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-          </div>
-        </div>
-      </div>
+    // Meta
+    pageDiv.appendChild(buildSpectroMeta(lab?.lab_name || '—', today, sub.customer_name || '—'));
 
-      <!-- Data Table -->
-      <table style="width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;">
-        <thead>
-          <tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">
-            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>
-            <th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>
-            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>
-            ${elementsChunk.map(el => {
-              const info = getElementInfo(el);
-              const sym = normalizeElementSymbol(el);
-              return `<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">${escHtml(sym)}${info ? `<br><span style="font-weight:400;font-size:7px;color:#64748b;">${escHtml(info.name)}</span>` : ''}</th>`;
-            }).join('')}
-            ${elementsChunk.length > 0 ? `<th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th>` : ''}
-          </tr>
-        </thead>
-        <tbody>
-          ${sortedSamples.map((sample, idx) => {
-            const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
-            const sampleElements = (sample.selectedElements || []).map(el => normalizeElementSymbol(el));
-            return `<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
-              <td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">${idx + 1}</td>
-              <td style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">${escHtml(sampleIdLabel)}</td>
-              <td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
-              ${elementsChunk.map(el => {
-                const hasEl = sampleElements.includes(el);
-                return `<td style="border-right:1px solid #94a3b8;text-align:center;${hasEl ? '' : 'background:#f8fafc;'};padding:2px;">${hasEl ? '&nbsp;' : '<span style="color:#cbd5e1;font-size:8px;">—</span>'}</td>`;
-              }).join('')}
-              ${elementsChunk.length > 0 ? `<td style="text-align:center;padding:2px;">&nbsp;</td>` : ''}
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+    // Vitals
+    pageDiv.appendChild(buildSpectroVitals());
 
-      <!-- Remarks + Signature -->
-      <div>
-        <div style="margin-bottom:20px;">
-          <span style="font-size:9px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Analytical Notes / Remarks</span>
-          <div style="border-bottom:1px dashed #94a3b8;height:18px;margin-bottom:8px;"></div>
-          <div style="border-bottom:1px dashed #94a3b8;height:18px;"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:11px;">
-          <div>
-            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Analyst Signature</span>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
-              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;font-family:monospace;font-size:11px;font-weight:600;color:#0f172a;padding-left:4px;display:flex;align-items:center;">${escHtml(engSession?.full_name || '')}</div>
-            </div>
-          </div>
-          <div>
-            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Verified / Reviewed By</span>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
-              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    // Data Table
+    pageDiv.appendChild(buildSpectroTable(sortedSamples, elementsChunk));
+
+    // Remarks + Signatures
+    pageDiv.appendChild(buildSpectroSignatures());
+
+    pagesContainer.appendChild(pageDiv);
   });
 
-  // Inject into the spectroscopy modal
+  // Hidden container for printing
+  const printSourceEl = document.createElement('div');
+  printSourceEl.id = 'spectro-print-source';
+  printSourceEl.style.display = 'none';
+  printSourceEl.appendChild(pagesContainer.cloneNode(true));
+
   const body = document.getElementById('spectroscopy-body');
-  body.innerHTML = `
-    <style>${SPECTROSCOPY_STYLES}</style>
-    <div style="padding:16px 0;">
-      ${pagesHtml}
-    </div>
-    <!-- hidden container with raw HTML for printing -->
-    <div id="spectro-print-source" style="display:none;">${pagesHtml}</div>
-  `;
+  body.innerHTML = '';
+  body.appendChild(pagesContainer);
+  body.appendChild(printSourceEl);
 
   openPanel('spectroscopy-overlay');
 }
 
-// ── BLANK SPECTROSCOPY DATASHEET (fully manual entry) ──────────
+// ── BLANK SPECTROSCOPY DATASHEET ───────────────────────────────
 function openBlankSpectroscopyForm() {
-  // Show the input row, hide the blank sheet button
   document.getElementById('blank-sheet-inputs').style.display = 'flex';
   document.getElementById('btn-blank-sheet').style.display = 'none';
-  // Clear previous content
   document.getElementById('spectroscopy-body').innerHTML = '';
-  // Reset inputs to defaults
   document.getElementById('blank-samples-count').value = 5;
   document.getElementById('blank-elements-count').value = 4;
 }
 
-// ── Generate blank spectroscopy sheet from input values ─────────
 function generateBlankSpectroscopy() {
-  const sampleCountStr = document.getElementById('blank-samples-count').value;
-  const elemCountStr = document.getElementById('blank-elements-count').value;
-  const sampleCount = parseInt(sampleCountStr, 10);
-  const elemCount = parseInt(elemCountStr, 10);
+  const sampleCount = parseInt(document.getElementById('blank-samples-count').value, 10);
+  const elemCount = parseInt(document.getElementById('blank-elements-count').value, 10);
 
-  if (isNaN(sampleCount) || sampleCount < 1) {
-    showToast('Please enter a valid number of samples.', 'warning');
-    return;
-  }
-  if (isNaN(elemCount) || elemCount < 1) {
-    showToast('Please enter a valid number of elements.', 'warning');
-    return;
-  }
+  if (isNaN(sampleCount) || sampleCount < 1) { showToast('Please enter a valid number of samples.', 'warning'); return; }
+  if (isNaN(elemCount) || elemCount < 1) { showToast('Please enter a valid number of elements.', 'warning'); return; }
 
-  // Hide input row, show blank sheet button again
   document.getElementById('blank-sheet-inputs').style.display = 'none';
   document.getElementById('btn-blank-sheet').style.display = 'flex';
 
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  // Build generic element column headers
-  const elementHeaders = Array.from({ length: elemCount }, (_, i) =>
-    `<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">Elem.<br><span style="font-weight:400;font-size:7px;color:#64748b;">${i + 1}</span></th>`
-  ).join('');
+  const pagesContainer = document.createElement('div');
+  pagesContainer.style.cssText = 'padding:16px 0;';
 
-  // Build body rows — all cells are empty writing spaces
-  const bodyRows = Array.from({ length: sampleCount }, (_, idx) => {
-    const elementCells = Array.from({ length: elemCount }, () =>
-      `<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monoserif;border-bottom:1px dashed #94a3b8;">&nbsp;</td>`
-    ).join('');
+  const pageDiv = document.createElement('div');
+  pageDiv.className = 'spectro-page print-container';
+  pageDiv.style.cssText = 'width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);';
 
-    return `<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
-      <td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">${idx + 1}</td>
-      <td class="writing-row" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
-      <td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
-      ${elementCells}
-      <td class="writing-row" style="text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
-    </tr>`;
-  }).join('');
+  pageDiv.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">' +
+      '<div>' +
+        '<h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>' +
+        '<p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>' +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>' +
+      '</div>' +
+    '</div>';
 
-  const pagesHtml = `
-    <div class="spectro-page print-container" style="width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  pageDiv.appendChild(buildSpectroMeta('', today, ''));
+  pageDiv.appendChild(buildSpectroVitals());
 
-      <!-- Document Header -->
-      <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">
-        <div>
-          <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>
-          <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>
-        </div>
-        <div style="text-align:right;">
-          <span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>
-        </div>
-      </div>
+  // Build table
+  let headerHtml =
+    '<thead><tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">' +
+    '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>' +
+    '<th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>' +
+    '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>';
 
-      <!-- Pre-filled Metadata -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;font-size:13px;margin-bottom:24px;">
-        <div style="display:flex;align-items:flex-end;gap:8px;">
-          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Department:</span>
-          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
-        </div>
-        <div style="display:flex;align-items:flex-end;gap:8px;">
-          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Date of Analysis:</span>
-          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;">${today}</div>
-        </div>
-        <div style="display:flex;align-items:flex-end;gap:8px;grid-column:1/-1;">
-          <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Customer Name:</span>
-          <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;grid-column:1/-1;">
-          <div style="display:flex;align-items:flex-end;gap:8px;">
-            <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Instrument Model:</span>
-            <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;">
-            <label onclick="toggleInstrument('aas')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
-              <span id="inst-chk-aas" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
-            </label>
-            <label onclick="toggleInstrument('mpaes')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
-              <span id="inst-chk-mpaes" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
-            </label>
-            <label onclick="toggleInstrument('icpms')" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
-              <span id="inst-chk-icpms" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> ICP-MS
-            </label>
-          </div>
-        </div>
-      </div>
+  for (let i = 0; i < elemCount; i++) {
+    headerHtml += '<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">Elem.<br><span style="font-weight:400;font-size:7px;color:#64748b;">' + (i + 1) + '</span></th>';
+  }
+  headerHtml += '<th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th></tr></thead>';
 
-      <!-- Instrument Vitals -->
-      <div id="vitals-section" style="margin-bottom:24px;display:none;">
-        <!-- AAS Vitals -->
-        <div id="vitals-aas" style="display:none;">
-          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#eef2ff;border-radius:4px;border-left:3px solid #6366f1;">AAS Instrument Vitals (Pre-Analysis Checklist)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temperature & humidity</span><input type="text" class="vital-input" data-vital="aas-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 22°C / 45%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" class="vital-input" data-vital="aas-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp type installed & element match</span><input type="text" class="vital-input" data-vital="aas-lamp-type" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. HCL-Cu" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp energy/intensity (valid range)</span><input type="text" class="vital-input" data-vital="aas-lamp-energy" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp warm-up time completed</span><input type="text" class="vital-input" data-vital="aas-warmup" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Burner head condition (clean, no blockage)</span><input type="text" class="vital-input" data-vital="aas-burner-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer condition & flow check</span><input type="text" class="vital-input" data-vital="aas-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Fuel gas (acetylene) pressure & level</span><input type="text" class="vital-input" data-vital="aas-fuel-gas" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 10 psi / ~80%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxidant (air/N₂O) pressure</span><input type="text" class="vital-input" data-vital="aas-oxidant-pressure" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 40 psi" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain trap water level</span><input type="text" class="vital-input" data-vital="aas-drain-trap" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Flame ignition check (stable flame)</span><input type="text" class="vital-input" data-vital="aas-flame-ignition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Background corrector (D₂ / Zeeman)</span><input type="text" class="vital-input" data-vital="aas-bg-corrector" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-          </div>
-        </div>
-        <!-- MP-AES Vitals -->
-        <div id="vitals-mpaes" style="display:none;">
-          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fef3c7;border-radius:4px;border-left:3px solid #f59e0b;">MP-AES Instrument Vitals (Pre-Analysis Checklist)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temperature & humidity</span><input type="text" class="vital-input" data-vital="mpaes-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 22°C / 45%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" class="vital-input" data-vital="mpaes-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nitrogen supply pressure & purity</span><input type="text" class="vital-input" data-vital="mpaes-nitrogen" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 80 psi / 99.999%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Water trap level (not overfilled)</span><input type="text" class="vital-input" data-vital="mpaes-water-trap-level" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Water trap drainage confirmed (not blocked)</span><input type="text" class="vital-input" data-vital="mpaes-drainage" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Detector temperature (stabilized)</span><input type="text" class="vital-input" data-vital="mpaes-detector-temp" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch condition (clean, no deposits/cracks)</span><input type="text" class="vital-input" data-vital="mpaes-torch-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch properly seated & secured</span><input type="text" class="vital-input" data-vital="mpaes-torch-seated" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer & spray chamber clean</span><input type="text" class="vital-input" data-vital="mpaes-nebulizer-clean" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma ignition & stability confirmed</span><input type="text" class="vital-input" data-vital="mpaes-plasma-stability" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain tube flow (not blocked)</span><input type="text" class="vital-input" data-vital="mpaes-drain-flow" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-          </div>
-        </div>
-        <!-- ICP-MS Vitals -->
-        <div id="vitals-icpms" style="display:none;">
-          <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fce7f3;border-radius:4px;border-left:3px solid #ec4899;">ICP-MS Instrument Vitals (Pre-Analysis Checklist)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temp & humidity (20–22°C)</span><input type="text" class="vital-input" data-vital="icpms-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 21°C / 40%" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" class="vital-input" data-vital="icpms-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Argon pressure & purity (≥99.999%)</span><input type="text" class="vital-input" data-vital="icpms-argon" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 100 psi / 5.0" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Cooling water temp & flow rate</span><input type="text" class="vital-input" data-vital="icpms-cooling-water" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 20°C / 5 L/min" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Roughing pump oil level & condition</span><input type="text" class="vital-input" data-vital="icpms-rough-pump" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Turbo pump vacuum (<5×10⁻⁷ mbar)</span><input type="text" class="vital-input" data-vital="icpms-turbo-pump" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Interface cones (sampler/skimmer) clean</span><input type="text" class="vital-input" data-vital="icpms-cones" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch condition (clean, no cracks)</span><input type="text" class="vital-input" data-vital="icpms-torch-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch position (correctly aligned)</span><input type="text" class="vital-input" data-vital="icpms-torch-alignment" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Spray chamber & nebulizer condition</span><input type="text" class="vital-input" data-vital="icpms-spray-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain flow (peristaltic pump tubing)</span><input type="text" class="vital-input" data-vital="icpms-drain-flow" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma ignition & stability (~1550 W)</span><input type="text" class="vital-input" data-vital="icpms-plasma-stability" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Mass calibration / tuning check</span><input type="text" class="vital-input" data-vital="icpms-calibration" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Detector voltage within valid range</span><input type="text" class="vital-input" data-vital="icpms-detector-voltage" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxide (CeO/Ce <3%) & doubly charged (<3%)</span><input type="text" class="vital-input" data-vital="icpms-oxide-ratio" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Background counts (low mass baseline)</span><input type="text" class="vital-input" data-vital="icpms-background" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-            <div><span style="font-size:9px;font-weight:600;color:#475569;">Internal standard signal stable</span><input type="text" class="vital-input" data-vital="icpms-istd-stable" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
-          </div>
-        </div>
-      </div>
+  let bodyHtml = '<tbody>';
+  for (let idx = 0; idx < sampleCount; idx++) {
+    bodyHtml += '<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">' +
+      '<td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">' + (idx + 1) + '</td>' +
+      '<td class="writing-row" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
+      '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
+      Array.from({ length: elemCount }, () =>
+        '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monoserif;border-bottom:1px dashed #94a3b8;">&nbsp;</td>'
+      ).join('') +
+      '<td class="writing-row" style="text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
+    '</tr>';
+  }
+  bodyHtml += '</tbody>';
 
-      <!-- Data Table -->
-      <table style="width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;">
-        <thead>
-          <tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">
-            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>
-            <th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>
-            <th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>
-            ${elementHeaders}
-            <th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${bodyRows}
-        </tbody>
-      </table>
+  const table = document.createElement('table');
+  table.style.cssText = 'width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;';
+  table.innerHTML = headerHtml + bodyHtml;
+  pageDiv.appendChild(table);
+  pageDiv.appendChild(buildSpectroSignatures());
 
-      <!-- Remarks + Signature -->
-      <div>
-        <div style="margin-bottom:20px;">
-          <span style="font-size:9px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Analytical Notes / Remarks</span>
-          <div style="border-bottom:1px dashed #94a3b8;height:18px;margin-bottom:8px;"></div>
-          <div style="border-bottom:1px dashed #94a3b8;height:18px;"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:11px;">
-          <div>
-            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Analyst Signature</span>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
-              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>
-            </div>
-          </div>
-          <div>
-            <span style="display:block;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:24px;">Verified / Reviewed By</span>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Sign:</span>
-              <div style="flex:1;border-bottom:1px solid #94a3b8;height:18px;"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
+  pagesContainer.appendChild(pageDiv);
 
-  // Inject into the spectroscopy modal
+  const printSourceEl = document.createElement('div');
+  printSourceEl.id = 'spectro-print-source';
+  printSourceEl.style.display = 'none';
+  printSourceEl.appendChild(pagesContainer.cloneNode(true));
+
   const body = document.getElementById('spectroscopy-body');
-  body.innerHTML = `
-    <style>${SPECTROSCOPY_STYLES}</style>
-    <div style="padding:16px 0;">
-      ${pagesHtml}
-    </div>
-    <!-- hidden container with raw HTML for printing -->
-    <div id="spectro-print-source" style="display:none;">${pagesHtml}</div>
-  `;
+  body.innerHTML = '';
+  body.appendChild(pagesContainer);
+  body.appendChild(printSourceEl);
 }
 
-// ── Print the spectroscopy datasheet in a clean new window ──
+// ── Print ───────────────────────────────────────────────────────
 function printSpectroscopy() {
   const source = document.getElementById('spectro-print-source');
   if (!source) { showToast('No datasheet to print. Please open the form first.', 'warning'); return; }
 
-  let pagesHtml = source.innerHTML;
+  const pagesContainer = source.firstElementChild;
+  if (!pagesContainer) { showToast('No datasheet content found.', 'warning'); return; }
 
-  // ── Remove all interactive form elements ──
-  // Strip the instrument selection toggles (onclick labels aren't useful in print)
-  pagesHtml = pagesHtml.replace(/<label onclick="toggleInstrument\([^)]+\)"[\s\S]*?<\/label>/g, '');
-  // Remove the vitals section with input fields, keep <!-- Data Table --> marker
-  pagesHtml = pagesHtml.replace(/<!-- Instrument Vitals -->[\s\S]*?<!-- Data Table -->/g, '<!-- Data Table -->');
+  const clone = pagesContainer.cloneNode(true);
 
-  // Capture live instrument vitals state from the DOM and build a static table
+  // Find which instrument is selected from the live DOM
   const selectedInst = ['aas', 'mpaes', 'icpms'].find(inst => {
     const chk = document.getElementById('inst-chk-' + inst);
     return chk && chk.textContent === '✓';
   });
 
-  if (selectedInst) {
-    const instName = { aas: 'AAS', mpaes: 'MP-AES', icpms: 'ICP-MS' }[selectedInst];
-    const instFull = { aas: 'Atomic Absorption Spectrometer', mpaes: 'Microwave Plasma AES', icpms: 'Inductively Coupled Plasma Mass Spectrometry' }[selectedInst];
+  // In the clone:
+  clone.querySelectorAll('.inst-label').forEach(el => el.remove());
 
-    // Collect values from live DOM input fields (skip hidden print-source copy)
-    const vitalInputs = document.querySelectorAll('#vitals-' + selectedInst + ' .vital-input');
-    const rows = [];
-    vitalInputs.forEach(input => {
-      if (input.closest('#spectro-print-source')) return; // skip hidden copy
-      const label = input.previousElementSibling ? input.previousElementSibling.textContent : '';
-      const value = input.value || '—';
-      if (label) {
-        rows.push(`<tr><td style="padding:5px 10px;border:1px solid #cbd5e1;font-size:10px;font-weight:600;color:#334155;white-space:nowrap;width:50%;">${escHtml(label)}</td><td style="padding:5px 10px;border:1px solid #cbd5e1;font-size:10px;font-family:monospace;color:#0f172a;">${escHtml(value)}</td></tr>`);
-      }
-    });
+  // Keep only the selected instrument's vitals, hide/remove the rest
+  const allVitalsBlocks = clone.querySelectorAll('.vitals-block');
+  allVitalsBlocks.forEach(el => {
+    if (selectedInst && el.getAttribute('data-vitals-for') === selectedInst) {
+      // Keep this one visible - populate inputs with live values
+      el.style.display = 'block';
+      el.querySelectorAll('input').forEach(input => {
+        const vitalKey = input.getAttribute('data-vital');
+        if (vitalKey) {
+          const liveInput = document.querySelector('input[data-vital="' + vitalKey + '"]');
+          if (liveInput && liveInput.value) {
+            input.value = liveInput.value;
+          }
+        }
+      });
+    } else {
+      // Hide non-selected vitals
+      el.remove();
+    }
+  });
 
-    const vitalsHtml = `
-      <div style="margin-bottom:18px;border:2px solid #1e293b;border-radius:6px;overflow:hidden;">
-        <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;padding:6px 10px;background:#f1f5f9;border-bottom:1px solid #94a3b8;">Instrument Vitals — ${instName} (${instFull})</div>
-        <table style="width:100%;border-collapse:collapse;">
-          ${rows.join('')}
-        </table>
-      </div>
-      <!-- Data Table -->`;
-
-    // Replace the <!-- Data Table --> marker with vitals + marker
-    pagesHtml = pagesHtml.replace('<!-- Data Table -->', vitalsHtml);
+  // Show the vitals section wrapper
+  const vitalsSection = clone.querySelector('#vitals-section');
+  if (vitalsSection) {
+    vitalsSection.style.display = selectedInst ? 'block' : 'none';
   }
 
-  const fullDoc = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spectroscopy Analysis Datasheet - Print</title>
-  <style>
-    ${SPECTROSCOPY_STYLES}
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #fff; display: block; padding: 0; }
-    .spectro-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }
-    .spectro-page:last-child { page-break-after: auto; }
-    .print-container { box-shadow: none !important; border: none !important; }
-  </style>
-</head>
-<body>
-  ${pagesHtml}
-</body>
-</html>`;
+  // Make all input fields read-only in the print version
+  clone.querySelectorAll('input').forEach(input => {
+    input.readOnly = true;
+  });
+
+  const serialized = clone.innerHTML;
+
+  const fullHtml =
+    '<!DOCTYPE html><html lang="en"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Spectroscopy Analysis Datasheet - Print</title>' +
+    '<style>' +
+      '@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap\');' +
+      'body { font-family: \'Inter\', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+      '@page { size: A4 portrait; margin: 12mm 15mm 12mm 15mm; }' +
+      '@media print { body { background: #fff !important; color: #000 !important; } .no-print { display: none !important; } .print-container { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 0 !important; width: 210mm !important; background: transparent !important; } .spectro-page { box-shadow: none !important; border: none !important; margin: 0 auto !important; page-break-after: always; } tr { page-break-inside: avoid; } }' +
+      '.writing-row { height: 10.5mm; }' +
+      '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+      'body { background: #fff; display: block; padding: 0; }' +
+      '.spectro-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }' +
+      '.spectro-page:last-child { page-break-after: auto; }' +
+      '.print-container { box-shadow: none !important; border: none !important; }' +
+    '</style></head><body>' + serialized + '</body></html>';
 
   const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
-  if (!printWin) {
-    showToast('Popup blocked! Please allow popups for this site to print.', 'error');
-    return;
-  }
-  printWin.document.write(fullDoc);
+  if (!printWin) { showToast('Popup blocked! Please allow popups for this site to print.', 'error'); return; }
+  printWin.document.write(fullHtml);
   printWin.document.close();
   printWin.focus();
 
-  // Wait for fonts/resources to load, then print
   setTimeout(() => {
     printWin.print();
     printWin.onafterprint = () => printWin.close();
@@ -948,20 +818,17 @@ function printSpectroscopy() {
 
 // ── Toggle instrument selection and vitals ──────────────────────
 function toggleInstrument(instrument) {
-  // Clear all check marks
-  document.querySelectorAll('[id^="inst-chk-"]').forEach(el => {
+  document.querySelectorAll('.inst-chk').forEach(el => {
     el.style.background = 'transparent';
     el.textContent = '';
   });
-  // Hide all vitals sections
-  document.querySelectorAll('[id^="vitals-"]').forEach(el => {
-    if (el.id !== 'vitals-section') el.style.display = 'none';
-  });
-  document.getElementById('vitals-section').style.display = 'none';
+  document.querySelectorAll('.vitals-block').forEach(el => { el.style.display = 'none'; });
+
+  const vitalsSection = document.getElementById('vitals-section');
+  if (vitalsSection) vitalsSection.style.display = 'none';
 
   if (!instrument) return;
 
-  // Check the selected instrument
   const chk = document.getElementById('inst-chk-' + instrument);
   if (chk) {
     chk.style.background = '#1e293b';
@@ -973,11 +840,10 @@ function toggleInstrument(instrument) {
     chk.style.justifyContent = 'center';
   }
 
-  // Show corresponding vitals
-  const vitalsDiv = document.getElementById('vitals-' + instrument);
+  const vitalsDiv = document.querySelector('.vitals-block[data-vitals-for="' + instrument + '"]');
   if (vitalsDiv) {
     vitalsDiv.style.display = 'block';
-    document.getElementById('vitals-section').style.display = 'block';
+    if (vitalsSection) vitalsSection.style.display = 'block';
   }
 }
 

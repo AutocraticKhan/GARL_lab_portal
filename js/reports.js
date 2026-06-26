@@ -11,52 +11,39 @@ function buildProgressSidebar(session) {
   if (!sidebar) return;
 
   var isReceptionist = session && session.role === 'receptionist';
-  var navItems = '';
+  var backDest = isReceptionist ? 'receptionist-dashboard.html' : 'admin-dashboard.html';
+  var backLabel = isReceptionist ? 'Receptionist Dashboard' : 'Admin Dashboard';
+  var backIcon = isReceptionist ? '➕' : '👥';
+  var panelName = isReceptionist ? 'Receptionist' : 'Admin Panel';
 
-  if (isReceptionist) {
-    navItems = [
-      '<p class="sidebar-section-label">Samples</p>',
-      '<button class="nav-item" id="nav-back-dashboard"><span class="nav-icon">➕</span> <span id="nav-back-label">Receptionist Dashboard</span></button>',
-      '<p class="sidebar-section-label">Reports</p>',
-      '<button class="nav-item active"><span class="nav-icon">📊</span> Progress Report</button>'
-    ].join('');
-  } else {
-    navItems = [
-      '<p class="sidebar-section-label">Management</p>',
-      '<button class="nav-item" id="nav-back-dashboard"><span class="nav-icon">👥</span> <span id="nav-back-label">Admin Dashboard</span></button>',
-      '<p class="sidebar-section-label">Reports</p>',
-      '<button class="nav-item active"><span class="nav-icon">📊</span> Progress Report</button>'
-    ].join('');
-  }
-
-  sidebar.innerHTML = [
-    '<div class="sidebar-logo">',
-    '  <div class="sidebar-logo-icon">🧪</div>',
-    '  <div class="sidebar-logo-text">Geoscience Advanced Research Laboratories<span>' + (isReceptionist ? 'Receptionist' : 'Admin Panel') + '</span></div>',
-    '</div>',
-    '<nav class="sidebar-nav">',
-    navItems,
-    '</nav>',
-    '<div class="sidebar-footer">',
-    '  <div class="user-chip">',
-    '    <div class="user-avatar" id="sidebar-user-avatar">' + initials(session.full_name) + '</div>',
-    '    <div class="user-info">',
-    '      <div class="user-name" id="sidebar-user-name">' + escHtml(session.full_name) + '</div>',
-    '      <div class="user-role" id="sidebar-user-role">' + session.role.replace('_', ' ') + '</div>',
-    '    </div>',
-    '  </div>',
-    '  <button class="btn btn-ghost btn-full btn-sm" data-action="logout">⎋ Sign Out</button>',
-    '</div>'
-  ].join('\n');
+  sidebar.innerHTML =
+    '<div class="sidebar-logo">' +
+      '<div class="sidebar-logo-icon">🧪</div>' +
+      '<div class="sidebar-logo-text">Geoscience Advanced Research Laboratories<span>' + panelName + '</span></div>' +
+    '</div>' +
+    '<nav class="sidebar-nav">' +
+      '<p class="sidebar-section-label">' + (isReceptionist ? 'Samples' : 'Management') + '</p>' +
+      '<button class="nav-item" id="nav-back-dashboard"><span class="nav-icon">' + backIcon + '</span> <span id="nav-back-label">' + backLabel + '</span></button>' +
+      '<p class="sidebar-section-label">Reports</p>' +
+      '<button class="nav-item active"><span class="nav-icon">📊</span> Progress Report</button>' +
+    '</nav>' +
+    '<div class="sidebar-footer">' +
+      '<div class="user-chip">' +
+        '<div class="user-avatar" id="sidebar-user-avatar">' + initials(session.full_name) + '</div>' +
+        '<div class="user-info">' +
+          '<div class="user-name" id="sidebar-user-name">' + escHtml(session.full_name) + '</div>' +
+          '<div class="user-role" id="sidebar-user-role">' + session.role.replace('_', ' ') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn btn-ghost btn-full btn-sm" data-action="logout">⎋ Sign Out</button>' +
+    '</div>';
 
   // Wire the back-dashboard button
   var backBtn = document.getElementById('nav-back-dashboard');
-  var backLabel = document.getElementById('nav-back-label');
-  if (backBtn && backLabel) {
+  if (backBtn) {
     backBtn.onclick = function() {
-      var dest = isReceptionist ? 'receptionist-dashboard.html' : 'admin-dashboard.html';
-      var sep = dest.indexOf('?') === -1 ? '?' : '&';
-      window.location.href = dest + sep + 'session=' + encodeURIComponent(JSON.stringify(session || {}));
+      var sep = backDest.indexOf('?') === -1 ? '?' : '&';
+      window.location.href = backDest + sep + 'session=' + encodeURIComponent(JSON.stringify(session || {}));
     };
   }
 }
@@ -87,7 +74,7 @@ function wireReportEvents() {
 function populateLabFilter() {
   const sel = document.getElementById('filter-lab');
   sel.innerHTML = '<option value="">All Labs</option>' +
-    DB.labs.map(l => `<option value="${l.id}">${escHtml(l.lab_name)}</option>`).join('');
+    DB.labs.map(l => '<option value="' + l.id + '">' + escHtml(l.lab_name) + '</option>').join('');
 }
 
 function setDefaultDateRange() {
@@ -144,7 +131,7 @@ function aggregateData(filters) {
         return sum;
       }, 0);
       const avg = (total_days / completedSamples.length).toFixed(1);
-      avgTurnaround = `${avg} day${avg == 1 ? '' : 's'}`;
+      avgTurnaround = avg + ' day' + (avg == 1 ? '' : 's');
 
       // Get latest completion date
       const completionDates = completedSamples.map(s => s.completed_at).filter(Boolean).sort().reverse();
@@ -200,29 +187,29 @@ function renderReport() {
 function renderTable(rows) {
   const tbody = document.getElementById('report-tbody');
   if (!rows.length || rows.every(r => r.total === 0)) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📊</div><p>No data for selected filters</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📊</div><p>No data for selected filters</p></div></td></tr>';
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
     if (r.total === 0) return '';
     const pct = Math.round((r.completed / r.total) * 100);
-    return `<tr>
-      <td><strong>${escHtml(r.lab_name)}</strong> <code style="font-size:0.72rem;color:var(--clr-accent)">${escHtml(r.lab_code)}</code></td>
-      <td style="text-align:center;font-weight:700;">${r.total}</td>
-      <td style="text-align:center;font-weight:700;color:var(--clr-primary);">${r.estimations.toLocaleString()}</td>
-      <td style="text-align:center;">${r.assigned > 0 ? `<span style="color:#b45309;font-weight:600;">${r.assigned}</span>` : `<span class="muted">0</span>`}</td>
-      <td style="text-align:center;">${r.in_progress > 0 ? `<span style="color:#7c3aed;font-weight:600;">${r.in_progress}</span>` : `<span class="muted">0</span>`}</td>
-      <td style="text-align:center;">${r.completed > 0 ? `<span style="color:#059669;font-weight:600;">${r.completed}</span>` : `<span class="muted">0</span>`}</td>
-      <td style="text-align:center;">${r.pending > 0 ? `<span style="color:#dc2626;font-weight:600;">${r.pending}</span>` : `<span class="muted">0</span>`}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:var(--sp-3);">
-          <div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${pct}%;background:${pct>80?'var(--clr-success)':pct>50?'var(--clr-primary)':'var(--clr-warning)'}"></div></div>
-          <span style="font-size:0.78rem;color:var(--txt-secondary);min-width:32px;">${pct}%</span>
-        </div>
-      </td>
-      <td style="text-align:center;font-size:0.75rem;color:var(--txt-secondary);">${r.latest_completion ? formatDate(r.latest_completion) : '—'}</td>
-    </tr>`;
+    return '<tr>' +
+      '<td><strong>' + escHtml(r.lab_name) + '</strong> <code style="font-size:0.72rem;color:var(--clr-accent)">' + escHtml(r.lab_code) + '</code></td>' +
+      '<td style="text-align:center;font-weight:700;">' + r.total + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:var(--clr-primary);">' + r.estimations.toLocaleString() + '</td>' +
+      '<td style="text-align:center;">' + (r.assigned > 0 ? '<span style="color:#b45309;font-weight:600;">' + r.assigned + '</span>' : '<span class="muted">0</span>') + '</td>' +
+      '<td style="text-align:center;">' + (r.in_progress > 0 ? '<span style="color:#7c3aed;font-weight:600;">' + r.in_progress + '</span>' : '<span class="muted">0</span>') + '</td>' +
+      '<td style="text-align:center;">' + (r.completed > 0 ? '<span style="color:#059669;font-weight:600;">' + r.completed + '</span>' : '<span class="muted">0</span>') + '</td>' +
+      '<td style="text-align:center;">' + (r.pending > 0 ? '<span style="color:#dc2626;font-weight:600;">' + r.pending + '</span>' : '<span class="muted">0</span>') + '</td>' +
+      '<td>' +
+        '<div style="display:flex;align-items:center;gap:var(--sp-3);">' +
+          '<div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:' + pct + '%;background:' + (pct>80?'var(--clr-success)':pct>50?'var(--clr-primary)':'var(--clr-warning)') + '"></div></div>' +
+          '<span style="font-size:0.78rem;color:var(--txt-secondary);min-width:32px;">' + pct + '%</span>' +
+        '</div>' +
+      '</td>' +
+      '<td style="text-align:center;font-size:0.75rem;color:var(--txt-secondary);">' + (r.latest_completion ? formatDate(r.latest_completion) : '—') + '</td>' +
+    '</tr>';
   }).join('');
 
   // Totals row
@@ -235,26 +222,25 @@ function renderTable(rows) {
       completed: a.completed+r.completed, pending: a.pending+r.pending,
     }), { total:0, estimations:0, assigned:0, in_progress:0, completed:0, pending:0 });
     const tp = Math.round((t.completed/t.total)*100);
-    // Get the overall latest completion date
     const allCompletionDates = rows2.flatMap(r => r.latest_completion ? [r.latest_completion] : []).sort().reverse();
     const allLatestCompletion = allCompletionDates[0] || null;
 
-    tbody.innerHTML += `<tr style="border-top:2px solid var(--clr-border-2);background:rgba(0,0,0,0.02);">
-      <td><strong>All Labs</strong></td>
-      <td style="text-align:center;font-weight:800;">${t.total}</td>
-      <td style="text-align:center;font-weight:800;color:var(--clr-primary);">${t.estimations.toLocaleString()}</td>
-      <td style="text-align:center;font-weight:700;color:#b45309;">${t.assigned}</td>
-      <td style="text-align:center;font-weight:700;color:#7c3aed;">${t.in_progress}</td>
-      <td style="text-align:center;font-weight:700;color:#059669;">${t.completed}</td>
-      <td style="text-align:center;font-weight:700;color:#dc2626;">${t.pending}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:var(--sp-3);">
-          <div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${tp}%;"></div></div>
-          <span style="font-size:0.78rem;color:var(--txt-secondary);min-width:32px;">${tp}%</span>
-        </div>
-      </td>
-      <td style="text-align:center;font-size:0.75rem;color:var(--txt-secondary);">${allLatestCompletion ? formatDate(allLatestCompletion) : '—'}</td>
-    </tr>`;
+    tbody.innerHTML += '<tr style="border-top:2px solid var(--clr-border-2);background:rgba(0,0,0,0.02);">' +
+      '<td><strong>All Labs</strong></td>' +
+      '<td style="text-align:center;font-weight:800;">' + t.total + '</td>' +
+      '<td style="text-align:center;font-weight:800;color:var(--clr-primary);">' + t.estimations.toLocaleString() + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:#b45309;">' + t.assigned + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:#7c3aed;">' + t.in_progress + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:#059669;">' + t.completed + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:#dc2626;">' + t.pending + '</td>' +
+      '<td>' +
+        '<div style="display:flex;align-items:center;gap:var(--sp-3);">' +
+          '<div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:' + tp + '%;"></div></div>' +
+          '<span style="font-size:0.78rem;color:var(--txt-secondary);min-width:32px;">' + tp + '%</span>' +
+        '</div>' +
+      '</td>' +
+      '<td style="text-align:center;font-size:0.75rem;color:var(--txt-secondary);">' + (allLatestCompletion ? formatDate(allLatestCompletion) : '—') + '</td>' +
+    '</tr>';
   }
 }
 
@@ -278,7 +264,7 @@ function exportReportCSV() {
   }));
 
   const dateStr = new Date().toISOString().slice(0,10);
-  downloadCSV(`garl-progress-report-${dateStr}.csv`, exportRows);
+  downloadCSV('garl-progress-report-' + dateStr + '.csv', exportRows);
   showToast('Report exported successfully.', 'success');
 }
 

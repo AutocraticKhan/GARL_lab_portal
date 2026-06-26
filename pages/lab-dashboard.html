@@ -182,6 +182,167 @@
   </div>
 </div>
 
+<!-- ── TEMPLATES ───────────────────────────────────────────── -->
+<template id="spectro-page-header">
+  <div class="spectro-page print-container" style="width:auto;min-height:280mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div class="spectro-page-no" style="text-align:right;font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:4px;"></div>
+    <!-- Document Header -->
+    <div style="display:flex;justify-content:space-between;align-items:start;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;">
+      <div>
+        <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f172a;margin:0;text-transform:uppercase;">Spectroscopy Analysis Datasheet</h1>
+        <p style="font-size:10px;color:#64748b;font-family:monospace;margin:2px 0 0 0;">AAS / MP-AES / ICP-MS RAW METRIC REPORT</p>
+      </div>
+      <div style="text-align:right;">
+        <span style="display:inline-block;border:1px solid #94a3b8;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.04em;color:#475569;text-transform:uppercase;">LAB USE ONLY</span>
+      </div>
+    </div>
+    <div class="spectro-meta" style="display:grid;grid-template-columns:1fr 1fr;gap:16px 28px;font-size:13px;margin-bottom:24px;"></div>
+    <div class="spectro-vitals" style="margin-bottom:24px;display:none;"></div>
+    <div class="spectro-table-wrap"></div>
+    <div class="spectro-remarks" style="">
+      <div style="margin-bottom:20px;">
+        <span style="font-size:9px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Analytical Notes / Remarks</span>
+        <div style="border-bottom:1px dashed #94a3b8;height:18px;margin-bottom:8px;"></div>
+        <div style="border-bottom:1px dashed #94a3b8;height:18px;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:12px;border-top:1px solid #cbd5e1;font-size:11px;">
+        <div class="spectro-signature-left"></div>
+        <div class="spectro-signature-right"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="spectro-meta-row">
+  <div style="display:flex;align-items:flex-end;gap:8px;">
+    <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;" data-bind="label"></span>
+    <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;font-family:monospace;color:#0f172a;font-size:12px;font-weight:500;padding-left:4px;display:flex;align-items:center;" data-bind="value" data-raw></div>
+  </div>
+</template>
+
+<template id="spectro-instrument-checks">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;grid-column:1/-1;">
+    <div style="display:flex;align-items:flex-end;gap:8px;">
+      <span style="font-weight:700;color:#334155;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;">Instrument Model:</span>
+      <div style="flex:1;border-bottom:1px dashed #94a3b8;height:22px;"></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:16px;padding-top:4px;">
+      <label class="inst-label" data-inst="aas" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+        <span class="inst-chk" id="inst-chk-aas" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> AAS
+      </label>
+      <label class="inst-label" data-inst="mpaes" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+        <span class="inst-chk" id="inst-chk-mpaes" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> MP-AES
+      </label>
+      <label class="inst-label" data-inst="icpms" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#334155;cursor:pointer;">
+        <span class="inst-chk" id="inst-chk-icpms" style="width:16px;height:16px;border:2px solid #1e293b;border-radius:2px;display:inline-block;"></span> ICP-MS
+      </label>
+    </div>
+  </div>
+</template>
+
+<template id="spectro-vitals-aas">
+  <div class="vitals-block" data-vitals-for="aas" style="display:none;">
+    <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#eef2ff;border-radius:4px;border-left:3px solid #6366f1;">AAS Instrument Vitals (Pre-Analysis Checklist)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temperature & humidity</span><input type="text" data-vital="aas-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 22°C / 45%" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" data-vital="aas-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp type installed & element match</span><input type="text" data-vital="aas-lamp-type" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. HCL-Cu" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp energy/intensity (valid range)</span><input type="text" data-vital="aas-lamp-energy" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Lamp warm-up time completed</span><input type="text" data-vital="aas-warmup" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Burner head condition (clean, no blockage)</span><input type="text" data-vital="aas-burner-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer condition & flow check</span><input type="text" data-vital="aas-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Fuel gas (acetylene) pressure & level</span><input type="text" data-vital="aas-fuel-gas" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 10 psi / ~80%" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxidant (air/N₂O) pressure</span><input type="text" data-vital="aas-oxidant-pressure" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 40 psi" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain trap water level</span><input type="text" data-vital="aas-drain-trap" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Flame ignition check (stable flame)</span><input type="text" data-vital="aas-flame-ignition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Background corrector (D₂ / Zeeman)</span><input type="text" data-vital="aas-bg-corrector" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+    </div>
+  </div>
+</template>
+
+<template id="spectro-vitals-mpaes">
+  <div class="vitals-block" data-vitals-for="mpaes" style="display:none;">
+    <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fef3c7;border-radius:4px;border-left:3px solid #f59e0b;">MP-AES Instrument Vitals (Pre-Analysis Checklist)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temperature & humidity</span><input type="text" data-vital="mpaes-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 22°C / 45%" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" data-vital="mpaes-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Nitrogen supply pressure & purity</span><input type="text" data-vital="mpaes-nitrogen" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 80 psi / 99.999%" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Water trap level (not overfilled)</span><input type="text" data-vital="mpaes-water-trap-level" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Water trap drainage confirmed (not blocked)</span><input type="text" data-vital="mpaes-drainage" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Detector temperature (stabilized)</span><input type="text" data-vital="mpaes-detector-temp" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch condition (clean, no deposits/cracks)</span><input type="text" data-vital="mpaes-torch-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch properly seated & secured</span><input type="text" data-vital="mpaes-torch-seated" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Nebulizer & spray chamber clean</span><input type="text" data-vital="mpaes-nebulizer-clean" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma ignition & stability confirmed</span><input type="text" data-vital="mpaes-plasma-stability" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain tube flow (not blocked)</span><input type="text" data-vital="mpaes-drain-flow" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+    </div>
+  </div>
+</template>
+
+<template id="spectro-vitals-icpms">
+  <div class="vitals-block" data-vitals-for="icpms" style="display:none;">
+    <div style="font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding:4px 8px;background:#fce7f3;border-radius:4px;border-left:3px solid #ec4899;">ICP-MS Instrument Vitals (Pre-Analysis Checklist)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Lab temp & humidity (20–22°C)</span><input type="text" data-vital="icpms-temp-humidity" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 21°C / 40%" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">UPS status</span><input type="text" data-vital="icpms-ups" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Argon pressure & purity (≥99.999%)</span><input type="text" data-vital="icpms-argon" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 100 psi / 5.0" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Cooling water temp & flow rate</span><input type="text" data-vital="icpms-cooling-water" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" placeholder="e.g. 20°C / 5 L/min" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Roughing pump oil level & condition</span><input type="text" data-vital="icpms-rough-pump" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Turbo pump vacuum (<5×10⁻⁷ mbar)</span><input type="text" data-vital="icpms-turbo-pump" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Interface cones (sampler/skimmer) clean</span><input type="text" data-vital="icpms-cones" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch condition (clean, no cracks)</span><input type="text" data-vital="icpms-torch-condition" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Torch position (correctly aligned)</span><input type="text" data-vital="icpms-torch-alignment" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Spray chamber & nebulizer condition</span><input type="text" data-vital="icpms-spray-nebulizer" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Drain flow (peristaltic pump tubing)</span><input type="text" data-vital="icpms-drain-flow" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Plasma ignition & stability (~1550 W)</span><input type="text" data-vital="icpms-plasma-stability" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Mass calibration / tuning check</span><input type="text" data-vital="icpms-calibration" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Detector voltage within valid range</span><input type="text" data-vital="icpms-detector-voltage" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Oxide (CeO/Ce <3%) & doubly charged (<3%)</span><input type="text" data-vital="icpms-oxide-ratio" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Background counts (low mass baseline)</span><input type="text" data-vital="icpms-background" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+      <div><span style="font-size:9px;font-weight:600;color:#475569;">Internal standard signal stable</span><input type="text" data-vital="icpms-istd-stable" style="width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 5px;font-size:11px;font-family:monospace;box-sizing:border-box;" /></div>
+    </div>
+  </div>
+</template>
+
+<template id="spectro-sample-row">
+  <tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">
+    <td class="spectro-idx" style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;"></td>
+    <td class="spectro-sample-id" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;"></td>
+    <td class="spectro-weight writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>
+    <td class="spectro-elements" style="border-right:1px solid #94a3b8;padding:0;"></td>
+    <td class="spectro-sd" style="text-align:center;padding:2px;">&nbsp;</td>
+  </tr>
+</template>
+
+<template id="spectro-element-cell">
+  <td style="border-right:1px solid #94a3b8;text-align:center;;padding:2px;"></td>
+</template>
+
+<template id="spectro-element-header">
+  <th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;"></th>
+</template>
+
+<template id="spectro-print-doc">
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spectroscopy Analysis Datasheet - Print</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; display: block; padding: 0; }
+    .spectro-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }
+    .spectro-page:last-child { page-break-after: auto; }
+    .print-container { box-shadow: none !important; border: none !important; }
+    .writing-row { height: 10.5mm; }
+  </style>
+</head>
+<body class="spectro-print-body">
+</body>
+</html>
+</template>
+
   <script src="../js/supabase-client.js"></script>
   <script src="../js/utils.js"></script>
   <script src="../js/supabase.js"></script>

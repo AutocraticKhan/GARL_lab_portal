@@ -358,3 +358,70 @@ function deriveLabCode(lab) {
   }
   return 'LAB';
 }
+
+// ── Template Renderer ─────────────────────────────────────────
+/**
+ * Clone a <template>, populate data-bind elements, and return the fragment.
+ * Usage: <template id="foo"><p data-bind="name"></p></template>
+ *        const frag = bindTemplate('foo', { name: 'John' });
+ *        container.appendChild(frag);
+ * @param {string} templateId - The ID of the <template> element
+ * @param {object} data - Key/value pairs matching data-bind attributes
+ * @param {object} [options] - Optional settings
+ * @param {boolean} [options.sanitize=true] - Whether to escape HTML in values
+ * @returns {DocumentFragment}
+ */
+function bindTemplate(templateId, data, options = {}) {
+  const { sanitize = true } = options;
+  const tmpl = document.getElementById(templateId);
+  if (!tmpl) {
+    console.error(`[TEMPLATE] Template #${templateId} not found`);
+    return document.createDocumentFragment();
+  }
+  const clone = tmpl.content.cloneNode(true);
+
+  // Fill data-bind elements
+  clone.querySelectorAll('[data-bind]').forEach(el => {
+    const key = el.getAttribute('data-bind');
+    const fallback = el.getAttribute('data-fallback') || '—';
+    let val = data[key] ?? fallback;
+    if (sanitize && typeof val === 'string' && !el.hasAttribute('data-raw')) {
+      val = escHtml(val);
+    }
+    // For INPUT/textarea, set value; otherwise set textContent
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+      el.value = val;
+    } else if (el.hasAttribute('data-html')) {
+      el.innerHTML = val;
+    } else {
+      el.textContent = val;
+    }
+  });
+
+  // Fill data-href attributes
+  clone.querySelectorAll('[data-href]').forEach(el => {
+    const key = el.getAttribute('data-href');
+    const val = data[key] || '';
+    el.href = val;
+  });
+
+  // Fill data-src attributes
+  clone.querySelectorAll('[data-src]').forEach(el => {
+    const key = el.getAttribute('data-src');
+    const val = data[key] || '';
+    el.src = val;
+  });
+
+  return clone;
+}
+
+/**
+ * Create a single element with text content from a simplified HTML template.
+ * @param {string} html - HTML string (no interpolation, just structure)
+ * @returns {DocumentFragment}
+ */
+function htmlToFragment(html) {
+  const tmpl = document.createElement('template');
+  tmpl.innerHTML = html.trim();
+  return tmpl.content.cloneNode(true);
+}

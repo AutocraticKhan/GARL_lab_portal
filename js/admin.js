@@ -130,7 +130,7 @@ function populateTestTypeSelect() {
   if (!sel) return;
   const types = getTestTypes();
   sel.innerHTML = '<option value="">Select Test Type</option>' +
-    types.map(t => `<option value="${t.value}">${escHtml(t.label)}</option>`).join('');
+    types.map(t => '<option value="' + t.value + '">' + escHtml(t.label) + '</option>').join('');
 }
 
 // ── USER MANAGEMENT ───────────────────────────────────────────
@@ -151,26 +151,26 @@ function renderUsers() {
     u.role?.toLowerCase().includes(query)
   );
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👥</div><p>No users found</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👥</div><p>No users found</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(u => {
     const lab = u.lab_id ? getLab(u.lab_id) : null;
-    return `<tr>
-      <td><strong>${escHtml(u.full_name)}</strong></td>
-      <td class="muted">${escHtml(u.username)}</td>
-      <td>${roleBadge(u.role)}</td>
-      <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
-      <td>${u.active ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
-      <td>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm" onclick="editUser('${u.id}')">Edit</button>
-          <button class="btn btn-${u.active ? 'danger' : 'success'} btn-sm" onclick="handleToggleUser('${u.id}')">
-            ${u.active ? 'Deactivate' : 'Activate'}
-          </button>
-        </div>
-      </td>
-    </tr>`;
+    return '<tr>' +
+      '<td><strong>' + escHtml(u.full_name) + '</strong></td>' +
+      '<td class="muted">' + escHtml(u.username) + '</td>' +
+      '<td>' + roleBadge(u.role) + '</td>' +
+      '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
+      '<td>' + (u.active ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>') + '</td>' +
+      '<td>' +
+        '<div style="display:flex;gap:6px;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="editUser(\'' + u.id + '\')">Edit</button>' +
+          '<button class="btn btn-' + (u.active ? 'danger' : 'success') + ' btn-sm" onclick="handleToggleUser(\'' + u.id + '\')">' +
+            (u.active ? 'Deactivate' : 'Activate') +
+          '</button>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -193,7 +193,6 @@ async function handleCreateUser(e) {
 
   try {
     if (id) {
-      // Edit existing
       const patch = { username, role, full_name: fullName, lab_id: labId };
       if (password) patch.password = password;
       await updateUser(id, patch);
@@ -241,28 +240,28 @@ function renderLabs() {
   const tbody = document.getElementById('labs-tbody');
   const labs  = DB.labs;
   if (!labs.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🏥</div><p>No labs found</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🏥</div><p>No labs found</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = labs.map(lab => {
     const engineers = DB.users.filter(u => u.lab_id === lab.id && u.active).length;
     const pending   = DB.samples.filter(s => s.lab_id === lab.id && s.status !== 'completed').length;
-    return `<tr>
-      <td><strong>${escHtml(lab.lab_name)}</strong></td>
-      <td class="muted">${escHtml(lab.lab_code)}</td>
-      <td class="muted">${escHtml(lab.description || '—')}</td>
-      <td class="muted">${engineers} engineers · ${pending} pending</td>
-      <td>${lab.active ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
-      <td>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm" onclick="editLab('${lab.id}')">Edit</button>
-          <button class="btn btn-${lab.active ? 'danger' : 'success'} btn-sm" onclick="handleToggleLab('${lab.id}')">
-            ${lab.active ? 'Deactivate' : 'Activate'}
-          </button>
-          <button class="btn btn-delete btn-sm" onclick="handleDeleteLab('${lab.id}')">Delete</button>
-        </div>
-      </td>
-    </tr>`;
+    return '<tr>' +
+      '<td><strong>' + escHtml(lab.lab_name) + '</strong></td>' +
+      '<td class="muted">' + escHtml(lab.lab_code) + '</td>' +
+      '<td class="muted">' + escHtml(lab.description || '—') + '</td>' +
+      '<td class="muted">' + engineers + ' engineers · ' + pending + ' pending</td>' +
+      '<td>' + (lab.active ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>') + '</td>' +
+      '<td>' +
+        '<div style="display:flex;gap:6px;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="editLab(\'' + lab.id + '\')">Edit</button>' +
+          '<button class="btn btn-' + (lab.active ? 'danger' : 'success') + ' btn-sm" onclick="handleToggleLab(\'' + lab.id + '\')">' +
+            (lab.active ? 'Deactivate' : 'Activate') +
+          '</button>' +
+          '<button class="btn btn-delete btn-sm" onclick="handleDeleteLab(\'' + lab.id + '\')">Delete</button>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -320,9 +319,9 @@ async function handleDeleteLab(id) {
   const lab = getLab(id);
   if (!lab) return;
   const labTests = DB.tests.filter(t => t.lab_id === id);
-  let warningMessage = `Are you sure you want to delete lab "${lab.lab_name}"? This action cannot be undone.`;
+  let warningMessage = 'Are you sure you want to delete lab "' + lab.lab_name + '"? This action cannot be undone.';
   if (labTests.length > 0) {
-    warningMessage += `\n\nWARNING: This lab has ${labTests.length} associated test(s). Deleting this lab will CASCADE and delete all of these tests too!`;
+    warningMessage += '\n\nWARNING: This lab has ' + labTests.length + ' associated test(s). Deleting this lab will CASCADE and delete all of these tests too!';
   }
   if (!confirm(warningMessage)) return;
   try {
@@ -338,31 +337,31 @@ async function handleDeleteLab(id) {
 function renderTests() {
   const tbody = document.getElementById('tests-tbody');
   if (!DB.tests.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🔬</div><p>No tests defined</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🔬</div><p>No tests defined</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = DB.tests.map(t => {
     const lab = getLab(t.lab_id);
     const typeLabel = t.test_type ? getTestTypeLabel(t.test_type) : '—';
     const requiresElems = t.requires_elements !== false;
-    return `<tr>
-      <td><strong>${escHtml(t.test_name)}</strong></td>
-      <td class="muted"><code>${escHtml(t.test_code)}</code></td>
-      <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
-      <td><span class="badge badge-info" style="font-size:0.7rem;">${escHtml(typeLabel)}</span></td>
-      <td class="muted">${t.turnaround_days} day${t.turnaround_days == 1 ? '' : 's'}</td>
-      <td>${requiresElems ? '<span class="badge badge-completed" style="background:rgba(16,185,129,0.1);color:#059669;">Elements</span>' : '<span class="badge badge-inactive" style="background:rgba(239,68,68,0.1);color:#dc2626;">No Elements</span>'}</td>
-      <td>${t.active !== false ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
-      <td>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm" onclick="editTest('${t.id}')">Edit</button>
-          <button class="btn btn-${t.active !== false ? 'danger' : 'success'} btn-sm" onclick="handleToggleTest('${t.id}')">
-            ${t.active !== false ? 'Deactivate' : 'Activate'}
-          </button>
-          <button class="btn btn-delete btn-sm" onclick="handleDeleteTest('${t.id}')">Delete</button>
-        </div>
-      </td>
-    </tr>`;
+    return '<tr>' +
+      '<td><strong>' + escHtml(t.test_name) + '</strong></td>' +
+      '<td class="muted"><code>' + escHtml(t.test_code) + '</code></td>' +
+      '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
+      '<td><span class="badge badge-info" style="font-size:0.7rem;">' + escHtml(typeLabel) + '</span></td>' +
+      '<td class="muted">' + t.turnaround_days + ' day' + (t.turnaround_days == 1 ? '' : 's') + '</td>' +
+      '<td>' + (requiresElems ? '<span class="badge badge-completed" style="background:rgba(16,185,129,0.1);color:#059669;">Elements</span>' : '<span class="badge badge-inactive" style="background:rgba(239,68,68,0.1);color:#dc2626;">No Elements</span>') + '</td>' +
+      '<td>' + (t.active !== false ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>') + '</td>' +
+      '<td>' +
+        '<div style="display:flex;gap:6px;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="editTest(\'' + t.id + '\')">Edit</button>' +
+          '<button class="btn btn-' + (t.active !== false ? 'danger' : 'success') + ' btn-sm" onclick="handleToggleTest(\'' + t.id + '\')">' +
+            (t.active !== false ? 'Deactivate' : 'Activate') +
+          '</button>' +
+          '<button class="btn btn-delete btn-sm" onclick="handleDeleteTest(\'' + t.id + '\')">Delete</button>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -415,7 +414,7 @@ function editTest(id) {
 async function handleDeleteTest(id) {
   const test = getTest(id);
   if (!test) return;
-  if (!confirm(`Delete test "${test.test_name}"? This action cannot be undone.`)) return;
+  if (!confirm('Delete test "' + test.test_name + '"? This action cannot be undone.')) return;
   try {
     await deleteTest(id);
     renderTests();
@@ -451,28 +450,28 @@ function renderAllSamples() {
   if (labId)  rows = rows.filter(s => s.lab_id === labId);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🧫</div><p>No samples found</p></div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🧫</div><p>No samples found</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(s => {
     const lab  = getLab(s.lab_id);
     const test = getTest(s.test_id);
-    return `<tr>
-      <td><strong>${escHtml(s.sample_number)}</strong></td>
-      <td>${escHtml(s.customer_name)}</td>
-      <td class="muted">${escHtml(s.cnic || '—')}</td>
-      <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
-      <td class="muted">${test ? escHtml(test.test_name) : '—'}</td>
-      <td>${statusBadge(s.status)}</td>
-      <td class="muted">${formatDate(s.created_at)}</td>
-      <td>
-        <select class="filter-control" style="font-size:0.75rem;" onchange="adminOverrideStatus('${s.id}', this.value)">
-          ${['received','assigned','in_progress','completed'].map(st =>
-            `<option value="${st}" ${s.status === st ? 'selected' : ''}>${st.replace('_',' ')}</option>`
-          ).join('')}
-        </select>
-      </td>
-    </tr>`;
+    return '<tr>' +
+      '<td><strong>' + escHtml(s.sample_number) + '</strong></td>' +
+      '<td>' + escHtml(s.customer_name) + '</td>' +
+      '<td class="muted">' + escHtml(s.cnic || '—') + '</td>' +
+      '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
+      '<td class="muted">' + (test ? escHtml(test.test_name) : '—') + '</td>' +
+      '<td>' + statusBadge(s.status) + '</td>' +
+      '<td class="muted">' + formatDate(s.created_at) + '</td>' +
+      '<td>' +
+        '<select class="filter-control" style="font-size:0.75rem;" onchange="adminOverrideStatus(\'' + s.id + '\', this.value)">' +
+          ['received','assigned','in_progress','completed'].map(st =>
+            '<option value="' + st + '" ' + (s.status === st ? 'selected' : '') + '>' + st.replace('_',' ') + '</option>'
+          ).join('') +
+        '</select>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -480,13 +479,13 @@ function populateSampleFilters() {
   const sel = document.getElementById('sample-lab-filter');
   const current = sel.value;
   sel.innerHTML = '<option value="">All Labs</option>' +
-    DB.labs.map(l => `<option value="${l.id}" ${current===l.id?'selected':''}>${escHtml(l.lab_name)}</option>`).join('');
+    DB.labs.map(l => '<option value="' + l.id + '" ' + (current===l.id?'selected':'') + '>' + escHtml(l.lab_name) + '</option>').join('');
 }
 
 async function adminOverrideStatus(sampleId, newStatus) {
   try {
-    await setSampleStatus(sampleId, newStatus, `Status overridden by admin (${adminSession.full_name})`);
-    showToast(`Sample status updated to "${newStatus.replace('_',' ')}".`, 'success');
+    await setSampleStatus(sampleId, newStatus, 'Status overridden by admin (' + adminSession.full_name + ')');
+    showToast('Sample status updated to "' + newStatus.replace('_',' ') + '".', 'success');
     renderAllSamples();
   } catch (err) {
     showToast('Error updating status: ' + err.message, 'error');
@@ -499,7 +498,7 @@ function populateLabSelect(selectId) {
   if (!sel) return;
   sel.innerHTML = '<option value="">Select Lab</option>' +
     DB.labs.filter(l => l.active !== false).map(l =>
-      `<option value="${l.id}">${escHtml(l.lab_name)}</option>`
+      '<option value="' + l.id + '">' + escHtml(l.lab_name) + '</option>'
     ).join('');
 }
 

@@ -59,7 +59,7 @@ function requireAuth(allowedRoles) {
     console.warn('[AUTH] Role mismatch. Session role:', session.role, '| Required:', roles);
     
     // Maintain query parameter if on file:// protocol to avoid losing session during invalid transitions
-    const sessionStr = window.location.protocol === 'file:' ? `?session=${encodeURIComponent(JSON.stringify(session))}` : '';
+    const sessionStr = window.location.protocol === 'file:' ? '?session=' + encodeURIComponent(JSON.stringify(session)) : '';
     window.location.href = '../index.html' + sessionStr;
     return null;
   }
@@ -83,6 +83,31 @@ function wireLogout() {
   document.querySelectorAll('[data-action="logout"]').forEach(btn => {
     btn.addEventListener('click', logout);
   });
+}
+
+// ── Helper: build error HTML ───────────────────────────────────
+function buildConnectionErrorHTML(message, error) {
+  var detailsHtml = '';
+  if (error) {
+    var lines = [];
+    lines.push('Message: ' + (error.message || 'N/A'));
+    if (error.code) lines.push('Code: ' + error.code);
+    if (error.hint) lines.push('Hint: ' + error.hint);
+    if (error.details) lines.push('Details: ' + error.details);
+    detailsHtml = '<p style="font-size:0.85rem;margin-top:0.5rem;">' + escHtml(message || 'Unknown connection error') + '</p>';
+  } else {
+    detailsHtml = '<p style="font-size:0.85rem;margin-top:0.5rem;">' + escHtml(message || 'Unknown connection error') + '</p>';
+  }
+
+  return '<div class="alert alert-error">' +
+    '<strong>⚠️ Unable to connect to database</strong>' +
+    '<p>' + detailsHtml + '</p>' +
+    '<p style="font-size:0.85rem;margin-top:0.5rem;">' +
+      'Please ensure the Supabase database is running and accessible.' +
+      '<br>Check your internet connection and try again later.' +
+    '</p>' +
+    '<button class="btn btn-sm" onclick="location.reload()">Retry Connection</button>' +
+  '</div>';
 }
 
 // ── Login page init ───────────────────────────────────────────
@@ -130,17 +155,7 @@ async function initLoginPage() {
       if (statusContainer) statusContainer.style.display = 'none';
       if (errorContainer) {
         errorContainer.style.display = 'block';
-        errorContainer.innerHTML = `
-          <div class="alert alert-error">
-            <strong>⚠️ Unable to connect to database</strong>
-            <p>${health.error?.message || health.message || 'Unknown connection error'}</p>
-            <p style="font-size:0.85rem;margin-top:0.5rem;">
-              Please ensure the Supabase database is running and accessible.
-              <br>Check your internet connection and try again later.
-            </p>
-            <button class="btn btn-sm" onclick="location.reload()">Retry Connection</button>
-          </div>
-        `;
+        errorContainer.innerHTML = buildConnectionErrorHTML(health.message, health.error);
       }
       return;
     }
@@ -149,13 +164,7 @@ async function initLoginPage() {
     if (statusContainer) statusContainer.style.display = 'none';
     if (errorContainer) {
       errorContainer.style.display = 'block';
-      errorContainer.innerHTML = `
-        <div class="alert alert-error">
-          <strong>⚠️ Unable to connect to database</strong>
-          <p>${e.message || 'Unknown connection error'}</p>
-          <button class="btn btn-sm" onclick="location.reload()" style="margin-top:0.5rem;">Retry Connection</button>
-        </div>
-      `;
+      errorContainer.innerHTML = buildConnectionErrorHTML(e.message, null);
     }
     return;
   }
@@ -179,7 +188,7 @@ async function initLoginPage() {
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="spinner"></span> Signing in…';
+      submitBtn.innerHTML = '<span class="spinner"></span> Signing in\u2026';
     }
     if (errEl) errEl.textContent = '';
 
@@ -194,7 +203,7 @@ async function initLoginPage() {
       console.log('[AUTH] Login successful! Redirecting to:', dest);
       if (dest) {
         // Append session to URL query parameter if running on file:// protocol
-        const sessionStr = window.location.protocol === 'file:' ? `?session=${encodeURIComponent(JSON.stringify(session))}` : '';
+        const sessionStr = window.location.protocol === 'file:' ? '?session=' + encodeURIComponent(JSON.stringify(session)) : '';
         window.location.href = dest + sessionStr;
       } else {
         if (errEl) errEl.textContent = 'Unknown role. Contact admin.';

@@ -82,7 +82,7 @@ function initBulkElementPicker() {
 
   // Render group buttons
   groupsContainer.innerHTML = BULK_ELEMENT_GROUPS_PANEL.map(g =>
-    `<button type="button" class="bulk-group-btn" data-group="${g}" style="display:inline-block;margin:2px;padding:3px 8px;border:1px solid var(--clr-border);border-radius:12px;background:none;cursor:pointer;font-size:0.72rem;white-space:nowrap;">${g}</button>`
+    '<button type="button" class="bulk-group-btn" data-group="' + g + '" style="display:inline-block;margin:2px;padding:3px 8px;border:1px solid var(--clr-border);border-radius:12px;background:none;cursor:pointer;font-size:0.72rem;white-space:nowrap;">' + g + '</button>'
   ).join('');
 
   // Toggle dropdown
@@ -167,11 +167,11 @@ function initBulkElementPicker() {
 
     itemsContainer.innerHTML = filtered.map(e => {
       const isSelected = selected.includes(e.symbol);
-      return `<div class="bulk-element-item ${isSelected ? 'selected' : ''}" data-symbol="${e.symbol}" style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:var(--r-sm);cursor:pointer;background:${isSelected ? 'var(--clr-primary-g, #e0f2fe)' : 'transparent'};${isSelected ? 'font-weight:600;' : ''}">
-        <span style="width:16px;text-align:center;">${isSelected ? '✓' : ''}</span>
-        <span style="font-weight:600;width:28px;">${e.symbol}</span>
-        <span style="color:var(--txt-secondary);">${e.name}</span>
-      </div>`;
+      return '<div class="bulk-element-item ' + (isSelected ? 'selected' : '') + '" data-symbol="' + e.symbol + '" style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:var(--r-sm);cursor:pointer;background:' + (isSelected ? 'var(--clr-primary-g, #e0f2fe)' : 'transparent') + ';' + (isSelected ? 'font-weight:600;' : '') + '">' +
+        '<span style="width:16px;text-align:center;">' + (isSelected ? '✓' : '') + '</span>' +
+        '<span style="font-weight:600;width:28px;">' + e.symbol + '</span>' +
+        '<span style="color:var(--txt-secondary);">' + e.name + '</span>' +
+      '</div>';
     }).join('');
 
     itemsContainer.querySelectorAll('.bulk-element-item').forEach(el => {
@@ -199,10 +199,10 @@ function setBulkElements(symbols) {
 
   const chips = unique.map(s => {
     const info = getElementInfo(s);
-    return `<span class="bulk-chip" data-symbol="${s}" style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;background:var(--clr-primary-g, #dbeafe);border-radius:10px;font-size:0.7rem;font-weight:600;line-height:1.4;cursor:pointer;">
-      ${s}
-      <span class="bulk-chip-remove">×</span>
-    </span>`;
+    return '<span class="bulk-chip" data-symbol="' + s + '" style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;background:var(--clr-primary-g, #dbeafe);border-radius:10px;font-size:0.7rem;font-weight:600;line-height:1.4;cursor:pointer;">' +
+      s +
+      '<span class="bulk-chip-remove">×</span>' +
+    '</span>';
   }).join('');
   chipsContainer.innerHTML = chips;
 
@@ -233,7 +233,7 @@ function buildPreviewId(rowNum) {
   const labCode = lab ? deriveLabCode(lab) : 'XXX';
   const subId = DB.systemState.nextSubmissionId;
   const dateStr = (document.getElementById('submission-date').value || new Date().toISOString().slice(0, 10)).slice(2, 4).replace('-', '');
-  return `${dateStr}-${labCode}-${subId}-${String(rowNum).padStart(3, '0')}`;
+  return dateStr + '-' + labCode + '-' + subId + '-' + String(rowNum).padStart(3, '0');
 }
 
 function renderPendingTable() {
@@ -248,22 +248,22 @@ function renderPendingTable() {
   const pageData = pendingSamples.slice(startIndex, endIndex);
 
   if (pageData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:var(--sp-6);color:var(--txt-muted);">No samples added yet. Use the generator above.</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:var(--sp-6);color:var(--txt-muted);">No samples added yet. Use the generator above.</td></tr>';
   } else {
     tbody.innerHTML = pageData.map(ps => {
       const elementLabels = ps.elements.map(s => {
         const info = getElementInfo(s);
         const sym = normalizeElementSymbol(s);
-        return info ? `${sym} (${info.name})` : sym;
+        return info ? sym + ' (' + info.name + ')' : sym;
       }).join(', ');
-      return `<tr data-row-num="${ps.rowNum}">
-        <td style="font-weight:600;font-size:0.78rem;color:var(--clr-primary);font-family:monospace;">${escHtml(ps.previewId)}</td>
-        <td>${escHtml(ps.sampleType)}</td>
-        <td>${escHtml(ps.testName)}</td>
-        <td style="font-size:0.78rem;">${ps.elements.length > 0 ? escHtml(elementLabels) : '—'}</td>
-        <td style="text-align:center;font-weight:600;font-size:0.85rem;">${ps.elements.length}</td>
-        <td><button type="button" class="btn-remove-row" onclick="removeDisplayRow(${ps.rowNum})">✕</button></td>
-      </tr>`;
+      return '<tr data-row-num="' + ps.rowNum + '">' +
+        '<td style="font-weight:600;font-size:0.78rem;color:var(--clr-primary);font-family:monospace;">' + escHtml(ps.previewId) + '</td>' +
+        '<td>' + escHtml(ps.sampleType) + '</td>' +
+        '<td>' + escHtml(ps.testName) + '</td>' +
+        '<td style="font-size:0.78rem;">' + (ps.elements.length > 0 ? escHtml(elementLabels) : '—') + '</td>' +
+        '<td style="text-align:center;font-weight:600;font-size:0.85rem;">' + ps.elements.length + '</td>' +
+        '<td><button type="button" class="btn-remove-row" onclick="removeDisplayRow(' + ps.rowNum + ')">✕</button></td>' +
+      '</tr>';
     }).join('');
   }
 
@@ -274,7 +274,7 @@ function renderPendingTable() {
   const pageButtons = document.getElementById('pendingPageButtons');
   const countEl = document.getElementById('pendingSampleCount');
 
-  if (countEl) countEl.textContent = `— ${pendingSamples.length} total`;
+  if (countEl) countEl.textContent = '— ' + pendingSamples.length + ' total';
 
   if (totalPages <= 1) {
     pagination.style.display = 'none';
@@ -299,10 +299,10 @@ function renderPendingTable() {
 
     pageButtons.innerHTML = pages.map(p => {
       if (p === '…') {
-        return `<span style="padding:4px 6px;color:var(--txt-muted);">…</span>`;
+        return '<span style="padding:4px 6px;color:var(--txt-muted);">…</span>';
       }
       const isActive = p === pendingPage;
-      return `<button type="button" class="page-num-btn ${isActive ? 'active' : ''}" data-page="${p}" style="min-width:32px;height:32px;padding:0 6px;border:1px solid ${isActive ? 'var(--clr-primary)' : 'var(--clr-border)'};border-radius:var(--r-sm);background:${isActive ? 'var(--clr-primary)' : 'var(--clr-surface)'};color:${isActive ? '#fff' : 'var(--txt-primary)'};cursor:pointer;font-size:0.78rem;font-weight:600;">${p}</button>`;
+      return '<button type="button" class="page-num-btn ' + (isActive ? 'active' : '') + '" data-page="' + p + '" style="min-width:32px;height:32px;padding:0 6px;border:1px solid ' + (isActive ? 'var(--clr-primary)' : 'var(--clr-border)') + ';border-radius:var(--r-sm);background:' + (isActive ? 'var(--clr-primary)' : 'var(--clr-surface)') + ';color:' + (isActive ? '#fff' : 'var(--txt-primary)') + ';cursor:pointer;font-size:0.78rem;font-weight:600;">' + p + '</button>';
     }).join('');
 
     // Wire page button clicks
@@ -377,7 +377,7 @@ function handleBulkAdd() {
   renderPendingTable();
 
   countInput.value = '';
-  showToast(`${count} "${sampleType} — ${testName}" sample(s) added.`, 'success');
+  showToast(count + ' "' + sampleType + ' — ' + testName + '" sample(s) added.', 'success');
 }
 
 // ── Populate bulk test dropdown (filtered by lab) ──────────────
@@ -400,18 +400,17 @@ function populateBulkTestDropdown() {
 function toggleElementPickerForTest() {
   const testId = document.getElementById('bulkTestType').value;
   const elementPicker = document.getElementById('bulkElementPicker');
-  const elementLabel = document.querySelector('label[for="bulkElementPicker"]') || 
+  const elementLabel = document.querySelector('label[for="bulkElementPicker"]') ||
     document.querySelector('label[style*="font-size:0.78rem;font-weight:600;display:block"]');
-  
+
   if (!testId) {
-    // No test selected - show picker but mark it optional
     if (elementPicker) elementPicker.style.opacity = '0.5';
     return;
   }
-  
+
   const test = getTest(testId);
   const requiresElements = test ? test.requires_elements !== false : true;
-  
+
   if (elementPicker) {
     elementPicker.style.opacity = requiresElements ? '1' : '0.4';
     elementPicker.style.pointerEvents = requiresElements ? 'auto' : 'none';
@@ -424,11 +423,10 @@ function autoSelectDefaultTest() {
   if (!labId) return;
   const lab = getLab(labId);
   if (!lab || lab.lab_name !== 'AAS') return;
-  // "Trace Elements by AAS" has test_code 'AAS-TE' and id 'tst-005'
   const defaultTest = getTest('tst-005');
   const sel = document.getElementById('bulkTestType');
   if (defaultTest && sel) {
-    const opt = sel.querySelector(`option[value="tst-005"]`);
+    const opt = sel.querySelector('option[value="tst-005"]');
     if (opt) sel.value = 'tst-005';
   }
 }
@@ -437,7 +435,7 @@ function autoSelectDefaultTest() {
 function populateSubmissionLabDropdown() {
   const sel = document.getElementById('submission-lab');
   sel.innerHTML = '<option value="">Select Laboratory…</option>' +
-    getActiveLabs().map(l => `<option value="${l.id}">${escHtml(l.lab_name)}</option>`).join('');
+    getActiveLabs().map(l => '<option value="' + l.id + '">' + escHtml(l.lab_name) + '</option>').join('');
 }
 
 // ── Submission Handler ──────────────────────────────────────────
@@ -453,7 +451,6 @@ async function handleSubmissionSubmit(e) {
   const cnic = document.getElementById('customer-cnic').value.trim();
   const sampleLocation = document.getElementById('sample-location').value.trim();
 
-  // Validation
   if (!labId) { showToast('Please select a laboratory.', 'error'); return; }
   if (!dateVal) { showToast('Please select a date.', 'error'); return; }
   if (!customerName) { showToast('Please enter patient name.', 'error'); return; }
@@ -466,22 +463,18 @@ async function handleSubmissionSubmit(e) {
   const labCode = deriveLabCode(lab || 'LAB');
   const currentSubId = DB.systemState.nextSubmissionId;
 
-  // Disable submit button
   const submitBtn = e.target.querySelector('[type=submit]');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="spinner"></span> Submitting…'; }
 
   try {
-    // Generate structured IDs
     const idMappings = generateSampleIDs(labCode, currentSubId, pendingSamples.length, dateVal);
 
-    // Create submission record
     const newSubmission = await createSubmission({
       date: dateVal,
       labCode: labCode,
       sampleCount: pendingSamples.length,
     });
 
-    // Create sample records from pending samples
     const newSamples = [];
     for (let index = 0; index < pendingSamples.length; index++) {
       const ps = pendingSamples[index];
@@ -510,11 +503,9 @@ async function handleSubmissionSubmit(e) {
       newSamples.push(created);
     }
 
-    // Show confirmation
-    showToast(`Submission #${newSubmission.submissionId} registered with ${pendingSamples.length} sample(s)!`, 'success');
+    showToast('Submission #' + newSubmission.submissionId + ' registered with ' + pendingSamples.length + ' sample(s)!', 'success');
     renderIntakeConfirmation(newSubmission, newSamples, lab, labCode, customerName, customerContact, cnic, sampleLocation);
 
-    // Reset
     resetForm();
   } catch (err) {
     console.error('[RECEPTIONIST] Submission error:', err);
@@ -524,19 +515,16 @@ async function handleSubmissionSubmit(e) {
 }
 
 function resetForm() {
-  // Clear table
   pendingSamples = [];
   nextPseudoId = 1;
   pendingPage = 1;
   renderPendingTable();
 
-  // Clear bulk selections
   document.getElementById('bulkSampleType').value = '';
   document.getElementById('bulkTestType').value = '';
   document.getElementById('bulkSampleCount').value = '';
   setBulkElements([]);
 
-  // Clear patient details
   document.getElementById('customer-name').value = '';
   document.getElementById('customer-contact').value = '';
   document.getElementById('customer-address').value = '';
@@ -544,7 +532,6 @@ function resetForm() {
   document.getElementById('sample-location').value = '';
   document.getElementById('submission-date').value = new Date().toISOString().slice(0, 10);
 
-  // Refresh paginated table
   currentPage = 1;
   renderSamplesTable();
 }
@@ -552,17 +539,17 @@ function resetForm() {
 // ── Confirmation Modal ─────────────────────────────────────────
 function renderIntakeConfirmation(submission, samples, lab, labCode, customerName, customerContact, cnic, sampleLocation) {
   const body = document.getElementById('intake-confirm-body');
-  body.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">
-      <div class="detail-row"><span class="detail-label">Submission #</span><span class="detail-value" style="font-size:1rem;font-weight:700;color:var(--clr-primary);">${escHtml(submission.submissionId)}</span></div>
-      <div class="detail-row"><span class="detail-label">Patient</span><span class="detail-value">${escHtml(customerName || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(customerContact || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(cnic || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Lab Code</span><span class="detail-value"><span class="lab-code-badge">${escHtml(labCode)}</span></span></div>
-      <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${escHtml(submission.date)}</span></div>
-      <div class="detail-row"><span class="detail-label">Samples</span><span class="detail-value">${samples.length}</span></div>
-    </div>`;
+  body.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">' +
+      '<div class="detail-row"><span class="detail-label">Submission #</span><span class="detail-value" style="font-size:1rem;font-weight:700;color:var(--clr-primary);">' + escHtml(submission.submissionId) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Patient</span><span class="detail-value">' + escHtml(customerName || '—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">' + escHtml(customerContact || '—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(cnic || '—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Lab Code</span><span class="detail-value"><span class="lab-code-badge">' + escHtml(labCode) + '</span></span></div>' +
+      '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(submission.date) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Samples</span><span class="detail-value">' + samples.length + '</span></div>' +
+    '</div>';
   openModal('modal-intake-confirm');
 }
 
@@ -581,7 +568,7 @@ function wireReceptionistEvents() {
       const lab = getLab(labSel.value);
       const code = lab ? deriveLabCode(lab) : '—';
       document.getElementById('lab-code-display').innerHTML =
-        lab ? `<span class="lab-code-badge">${code}</span>` : 'Select a lab to auto-generate code';
+        lab ? '<span class="lab-code-badge">' + code + '</span>' : 'Select a lab to auto-generate code';
       populateBulkTestDropdown();
       toggleElementPickerForTest();
     });
@@ -720,7 +707,6 @@ function getMySubmissionGroups() {
     const allCompleted = g.samples.every(s => s.status === 'completed');
     const hasReports = g.samples.every(s => !!getReportForSample(s.id));
 
-    // Sort samples by sequence
     const sorted = [...g.samples].sort((a, b) => {
       const aSeq = (a.sampleId || '').split('-').pop() || '';
       const bSeq = (b.sampleId || '').split('-').pop() || '';
@@ -755,7 +741,7 @@ function renderMySubmissions() {
   let submissions = getMySubmissionGroups();
 
     if (!submissions.length) {
-      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>';
     document.getElementById('my-sub-pagination').style.display = 'none';
     return;
   }
@@ -773,7 +759,6 @@ function renderMySubmissions() {
     const reports = getReportsForSubmission(sub.submissionId);
     const reportNumbers = reports.map(r => r.report_number).filter(Boolean).join(', ');
 
-    // Build sample range for display
     let sampleRange = '—';
     if (sub.sampleCount === 1) {
       sampleRange = escHtml(sub.firstSampleId);
@@ -784,26 +769,25 @@ function renderMySubmissions() {
       const firstSeq = firstParts[firstParts.length - 1];
       const lastSeq  = lastParts[lastParts.length - 1];
       if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-        sampleRange = `${escHtml(prefix)}-<strong>${firstSeq} to ${lastSeq}</strong>`;
+        sampleRange = escHtml(prefix) + '-<strong>' + firstSeq + ' to ' + lastSeq + '</strong>';
       } else {
         sampleRange = escHtml(sub.firstSampleId);
       }
     }
 
-    // Get the latest completion date across all samples
     const completedDates = sub.samples.map(s => s.completed_at).filter(Boolean).sort().reverse();
     const completedDate = completedDates[0] || null;
 
-    return `<tr class="clickable" onclick="openRecSubmissionPanel('${sub.submissionId}')">
-      <td><strong style="color:var(--clr-primary);font-size:0.82rem;">#${escHtml(sub.submissionId)}</strong></td>
-      <td>${escHtml(sub.customer_name || '—')}</td>
-      <td class="muted">${lab ? escHtml(lab.lab_name) : '—'}</td>
-      <td class="muted">${escHtml(sub.test_name || '—')}</td>
-      <td class="muted" style="font-family:monospace;font-size:0.75rem;">${sampleRange}</td>
-      <td style="text-align:center;font-weight:600;">${sub.sampleCount}</td>
-      <td>${statusBadge(sub.statusSummary)}</td>
-      <td class="muted" style="font-size:0.75rem;">${completedDate ? formatDate(completedDate) : '—'}</td>
-    </tr>`;
+    return '<tr class="clickable" onclick="openRecSubmissionPanel(\'' + sub.submissionId + '\')">' +
+      '<td><strong style="color:var(--clr-primary);font-size:0.82rem;">#' + escHtml(sub.submissionId) + '</strong></td>' +
+      '<td>' + escHtml(sub.customer_name || '—') + '</td>' +
+      '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
+      '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
+      '<td class="muted" style="font-family:monospace;font-size:0.75rem;">' + sampleRange + '</td>' +
+      '<td style="text-align:center;font-weight:600;">' + sub.sampleCount + '</td>' +
+      '<td>' + statusBadge(sub.statusSummary) + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + (completedDate ? formatDate(completedDate) : '—') + '</td>' +
+    '</tr>';
   }).join('');
 
   // Update pagination controls
@@ -818,19 +802,17 @@ function renderMySubmissions() {
     pagination.style.display = '';
     prevBtn.disabled = mySubPage <= 1;
     nextBtn.disabled = mySubPage >= totalPages;
-    if (pageIndicator) pageIndicator.textContent = `Page ${mySubPage} of ${totalPages}`;
+    if (pageIndicator) pageIndicator.textContent = 'Page ' + mySubPage + ' of ' + totalPages;
   }
 }
 
 // ── Generate Report for Submission ─────────────────────────────
 async function generateReportForSubmission(submissionId) {
-  // Find and disable the button that triggered this
-  const btn = document.querySelector(`button[onclick*="'${submissionId}'"]`);
+  const btn = document.querySelector('button[onclick*="' + submissionId + '"]');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Generating…';
 
   try {
-    // Find the lab_id from any sample in this submission
     const samples = DB.samples.filter(s => s.submissionId === submissionId);
     if (!samples.length) {
       showToast('No samples found in this submission.', 'error');
@@ -845,7 +827,7 @@ async function generateReportForSubmission(submissionId) {
     if (reports.length > 0) {
       const lab = getLab(labId);
       const reportNums = reports.map(r => r.report_number).join(', ');
-      showToast(`Generated ${reports.length} report(s): ${reportNums}`, 'success');
+      showToast('Generated ' + reports.length + ' report(s): ' + reportNums, 'success');
     } else {
       showToast('No new reports generated (may already exist).', 'info');
     }
@@ -862,7 +844,7 @@ async function generateReportForSubmission(submissionId) {
 // ── Paginated Samples Table ───────────────────────────────────
 function renderSamplesTable() {
   const samples = DB.samples || [];
-  document.getElementById('total-sample-count').textContent = `${samples.length} total`;
+  document.getElementById('total-sample-count').textContent = samples.length + ' total';
 
   const reversedSamples = [...samples].reverse();
   const totalRows = reversedSamples.length;
@@ -879,25 +861,24 @@ function renderSamplesTable() {
   displayTableBody.innerHTML = '';
 
   if (paginatedData.length === 0) {
-    displayTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:var(--sp-8);color:var(--txt-muted);">No samples registered yet.</td></tr>`;
+    displayTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:var(--sp-8);color:var(--txt-muted);">No samples registered yet.</td></tr>';
   } else {
     paginatedData.forEach(sample => {
       const elements = sample.selectedElements || [];
       const row = document.createElement('tr');
-      row.innerHTML = `
-        <td><strong style="color:var(--clr-primary);font-size:0.82rem;">${escHtml(sample.sampleId || sample.id)}</strong></td>
-        <td class="muted">${escHtml(sample.submissionId || '—')}</td>
-        <td>${escHtml(sample.sampleName || sample.customer_name || '—')}</td>
-        <td class="muted">${escHtml(sample.sampleType || '—')}</td>
-        <td style="font-size:0.78rem;">${elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—'}</td>
-        <td><span class="status-badge ${(sample.status || '').toLowerCase().replace(/\s+/g, '_')}">${escHtml(sample.status || '—')}</span></td>
-        <td class="muted">${formatDateTime(sample.created_at)}</td>
-      `;
+      row.innerHTML =
+        '<td><strong style="color:var(--clr-primary);font-size:0.82rem;">' + escHtml(sample.sampleId || sample.id) + '</strong></td>' +
+        '<td class="muted">' + escHtml(sample.submissionId || '—') + '</td>' +
+        '<td>' + escHtml(sample.sampleName || sample.customer_name || '—') + '</td>' +
+        '<td class="muted">' + escHtml(sample.sampleType || '—') + '</td>' +
+        '<td style="font-size:0.78rem;">' + (elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—') + '</td>' +
+        '<td><span class="status-badge ' + (sample.status || '').toLowerCase().replace(/\s+/g, '_') + '">' + escHtml(sample.status || '—') + '</span></td>' +
+        '<td class="muted">' + formatDateTime(sample.created_at) + '</td>';
       displayTableBody.appendChild(row);
     });
   }
 
-  document.getElementById('pageIndicator').textContent = `Page ${currentPage} of ${totalPages}`;
+  document.getElementById('pageIndicator').textContent = 'Page ' + currentPage + ' of ' + totalPages;
   document.getElementById('prevPageBtn').disabled = (currentPage === 1);
   document.getElementById('nextPageBtn').disabled = (currentPage >= totalPages);
 }
@@ -920,7 +901,7 @@ function renderLookup() {
   );
 
   if (!matches.length) {
-    container.innerHTML = `<div class="card card-sm" style="text-align:center;color:var(--txt-muted);padding:var(--sp-8);">No samples found matching "${escHtml(q)}"</div>`;
+    container.innerHTML = '<div class="card card-sm" style="text-align:center;color:var(--txt-muted);padding:var(--sp-8);">No samples found matching "' + escHtml(q) + '"</div>';
     return;
   }
 
@@ -929,36 +910,34 @@ function renderLookup() {
     const test = getTest(s.test_id);
     const report = getReportForSample(s.id);
     const elements = s.selectedElements || [];
-    return `<div class="card card-sm card-elevated" style="margin-bottom:var(--sp-3);">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);">
-        <div>
-          <div style="font-size:0.95rem;font-weight:700;color:var(--clr-primary)">${escHtml(s.sampleId || s.id)}</div>
-          <div style="font-size:0.72rem;color:var(--txt-secondary)">Submission: ${escHtml(s.submissionId || '—')} · ${formatDateTime(s.created_at)}</div>
-        </div>
-        ${statusBadge(s.status === 'Registered' ? 'received' : s.status)}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">
-        <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${escHtml(s.sampleType || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(s.cnic || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(s.test_name || '—')}</span></div>
-        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Elements (${elements.length})</span><span class="detail-value">${elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—'}</span></div>
-      </div>
-      ${report ? `<div style="margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:rgba(16,185,129,0.1);border-radius:var(--r-md);font-size:0.8rem;color:#059669;">📄 Report: ${escHtml(report.report_number)}</div>` : ''}
-    </div>`;
+    return '<div class="card card-sm card-elevated" style="margin-bottom:var(--sp-3);">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3);">' +
+        '<div>' +
+          '<div style="font-size:0.95rem;font-weight:700;color:var(--clr-primary)">' + escHtml(s.sampleId || s.id) + '</div>' +
+          '<div style="font-size:0.72rem;color:var(--txt-secondary)">Submission: ' + escHtml(s.submissionId || '—') + ' · ' + formatDateTime(s.created_at) + '</div>' +
+        '</div>' +
+        statusBadge(s.status === 'Registered' ? 'received' : s.status) +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">' +
+        '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">' + escHtml(s.sampleType || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(s.cnic || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">' + escHtml(s.test_name || '—') + '</span></div>' +
+        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Elements (' + elements.length + ')</span><span class="detail-value">' + (elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—') + '</span></div>' +
+      '</div>' +
+      (report ? '<div style="margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:rgba(16,185,129,0.1);border-radius:var(--r-md);font-size:0.8rem;color:#059669;">📄 Report: ' + escHtml(report.report_number) + '</div>' : '') +
+    '</div>';
   }).join('');
 }
 
 // ── SIDE PANEL: Open Submission Details (read-only) ──────────
 function openRecSubmissionPanel(submissionId) {
-  // Get submission data from all samples
   const samples = DB.samples.filter(s => s.submissionId === submissionId);
   if (!samples.length) {
     showToast('Submission not found.', 'error');
     return;
   }
 
-  // Sort samples by sequence number
   const sortedSamples = [...samples].sort((a, b) => {
     const aSeq = (a.sampleId || '').split('-').pop() || '';
     const bSeq = (b.sampleId || '').split('-').pop() || '';
@@ -969,7 +948,6 @@ function openRecSubmissionPanel(submissionId) {
   const firstSample = sortedSamples[0];
   const test = firstSample ? getTest(firstSample.test_id) : null;
 
-  // Build submission summary
   const sampleCount = samples.length;
   const firstSampleId = sortedSamples.length > 0 ? (sortedSamples[0].sampleId || '') : '';
   const lastSampleId  = sortedSamples.length > 0 ? (sortedSamples[sortedSamples.length - 1].sampleId || '') : '';
@@ -984,7 +962,7 @@ function openRecSubmissionPanel(submissionId) {
     const firstSeq = firstParts[firstParts.length - 1];
     const lastSeq  = lastParts[lastParts.length - 1];
     if (firstSeq && lastSeq && firstSeq !== lastSeq) {
-      sampleRange = `${prefix}-${firstSeq} to ${lastSeq}`;
+      sampleRange = prefix + '-' + firstSeq + ' to ' + lastSeq;
     } else {
       sampleRange = firstSampleId;
     }
@@ -996,12 +974,9 @@ function openRecSubmissionPanel(submissionId) {
     statusCounts[s.status] = (statusCounts[s.status] || 0) + 1;
   });
   const statusSummaryStr = Object.entries(statusCounts)
-    .map(([st, cnt]) => `${st.replace('_', ' ')}: ${cnt}`)
+    .map(([st, cnt]) => st.replace('_', ' ') + ': ' + cnt)
     .join(' · ');
 
-  const allCompleted = sortedSamples.every(s => s.status === 'completed');
-
-  // Get status summary for the whole submission
   const statuses = sortedSamples.map(s => s.status);
   const statusOrder = ['completed', 'in_progress', 'assigned', 'received'];
   let statusSummary = 'received';
@@ -1012,8 +987,10 @@ function openRecSubmissionPanel(submissionId) {
     }
   }
 
+  const allCompleted = sortedSamples.every(s => s.status === 'completed');
+
   // Panel title
-  document.getElementById('rec-panel-sample-number').textContent = `Submission #${submissionId} (${sampleCount} samples)`;
+  document.getElementById('rec-panel-sample-number').textContent = 'Submission #' + submissionId + ' (' + sampleCount + ' samples)';
 
   // Build individual sample rows (read-only — no checkboxes)
   const sampleRows = sortedSamples.map(s => {
@@ -1024,62 +1001,59 @@ function openRecSubmissionPanel(submissionId) {
       ? elements.map(el => {
           const info = getElementInfo(el);
           const sym = normalizeElementSymbol(el);
-          return info ? `${sym} (${info.name})` : sym;
+          return info ? sym + ' (' + info.name + ')' : sym;
         }).join(', ')
       : (requiresElems ? '—' : 'No elements required');
     const isCompleted = s.status === 'completed';
     const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
 
-    return `<div class="submission-sample-row" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:${isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)'};">
-      <div style="display:flex;align-items:flex-start;gap:var(--sp-3);">
-        <div style="flex:1;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">
-            <div>
-              <span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:${isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)'};">${escHtml(sampleIdLabel)}</span>
-              <span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">${escHtml(s.sampleType || '—')}</span>
-            </div>
-            ${isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)}
-          </div>
-          <div style="font-size:0.75rem;color:var(--txt-secondary);">
-            <span><strong>Elements (${elements.length}):</strong> ${escHtml(elementLabels)}</span>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    return '<div class="submission-sample-row" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:' + (isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)') + ';">' +
+      '<div style="display:flex;align-items:flex-start;gap:var(--sp-3);">' +
+        '<div style="flex:1;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">' +
+            '<div>' +
+              '<span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:' + (isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)') + ';">' + escHtml(sampleIdLabel) + '</span>' +
+              '<span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">' + escHtml(s.sampleType || '—') + '</span>' +
+            '</div>' +
+            (isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)) +
+          '</div>' +
+          '<div style="font-size:0.75rem;color:var(--txt-secondary);">' +
+            '<span><strong>Elements (' + elements.length + '):</strong> ' + escHtml(elementLabels) + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
 
-  document.getElementById('rec-panel-body').innerHTML = `
-    <div style="margin-bottom:var(--sp-5);">
-      <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">
-        ${statusBadge(statusSummary)}
-        <span style="font-size:0.78rem;color:var(--txt-muted);">${statusSummaryStr}</span>
-        ${allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : ''}
-      </div>
+  document.getElementById('rec-panel-body').innerHTML =
+    '<div style="margin-bottom:var(--sp-5);">' +
+      '<div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">' +
+        statusBadge(statusSummary) +
+        '<span style="font-size:0.78rem;color:var(--txt-muted);">' + statusSummaryStr + '</span>' +
+        (allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : '') +
+      '</div>' +
 
-      <!-- Submission Summary Card -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">
-        <div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#${escHtml(submissionId)}</span></div>
-        <div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">${sampleCount}</span></div>
-        <div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">${escHtml(sampleRange)}</span></div>
-        <div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">${escHtml(firstSample?.customer_name || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">${escHtml(firstSample?.customer_contact || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">${escHtml(firstSample?.cnic || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">${escHtml(firstSample?.sample_location || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">${escHtml(lab?.lab_name || '—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">${escHtml(test?.test_name || samples[0]?.test_name || '—')} ${test ? `<code style="font-size:0.75rem;color:var(--clr-accent)">${test.test_code}</code>` : ''}</span></div>
-        <div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">${formatDate(sortedSamples[0]?.created_at)}</span></div>
-        ${allCompleted ? `<div class="detail-row"><span class="detail-label">Analysis Completed</span><span class="detail-value" style="font-weight:600;color:var(--clr-success);">${formatDate(sortedSamples.map(s => s.completed_at).filter(Boolean).sort().reverse()[0])}</span></div>` : ''}
-      </div>
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">' +
+        '<div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#' + escHtml(submissionId) + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">' + sampleCount + '</span></div>' +
+        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">' + escHtml(sampleRange) + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">' + escHtml(firstSample?.customer_name || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">' + escHtml(firstSample?.customer_contact || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(firstSample?.cnic || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">' + escHtml(firstSample?.sample_location || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">' + escHtml(test?.test_name || samples[0]?.test_name || '—') + (test ? ' <code style="font-size:0.75rem;color:var(--clr-accent)">' + test.test_code + '</code>' : '') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">' + formatDate(sortedSamples[0]?.created_at) + '</span></div>' +
+        (allCompleted ? '<div class="detail-row"><span class="detail-label">Analysis Completed</span><span class="detail-value" style="font-weight:600;color:var(--clr-success);">' + formatDate(sortedSamples.map(s => s.completed_at).filter(Boolean).sort().reverse()[0]) + '</span></div>' : '') +
+      '</div>' +
 
-      <!-- Samples List -->
-      <div>
-        <div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:var(--sp-3);">Samples in this Submission</div>
-        <div id="rec-submission-samples-list">
-          ${sampleRows}
-        </div>
-      </div>
-    </div>
-  `;
+      '<div>' +
+        '<div style="font-size:0.8rem;font-weight:600;color:var(--txt-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:var(--sp-3);">Samples in this Submission</div>' +
+        '<div id="rec-submission-samples-list">' +
+          sampleRows +
+        '</div>' +
+      '</div>' +
+    '</div>';
 
   openPanel('rec-sample-panel-overlay');
 }
