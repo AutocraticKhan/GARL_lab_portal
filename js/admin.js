@@ -107,11 +107,13 @@ function wireAdminEvents() {
     document.querySelector('#create-test-form [type=submit]').textContent = 'Add Test';
     populateLabSelect('test-lab-select');
     populateTestTypeSelect();
+    toggleDefaultEstimationField();
     openModal('modal-test');
   });
   document.getElementById('create-test-form').addEventListener('submit', handleCreateTest);
   document.getElementById('close-test-modal').addEventListener('click', () => closeModal('modal-test'));
   document.getElementById('cancel-test-modal').addEventListener('click', () => closeModal('modal-test'));
+  document.getElementById('input-requires-elements').addEventListener('change', toggleDefaultEstimationField);
 
   // Search/filter
   document.getElementById('user-search').addEventListener('input', debounce(renderUsers, 250));
@@ -369,14 +371,21 @@ async function handleCreateTest(e) {
   e.preventDefault();
   const form = e.target;
   const id   = document.getElementById('create-test-id').value;
+  const requiresElements = document.getElementById('input-requires-elements').checked;
   const data = {
     lab_id:          form.lab_id.value,
     test_type:       form.test_type.value,
     test_name:       form.test_name.value.trim(),
     test_code:       form.test_code.value.trim().toUpperCase(),
     turnaround_days: form.turnaround_days.value,
-    requires_elements: document.getElementById('input-requires-elements').checked,
+    requires_elements: requiresElements,
   };
+  if (!requiresElements) {
+    const estVal = parseInt(document.getElementById('input-default-estimation').value, 10);
+    if (!isNaN(estVal) && estVal > 0) {
+      data.default_estimation = estVal;
+    }
+  }
   if (!data.lab_id || !data.test_type || !data.test_name || !data.test_code) { showToast('All fields are required.', 'error'); return; }
   try {
     if (id) {
@@ -406,9 +415,20 @@ function editTest(id) {
   form.test_name.value       = test.test_name;
   form.test_code.value       = test.test_code;
   form.turnaround_days.value = test.turnaround_days;
-  document.getElementById('input-requires-elements').checked = test.requires_elements !== false;
+  const requiresCheckbox = document.getElementById('input-requires-elements');
+  requiresCheckbox.checked = test.requires_elements !== false;
+  document.getElementById('input-default-estimation').value = test.default_estimation || 0;
+  toggleDefaultEstimationField();
   form.querySelector('[type=submit]').textContent = 'Save Test';
   openModal('modal-test');
+}
+
+function toggleDefaultEstimationField() {
+  const requires = document.getElementById('input-requires-elements').checked;
+  const wrap = document.getElementById('default-estimation-wrap');
+  if (wrap) {
+    wrap.style.display = requires ? 'none' : 'block';
+  }
 }
 
 async function handleDeleteTest(id) {

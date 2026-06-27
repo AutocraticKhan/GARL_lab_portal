@@ -124,6 +124,8 @@ ON CONFLICT (key) DO NOTHING;
 
 -- Add requires_elements flag to tests (default true, admin-control for element selection)
 ALTER TABLE tests ADD COLUMN IF NOT EXISTS requires_elements BOOLEAN DEFAULT true NOT NULL;
+-- Add default_estimation column for tests without element selection (e.g., major_oxides = 10)
+ALTER TABLE tests ADD COLUMN IF NOT EXISTS default_estimation INTEGER DEFAULT NULL;
 
 -- Enable Row Level Security (optional, can be disabled for simplicity)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

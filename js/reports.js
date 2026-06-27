@@ -112,7 +112,16 @@ function aggregateData(filters) {
     if (end)   samples = samples.filter(s => new Date(s.created_at) <= end);
 
     const total      = samples.length;
-    const estimations = samples.reduce((sum, s) => sum + (s.elementCount || s.selectedElements?.length || 0), 0);
+    const estimations = samples.reduce((sum, s) => {
+      const test = s.test_id ? getTest(s.test_id) : null;
+      let count = 0;
+      if (test && test.requires_elements === false) {
+        count = test.default_estimation || 0;
+      } else {
+        count = s.elementCount || s.selectedElements?.length || 0;
+      }
+      return sum + count;
+    }, 0);
     const received   = samples.filter(s => s.status === 'received').length;
     const assigned   = samples.filter(s => s.status === 'assigned').length;
     const inProgress = samples.filter(s => s.status === 'in_progress').length;
