@@ -656,6 +656,108 @@ function openBlankSpectroscopyForm() {
   document.getElementById('blank-elements-count').value = 4;
 }
 
+/**
+ * Parse a CSV text into a 2D array of cells (trimmed).
+ * Handles: BOM, quoted fields, mixed line endings, empty trailing rows.
+ */
+function parseCsvText(text) {
+  // Remove UTF-8 BOM
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  // Normalize line endings and split
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const rows = [];
+  for (let line of lines) {
+    line = line.trim();
+    if (line === '') continue; // skip empty lines
+    const fields = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          current += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          fields.push(current.trim());
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+    }
+    fields.push(current.trim());
+    rows.push(fields);
+  }
+  return rows;
+}
+
+/**
+ * Read the uploaded CSV file (if any) and return parsed data.
+ * Returns { headers: string[], rows: string[][] } or null if no file selected.
+ */
+function readCsvFile() {
+  const fileInput = document.getElementById('blank-csv-file');
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) return null;
+  return fileInput.files[0];
+}
+
+/**
+ * Download a CSV template for the user to fill in.
+ */
+function downloadCsvTemplate() {
+  const sampleCount = parseInt(document.getElementById('blank-samples-count').value, 10) || 5;
+  const elemCount = parseInt(document.getElementById('blank-elements-count').value, 10) || 4;
+  const idPrefix = document.getElementById('blank-id-prefix').value.trim() || 'PREFIX';
+
+  // Build header row: first col "Sample ID", then Elem 1, Elem 2, ...
+  const headers = ['Sample ID'];
+  for (let i = 1; i <= elemCount; i++) {
+    headers.push('Elem_' + i);
+  }
+
+  // Build data rows
+  const rows = [headers];
+  for (let i = 1; i <= sampleCount; i++) {
+    const sampleId = idPrefix + '-' + String(i).padStart(2, '0');
+    const row = [sampleId];
+    for (let e = 0; e < elemCount; e++) {
+      row.push('');
+    }
+    rows.push(row);
+  }
+
+  // Convert to CSV string
+  const csvContent = rows.map(r => r.map(c => {
+    if (c.includes(',') || c.includes('"') || c.includes('\n')) {
+      return '"' + c.replace(/"/g, '""') + '"';
+    }
+    return c;
+  }).join(',')).join('\r\n');
+
+  // Create download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'spectroscopy_template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV template downloaded!', 'success');
+}
+
 function generateBlankSpectroscopy() {
   const sampleCount = parseInt(document.getElementById('blank-samples-count').value, 10);
   const elemCount = parseInt(document.getElementById('blank-elements-count').value, 10);
@@ -663,6 +765,77 @@ function generateBlankSpectroscopy() {
 
   if (isNaN(sampleCount) || sampleCount < 1) { showToast('Please enter a valid number of samples.', 'warning'); return; }
   if (isNaN(elemCount) || elemCount < 1) { showToast('Please enter a valid number of elements.', 'warning'); return; }
+
+  // Read CSV file if provided
+  const csvFile = readCsvFile();
+  let csvData = null; // { elementHeaders: string[], values: string[][] }
+  if (csvFile) {
+    // We need to read synchronously for simplicity; use FileReader with a synchronous pattern
+    const reader = new FileReader();
+    // Since FileReader is async, we'll restructure to use a callback approach
+    const filePromise = new Promise((resolve, reject) => {
+      reader.onload = function(e) {
+        try {
+          const parsed = parseCsvText(e.target.result);
+          if (parsed.length < 2) {
+            reject(new Error('CSV must have at least a header row and one data row.'));
+            return;
+          }
+          const headers = parsed[0];
+          const dataRows = parsed.slice(1);
+          // First column is Sample ID (optional), remaining are element values
+          const elementHeaders = headers.slice(1); // skip "Sample ID" column
+          const values = dataRows.map(r => r.slice(1)); // skip Sample ID column
+          resolve({ elementHeaders, values, csvSampleIds: dataRows.map(r => r[0] || '') });
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = function() { reject(new Error('Failed to read CSV file.')); };
+      reader.readAsText(csvFile);
+    });
+
+    // Use the promise synchronously in an async IIFE
+    (async () => {
+      try {
+        csvData = await filePromise;
+        generateTable(sampleCount, elemCount, idPrefix, csvData);
+      } catch (err) {
+        showToast('CSV error: ' + err.message, 'error');
+        // Fall back to normal blank generation
+        generateTable(sampleCount, elemCount, idPrefix, null);
+      }
+    })();
+    return; // early return; async path handles generation
+  }
+
+  // No CSV: generate directly
+  generateTable(sampleCount, elemCount, idPrefix, null);
+}
+
+/**
+ * Core table generation function, shared by CSV and non-CSV paths.
+ * @param {number} sampleCount
+ * @param {number} elemCount
+ * @param {string} idPrefix
+ * @param {object|null} csvData - { elementHeaders: string[], values: string[][] }
+ */
+function generateTable(sampleCount, elemCount, idPrefix, csvData) {
+  // Validate CSV data if present
+  if (csvData) {
+    const csvElemCount = csvData.elementHeaders.length;
+    const csvRowCount = csvData.values.length;
+
+    // Warn on mismatches but still proceed
+    if (csvRowCount !== sampleCount) {
+      showToast('Warning: CSV has ' + csvRowCount + ' data rows but Sample count is ' + sampleCount + '. Using CSV row count.', 'warning');
+      sampleCount = csvRowCount;
+    }
+    if (csvElemCount !== elemCount) {
+      showToast('Warning: CSV has ' + csvElemCount + ' element columns but Elements count is ' + elemCount + '. Using CSV column count.', 'warning');
+      elemCount = csvElemCount;
+    }
+  }
 
   document.getElementById('blank-sheet-inputs').style.display = 'none';
   document.getElementById('btn-blank-sheet').style.display = 'flex';
@@ -690,29 +863,54 @@ function generateBlankSpectroscopy() {
   pageDiv.appendChild(buildSpectroMeta('', today, ''));
   pageDiv.appendChild(buildSpectroVitals());
 
-  // Build table
+  // Build table headers
   let headerHtml =
     '<thead><tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">' +
     '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>' +
     '<th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>' +
     '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>';
 
-  for (let i = 0; i < elemCount; i++) {
-    headerHtml += '<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">Elem.<br><span style="font-weight:400;font-size:7px;color:#64748b;">' + (i + 1) + '</span></th>';
+  if (csvData) {
+    // Use CSV element names as column headers
+    for (let i = 0; i < elemCount; i++) {
+      const elName = escHtml(csvData.elementHeaders[i] || ('Elem ' + (i + 1)));
+      headerHtml += '<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">' + elName + '<br><span style="font-weight:400;font-size:7px;color:#64748b;">&nbsp;</span></th>';
+    }
+  } else {
+    for (let i = 0; i < elemCount; i++) {
+      headerHtml += '<th style="border-right:1px solid #94a3b8;padding:6px 2px;text-align:center;width:38px;font-size:9px;line-height:1.2;text-transform:none;">Elem.<br><span style="font-weight:400;font-size:7px;color:#64748b;">' + (i + 1) + '</span></th>';
+    }
   }
   headerHtml += '<th style="padding:6px 2px;text-align:center;width:30px;font-size:8px;">SD (±)</th></tr></thead>';
 
+  // Build table body
   let bodyHtml = '<tbody>';
   for (let idx = 0; idx < sampleCount; idx++) {
-    const sampleId = idPrefix ? idPrefix + '-' + String(idx + 1).padStart(2, '0') : '';
+    let sampleId;
+    let values;
+
+    if (csvData) {
+      // Use CSV sample ID if available and no prefix set, otherwise use prefix
+      const csvSampleId = csvData.csvSampleIds && csvData.csvSampleIds[idx] ? csvData.csvSampleIds[idx] : '';
+      sampleId = idPrefix ? idPrefix + '-' + String(idx + 1).padStart(2, '0') : csvSampleId;
+      values = csvData.values[idx] || [];
+    } else {
+      sampleId = idPrefix ? idPrefix + '-' + String(idx + 1).padStart(2, '0') : '';
+      values = [];
+    }
+
     bodyHtml += '<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">' +
       '<td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">' + (idx + 1) + '</td>' +
       '<td class="writing-row" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;border-bottom:1px dashed #94a3b8;">' + escHtml(sampleId) + '&nbsp;</td>' +
-      '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
-      Array.from({ length: elemCount }, () =>
-        '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monoserif;border-bottom:1px dashed #94a3b8;">&nbsp;</td>'
-      ).join('') +
-      '<td class="writing-row" style="text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
+      '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>';
+
+    // Element value cells
+    for (let e = 0; e < elemCount; e++) {
+      const val = values[e] !== undefined ? values[e] : '';
+      bodyHtml += '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">' + escHtml(val) + '&nbsp;</td>';
+    }
+
+    bodyHtml += '<td class="writing-row" style="text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
     '</tr>';
   }
   bodyHtml += '</tbody>';
