@@ -659,6 +659,7 @@ function openBlankSpectroscopyForm() {
 function generateBlankSpectroscopy() {
   const sampleCount = parseInt(document.getElementById('blank-samples-count').value, 10);
   const elemCount = parseInt(document.getElementById('blank-elements-count').value, 10);
+  const idPrefix = document.getElementById('blank-id-prefix').value.trim();
 
   if (isNaN(sampleCount) || sampleCount < 1) { showToast('Please enter a valid number of samples.', 'warning'); return; }
   if (isNaN(elemCount) || elemCount < 1) { showToast('Please enter a valid number of elements.', 'warning'); return; }
@@ -703,9 +704,10 @@ function generateBlankSpectroscopy() {
 
   let bodyHtml = '<tbody>';
   for (let idx = 0; idx < sampleCount; idx++) {
+    const sampleId = idPrefix ? idPrefix + '-' + String(idx + 1).padStart(2, '0') : '';
     bodyHtml += '<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">' +
       '<td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">' + (idx + 1) + '</td>' +
-      '<td class="writing-row" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
+      '<td class="writing-row" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;border-bottom:1px dashed #94a3b8;">' + escHtml(sampleId) + '&nbsp;</td>' +
       '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
       Array.from({ length: elemCount }, () =>
         '<td class="writing-row" style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monoserif;border-bottom:1px dashed #94a3b8;">&nbsp;</td>'
