@@ -305,12 +305,25 @@ function openSubmissionPanel(submissionId) {
           '</svg>' +
           '📋 Spectroscopy' +
         '</button>' +
-        '<button onclick="openReportForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:48%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
-          '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
-            '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
-          '</svg>' +
-          '📄 Generate Report' +
-        '</button>' +
+        '<div style="position:relative;width:48%;">' +
+          '<button onclick="toggleReportDropdown(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:100%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
+              '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
+            '</svg>' +
+            '📄 Generate Report' +
+            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:12px;height:12px;flex-shrink:0;">' +
+              '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />' +
+            '</svg>' +
+          '</button>' +
+          '<div id="report-dropdown-' + sub.submissionId + '" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;overflow:hidden;">' +
+            '<button onclick="openReportForm(\'' + sub.submissionId + '\',\'pnac\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-size:0.78rem;color:var(--txt-primary);text-align:left;transition:background 0.15s;" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'transparent\'">' +
+              '<span style="font-size:1rem;">🛡️</span> PNAC Report' +
+            '</button>' +
+            '<button onclick="openReportForm(\'' + sub.submissionId + '\',\'qscert\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-size:0.78rem;color:var(--txt-primary);text-align:left;transition:background 0.15s;border-top:1px solid var(--clr-border);" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'transparent\'">' +
+              '<span style="font-size:1rem;">✅</span> QSCert Report' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
       '</div>' : '') +
 
       '<div>' +
@@ -1029,8 +1042,28 @@ function printSpectroscopy() {
   }, 500);
 }
 
+// ── Report dropdown toggle ─────────────────────────────────────
+function toggleReportDropdown(submissionId) {
+  const dropdown = document.getElementById('report-dropdown-' + submissionId);
+  if (!dropdown) return;
+  const isOpen = dropdown.style.display === 'block';
+  // Close all dropdowns first
+  document.querySelectorAll('[id^="report-dropdown-"]').forEach(d => d.style.display = 'none');
+  // Toggle current
+  dropdown.style.display = isOpen ? 'none' : 'block';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('[id^="report-dropdown-"]') && !e.target.closest('button[onclick^="toggleReportDropdown"]')) {
+    document.querySelectorAll('[id^="report-dropdown-"]').forEach(d => d.style.display = 'none');
+  }
+});
+
 // ── REPORT GENERATION ──────────────────────────────────────────
-function openReportForm(submissionId) {
+function openReportForm(submissionId, reportType) {
+  // Default to pnac if not specified
+  reportType = reportType || 'pnac';
   const submissions = getSubmissionsForLab(engSession.lab_id);
   const sub = submissions.find(s => s.submissionId === submissionId);
   if (!sub) { showToast('Submission not found', 'error'); return; }
@@ -1060,6 +1093,11 @@ function openReportForm(submissionId) {
       // Take all parts except the last sequence number
       reportNo = parts.slice(0, -1).join('-');
     }
+  }
+
+  // Append "-P" suffix for PNAC reports; QSCert reports keep the base number
+  if (reportType === 'pnac') {
+    reportNo = reportNo + '-P';
   }
 
   // Build the report HTML
@@ -1102,14 +1140,14 @@ function openReportForm(submissionId) {
     '<p style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">ISLAMABAD</p>';
   headerDiv.appendChild(centerText);
 
-  // Right Logo (PNAC)
+  // Right Logo (based on report type: PNAC or QSCert)
   const rightLogo = document.createElement('div');
   rightLogo.style.cssText = 'width:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;';
-  const pnacImg = document.createElement('img');
-  pnacImg.src = '../logo/PNAC.png';
-  pnacImg.style.cssText = 'max-width:100px;max-height:80px;object-fit:contain;';
-  pnacImg.alt = 'PNAC Logo';
-  rightLogo.appendChild(pnacImg);
+  const certImg = document.createElement('img');
+  certImg.src = reportType === 'qscert' ? '../logo/qscert.png' : '../logo/PNAC.png';
+  certImg.style.cssText = 'max-width:100px;max-height:80px;object-fit:contain;';
+  certImg.alt = reportType === 'qscert' ? 'QSCert Logo' : 'PNAC Logo';
+  rightLogo.appendChild(certImg);
   headerDiv.appendChild(rightLogo);
 
   pageDiv.appendChild(headerDiv);
@@ -1123,7 +1161,7 @@ function openReportForm(submissionId) {
       '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(sub.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + sub.sampleCount + '</td></tr>' +
       '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Location of Sample (Given by customer)</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sample_location || 'NA') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample receiving Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + formatDate(sub.created_at) + '</td></tr>' +
       '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sampleType || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(today) + '</td></tr>' +
-      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-method-input" value="EPA3052" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-temp-input" value="25.2 °C & 52 %" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-method-input" value="EPA 3052" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-temp-input" value="25.2 °C & 52 %" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td></tr>' +
     '</tbody>';
   pageDiv.appendChild(metaTable);
 
