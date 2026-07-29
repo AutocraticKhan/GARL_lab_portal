@@ -12,6 +12,7 @@ const DB = {
   reports: [],
   events:  [],
   submissions: [],
+  savedReports: [],
   systemState: { nextSubmissionId: 1001, submissionYear: null },
   elements: [],
 };
@@ -168,7 +169,7 @@ async function initDB() {
   loadElements();
 
   // Load all data from Supabase in parallel
-  const [users, labs, tests, samples, reports, events, submissions, stateData] = await Promise.all([
+  const [users, labs, tests, samples, reports, events, submissions, savedReports, stateData] = await Promise.all([
     supabaseFetch('users'),
     supabaseFetch('labs'),
     supabaseFetch('tests'),
@@ -176,6 +177,7 @@ async function initDB() {
     supabaseFetch('reports'),
     supabaseFetch('events'),
     supabaseFetch('submissions'),
+    supabaseFetch('saved_reports'),
     supabaseFetch('system_state'),
   ]);
 
@@ -186,6 +188,7 @@ async function initDB() {
   DB.reports = reports || [];
   DB.events  = events  || [];
   DB.submissions = submissions || [];
+  DB.savedReports = savedReports || [];
 
   // Load system state
   if (stateData && stateData.length > 0) {
@@ -579,6 +582,101 @@ async function generateSubmissionReports(submissionId, lab_id, actorId, actorNam
 
 function getActiveLabs() {
   return DB.labs.filter(l => l.active !== false);
+}
+
+// ── Saved Reports helpers ──────────────────────────────────────
+/**
+ * Derive the full submission ID (e.g. "26-07-AAS-1041") from a submission's
+ * first sample ID by dropping the last sequence segment.
+ * @param {object} sub - submission object from getSubmissionsForLab()
+ * @returns {string}
+ */
+function getFullSubmissionId(sub) {
+  if (!sub) return '';
+  if (sub.firstSampleId) {
+    const parts = sub.firstSampleId.split('-');
+    if (parts.length >= 4) {
+      return parts.slice(0, -1).join('-');
+    }
+    return sub.firstSampleId;
+  }
+  return sub.submissionId || '';
+}
+
+/**
+ * Find a saved report by full submission ID and report type.
+ * @param {string} fullSubmissionId - e.g. "26-07-AAS-1041"
+ * @param {string} reportType - 'pnac' or 'qscert'
+ * @returns {object|null}
+ */
+function getSavedReport(fullSubmissionId, reportType) {
+  if (!fullSubmissionId || !reportType) return null;
+  return DB.savedReports.find(
+    r => r.submission_id === fullSubmissionId && r.report_type === reportType
+  ) || null;
+}
+
+/**
+ * Get all saved report types for a submission (for tick marks).
+ * @param {string} fullSubmissionId - e.g. "26-07-AAS-1041"
+ * @returns {Array<object>} array of saved report rows
+ */
+function getSavedReportsForSubmission(fullSubmissionId) {
+  if (!fullSubmissionId) return [];
+  return DB.savedReports.filter(r => r.submission_id === fullSubmissionId);
+}
+
+/**
+ * Save (upsert) a report's data to the saved_reports table.
+ * Uses a deterministic ID so re-saving overwrites the same row.
+ * @param {object} data - full report data object
+ * @returns {Promise<object>} the saved report object
+ */
+async function saveReportData(data) {
+  const id = 'srpt-' + data.submission_id + '-' + data.report_type;
+  const now = new Date().toISOString();
+  const record = {
+    id,
+    submission_id: data.submission_id,
+    report_type: data.report_type,
+    report_number: data.report_number || '',
+    report_issue_date: data.report_issue_date || '',
+    customer_name: data.customer_name || '',
+    sample_count: data.sample_count || 0,
+    sample_location: data.sample_location || '',
+    sample_receiving_date: data.sample_receiving_date || '',
+    sample_description: data.sample_description || '',
+    sample_analysis_date: data.sample_analysis_date || '',
+    method_used: data.method_used || '',
+    temperature_humidity: data.temperature_humidity || '',
+    unit: data.unit || 'ppm',
+    lab_id: data.lab_id || '',
+    lab_name: data.lab_name || '',
+    lab_code: data.lab_code || '',
+    test_name: data.test_name || '',
+    test_code: data.test_code || '',
+    elements: data.elements || [],
+    sample_ids: data.sample_ids || [],
+    data_points: data.data_points || [],
+    engineer_id: data.engineer_id || '',
+    engineer_name: data.engineer_name || '',
+    updated_at: now,
+  };
+
+  const ok = await supabaseUpsert('saved_reports', record, 'submission_id,report_type');
+  if (!ok) throw new Error('Failed to save report data to database');
+
+  // Update local cache
+  const idx = DB.savedReports.findIndex(
+    r => r.submission_id === data.submission_id && r.report_type === data.report_type
+  );
+  if (idx >= 0) {
+    DB.savedReports[idx] = { ...DB.savedReports[idx], ...record };
+  } else {
+    DB.savedReports.push({ ...record, created_at: now });
+  }
+
+  return record;
 }
 
 // ── Reset function (clears database for development) ────────────

@@ -8,6 +8,8 @@
 let engSession = null;
 let activeSubmissionId = null;
 let activeReportNo = null; // current report number (used for PDF filename)
+let activeReportType = null; // current report type: 'pnac' or 'qscert'
+let activeFullSubmissionId = null; // full submission ID e.g. "26-07-AAS-1041"
 
 // ── Init ──────────────────────────────────────────────────────
 async function initLabEngineer() {
@@ -299,33 +301,43 @@ function openSubmissionPanel(submissionId) {
       '</div>' +
 
       (test && test.requires_elements !== false ?
-      '<div style="margin-bottom:var(--sp-4);display:flex;gap:10px;">' +
-        '<button onclick="openSpectroscopyForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:48%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
-          '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
-            '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />' +
-          '</svg>' +
-          '📋 Spectroscopy' +
-        '</button>' +
-        '<div style="position:relative;width:48%;">' +
-          '<button onclick="toggleReportDropdown(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:100%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
+      (function() {
+        // Check which report types are already saved for this submission
+        var fullSubId = getFullSubmissionId(sub);
+        var savedReports = getSavedReportsForSubmission(fullSubId);
+        var pnacSaved = savedReports.some(function(r) { return r.report_type === 'pnac'; });
+        var qscertSaved = savedReports.some(function(r) { return r.report_type === 'qscert'; });
+        var tickStyle = 'color:#059669;font-weight:700;font-size:0.72rem;margin-left:auto;background:rgba(16,185,129,0.1);padding:2px 6px;border-radius:8px;';
+        return '<div style="margin-bottom:var(--sp-4);display:flex;gap:10px;">' +
+          '<button onclick="openSpectroscopyForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:48%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
             '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
-              '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
+              '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />' +
             '</svg>' +
-            '📄 Generate Report' +
-            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:12px;height:12px;flex-shrink:0;">' +
-              '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />' +
-            '</svg>' +
+            '📋 Spectroscopy' +
           '</button>' +
-          '<div id="report-dropdown-' + sub.submissionId + '" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;overflow:hidden;">' +
-            '<button onclick="openReportForm(\'' + sub.submissionId + '\',\'pnac\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-size:0.78rem;color:var(--txt-primary);text-align:left;transition:background 0.15s;" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'transparent\'">' +
-              '<span style="font-size:1rem;">🛡️</span> PNAC Report' +
+          '<div style="position:relative;width:48%;">' +
+            '<button onclick="toggleReportDropdown(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:100%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
+              '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
+              '</svg>' +
+              '📄 Generate Report' +
+              '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:12px;height:12px;flex-shrink:0;">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />' +
+              '</svg>' +
             '</button>' +
-            '<button onclick="openReportForm(\'' + sub.submissionId + '\',\'qscert\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-size:0.78rem;color:var(--txt-primary);text-align:left;transition:background 0.15s;border-top:1px solid var(--clr-border);" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'transparent\'">' +
-              '<span style="font-size:1rem;">✅</span> QSCert Report' +
-            '</button>' +
+            '<div id="report-dropdown-' + sub.submissionId + '" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;overflow:hidden;">' +
+              '<button onclick="openReportForm(\'' + sub.submissionId + '\',\'pnac\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-size:0.78rem;color:var(--txt-primary);text-align:left;transition:background 0.15s;" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'transparent\'">' +
+                '<span style="font-size:1rem;">🛡️</span> PNAC Report' +
+                (pnacSaved ? '<span style="' + tickStyle + '">✓ Saved</span>' : '') +
+              '</button>' +
+              '<button onclick="openReportForm(\'' + sub.submissionId + '\',\'qscert\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-size:0.78rem;color:var(--txt-primary);text-align:left;transition:background 0.15s;border-top:1px solid var(--clr-border);" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'transparent\'">' +
+                '<span style="font-size:1rem;">✅</span> QSCert Report' +
+                (qscertSaved ? '<span style="' + tickStyle + '">✓ Saved</span>' : '') +
+              '</button>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-      '</div>' : '') +
+        '</div>';
+      })() : '') +
 
       '<div>' +
         '<div style="display:flex;align-items:center;margin-bottom:var(--sp-3);">' +
@@ -1103,6 +1115,9 @@ function openReportForm(submissionId, reportType) {
 
   // Store the report number so printReport() can use it as the PDF filename
   activeReportNo = reportNo;
+  // Store the report type and full submission ID for saving
+  activeReportType = reportType;
+  activeFullSubmissionId = getFullSubmissionId(sub);
 
   // Build the report HTML
   const reportDiv = document.createElement('div');
@@ -1233,6 +1248,7 @@ function openReportForm(submissionId, reportType) {
         input.type = 'text';
         input.className = 'report-result-input';
         input.setAttribute('data-sample-id', sample.id);
+        input.setAttribute('data-sample-label', sampleIdLabel);
         input.setAttribute('data-element', el);
         input.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;';
         input.placeholder = '—';
@@ -1246,6 +1262,7 @@ function openReportForm(submissionId, reportType) {
       input.type = 'text';
       input.className = 'report-result-input';
       input.setAttribute('data-sample-id', sample.id);
+      input.setAttribute('data-sample-label', sampleIdLabel);
       input.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;';
       input.placeholder = '—';
       td.appendChild(input);
@@ -1308,6 +1325,159 @@ function openReportForm(submissionId, reportType) {
   body.appendChild(printSourceEl);
 
   openPanel('report-overlay');
+
+  // ── Load saved report data if it exists ──
+  loadSavedReportIntoForm(activeFullSubmissionId, reportType);
+}
+
+// ── Load saved report data into the currently open report form ──
+function loadSavedReportIntoForm(fullSubmissionId, reportType) {
+  if (!fullSubmissionId || !reportType) return;
+  const saved = getSavedReport(fullSubmissionId, reportType);
+  if (!saved) return;
+
+  // Restore unit dropdown
+  const unitSelect = document.getElementById('report-unit-select');
+  if (unitSelect && saved.unit) {
+    unitSelect.value = saved.unit;
+    updateReportUnit(saved.unit);
+  }
+
+  // Restore method input
+  const methodInput = document.querySelector('#report-body .report-method-input');
+  if (methodInput && saved.method_used) {
+    methodInput.value = saved.method_used;
+  }
+
+  // Restore temp/humidity input
+  const tempInput = document.querySelector('#report-body .report-temp-input');
+  if (tempInput && saved.temperature_humidity) {
+    tempInput.value = saved.temperature_humidity;
+  }
+
+  // Restore result input values from saved data_points
+  if (saved.data_points && Array.isArray(saved.data_points)) {
+    saved.data_points.forEach(function(dp) {
+      // Find the matching input by sample_id and element
+      // Using quoted attribute selectors — no CSS.escape needed for quoted values
+      const input = document.querySelector(
+        '#report-body .report-result-input[data-sample-id="' + dp.sample_id + '"][data-element="' + dp.element + '"]'
+      );
+      if (input) {
+        input.value = dp.value || '';
+      }
+    });
+  }
+
+  showToast('Loaded saved report data for ' + (reportType === 'pnac' ? 'PNAC' : 'QSCert') + ' report.', 'info');
+}
+
+// ── Save report data to Supabase ──────────────────────────────
+async function saveReportDataToSupabase() {
+  if (!activeFullSubmissionId || !activeReportType) {
+    showToast('No active report to save.', 'warning');
+    return;
+  }
+
+  // Get the current unit
+  const unitSelect = document.getElementById('report-unit-select');
+  const currentUnit = unitSelect ? unitSelect.value : 'ppm';
+
+  // Get method and temp inputs
+  const methodInput = document.querySelector('#report-body .report-method-input');
+  const tempInput = document.querySelector('#report-body .report-temp-input');
+
+  // Collect all result input values into data_points array
+  // IMPORTANT: Filter out inputs from the hidden #report-print-source clone
+  // (it contains empty copies that would create duplicate/empty data points)
+  const allInputs = document.querySelectorAll('#report-body .report-result-input');
+  const resultInputs = [...allInputs].filter(function(input) {
+    return !input.closest('#report-print-source');
+  });
+  const dataPoints = [];
+  const sampleIds = [];
+  const elementsSet = new Set();
+
+  resultInputs.forEach(function(input) {
+    const sampleId = input.getAttribute('data-sample-id') || '';
+    const sampleLabel = input.getAttribute('data-sample-label') || '';
+    const element = input.getAttribute('data-element') || 'result';
+    const value = input.value || '';
+
+    dataPoints.push({
+      sample_id: sampleId,
+      sample_label: sampleLabel,
+      element: element,
+      value: value,
+    });
+
+    if (sampleLabel && !sampleIds.includes(sampleLabel)) {
+      sampleIds.push(sampleLabel);
+    }
+    if (element && element !== 'result') {
+      elementsSet.add(element);
+    }
+  });
+
+  // Get submission info for metadata
+  const submissions = getSubmissionsForLab(engSession.lab_id);
+  const sub = submissions.find(function(s) { return s.submissionId === activeSubmissionId; });
+  const lab = sub ? getLab(sub.lab_id) : null;
+  const firstSample = sub ? sub.samples[0] : null;
+  const test = firstSample ? getTest(firstSample.test_id) : null;
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Build the full report data object
+  const reportData = {
+    submission_id: activeFullSubmissionId,
+    report_type: activeReportType,
+    report_number: activeReportNo || '',
+    report_issue_date: today,
+    customer_name: sub ? (sub.customer_name || '') : '',
+    sample_count: sub ? sub.sampleCount : 0,
+    sample_location: firstSample ? (firstSample.sample_location || '') : '',
+    sample_receiving_date: sub ? formatDate(sub.created_at) : '',
+    sample_description: firstSample ? (firstSample.sampleType || 'Powder') : '',
+    sample_analysis_date: today,
+    method_used: methodInput ? methodInput.value : '',
+    temperature_humidity: tempInput ? tempInput.value : '',
+    unit: currentUnit,
+    lab_id: sub ? (sub.lab_id || '') : '',
+    lab_name: lab ? (lab.lab_name || '') : '',
+    lab_code: lab ? (lab.lab_code || '') : '',
+    test_name: test ? (test.test_name || '') : (sub ? sub.test_name : ''),
+    test_code: test ? (test.test_code || '') : '',
+    elements: Array.from(elementsSet),
+    sample_ids: sampleIds,
+    data_points: dataPoints,
+    engineer_id: engSession ? engSession.id : '',
+    engineer_name: engSession ? engSession.full_name : '',
+  };
+
+  // Show saving state
+  const saveBtn = document.getElementById('btn-save-report');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Saving…';
+  }
+
+  try {
+    await saveReportData(reportData);
+    showToast('Report data saved successfully!', 'success');
+
+    // Refresh the submission panel to show tick marks
+    if (activeSubmissionId) {
+      // Re-render the submission panel in the background (without closing report)
+      // The tick marks will appear next time the dropdown is opened
+    }
+  } catch (err) {
+    showToast('Error saving report: ' + err.message, 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 3.75V6a2.25 2.25 0 002.25 2.25h2.25M3.75 20.25h18M5.25 3.75h9.75a2.25 2.25 0 012.25 2.25v13.5a2.25 2.25 0 01-2.25 2.25H5.25a2.25 2.25 0 01-2.25-2.25V6a2.25 2.25 0 012.25-2.25z"/></svg> Save';
+    }
+  }
 }
 
 // ── Update report unit (ppm/ppb/%) without rebuilding the report ──
