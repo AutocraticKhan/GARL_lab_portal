@@ -7,6 +7,7 @@
 
 let engSession = null;
 let activeSubmissionId = null;
+let activeReportNo = null; // current report number (used for PDF filename)
 
 // ── Init ──────────────────────────────────────────────────────
 async function initLabEngineer() {
@@ -1100,6 +1101,9 @@ function openReportForm(submissionId, reportType) {
     reportNo = reportNo + '-P';
   }
 
+  // Store the report number so printReport() can use it as the PDF filename
+  activeReportNo = reportNo;
+
   // Build the report HTML
   const reportDiv = document.createElement('div');
   reportDiv.style.cssText = 'padding:16px 0;';
@@ -1177,19 +1181,25 @@ function openReportForm(submissionId, reportType) {
 
   const elemColWidth = uniqueElements.length > 0 ? Math.floor(92 / uniqueElements.length) + '%' : '50%';
 
+  // Read the selected unit from the report panel dropdown (default: ppm)
+  const unitSelect = document.getElementById('report-unit-select');
+  const reportUnit = unitSelect ? unitSelect.value : 'ppm';
+
   // Build header row
   let resultHeaderHtml =
     '<thead><tr style="background:#f9fafb;">' +
     '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:6%;">S. No.</th>' +
     '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;white-space:nowrap;min-width:160px;">Sample ID</th>';
 
-  // Add element columns (equal width for each)
+  // Add element columns (equal width for each) - use selected unit and proper capitalization
   if (uniqueElements.length > 0) {
     uniqueElements.forEach(el => {
-      resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:' + elemColWidth + ';">' + escHtml(el) + ' (%)</th>';
+      // Capitalize first letter, lowercase rest (e.g., "AU" -> "Au", "CU" -> "Cu")
+      const displayEl = el.charAt(0).toUpperCase() + el.slice(1).toLowerCase();
+      resultHeaderHtml += '<th data-element="' + escHtml(el) + '" style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:' + elemColWidth + ';">' + escHtml(displayEl) + ' (' + escHtml(reportUnit) + ')</th>';
     });
   } else {
-    resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:50%;">Result (%)</th>';
+    resultHeaderHtml += '<th data-element="result" style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:50%;">Result (' + escHtml(reportUnit) + ')</th>';
   }
 
   resultHeaderHtml += '</tr></thead>';
@@ -1300,6 +1310,28 @@ function openReportForm(submissionId, reportType) {
   openPanel('report-overlay');
 }
 
+// ── Update report unit (ppm/ppb/%) without rebuilding the report ──
+function updateReportUnit(unit) {
+  unit = unit || 'ppm';
+  // Find all element header cells in the live report table
+  const reportBody = document.getElementById('report-body');
+  if (!reportBody) return;
+  const headerCells = reportBody.querySelectorAll('th[data-element]');
+  if (!headerCells.length) return;
+
+  headerCells.forEach(th => {
+    const el = th.getAttribute('data-element');
+    if (el === 'result') {
+      // Fallback single-result column
+      th.textContent = 'Result (' + unit + ')';
+    } else {
+      // Capitalize first letter, lowercase rest (e.g., "AU" -> "Au", "CU" -> "Cu")
+      const displayEl = el.charAt(0).toUpperCase() + el.slice(1).toLowerCase();
+      th.textContent = displayEl + ' (' + unit + ')';
+    }
+  });
+}
+
 function printReport() {
   const source = document.getElementById('report-print-source');
   if (!source) { showToast('No report to print. Please open the report form first.', 'warning'); return; }
@@ -1309,38 +1341,50 @@ function printReport() {
 
   const clone = reportContainer.cloneNode(true);
 
-  // Get all input values from the live DOM and set them in the clone
-  const liveInputs = document.querySelectorAll('.report-result-input');
+  // Get all input values from the live (visible) report only — exclude the
+  // hidden #report-print-source clone so we don't double-count inputs.
+  const liveInputs = document.querySelectorAll('#report-body .report-result-input');
   const cloneInputs = clone.querySelectorAll('.report-result-input');
   liveInputs.forEach((liveInput, idx) => {
     if (cloneInputs[idx]) {
-      cloneInputs[idx].value = liveInput.value;
+      // Use setAttribute so the value survives innerHTML serialization
+      // (DOM .value property is NOT reflected by innerHTML).
+      cloneInputs[idx].setAttribute('value', liveInput.value);
       cloneInputs[idx].readOnly = true;
     }
   });
 
   // Capture method input
-  const liveMethod = document.querySelector('.report-method-input');
+  const liveMethod = document.querySelector('#report-body .report-method-input');
   const cloneMethod = clone.querySelector('.report-method-input');
   if (liveMethod && cloneMethod) {
-    cloneMethod.value = liveMethod.value;
+    cloneMethod.setAttribute('value', liveMethod.value);
     cloneMethod.readOnly = true;
   }
 
   // Capture temp/humidity input
-  const liveTemp = document.querySelector('.report-temp-input');
+  const liveTemp = document.querySelector('#report-body .report-temp-input');
   const cloneTemp = clone.querySelector('.report-temp-input');
   if (liveTemp && cloneTemp) {
-    cloneTemp.value = liveTemp.value;
+    cloneTemp.setAttribute('value', liveTemp.value);
     cloneTemp.readOnly = true;
   }
+
+  // Sync element header text (unit may have changed via the Unit dropdown after the report was built)
+  const liveHeaders = document.querySelectorAll('#report-body th[data-element]');
+  const cloneHeaders = clone.querySelectorAll('th[data-element]');
+  liveHeaders.forEach((liveTh, idx) => {
+    if (cloneHeaders[idx]) {
+      cloneHeaders[idx].textContent = liveTh.textContent;
+    }
+  });
 
   const serialized = clone.innerHTML;
 
   const fullHtml =
     '<!DOCTYPE html><html lang="en"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>Test Report - Geological Survey of Pakistan</title>' +
+    '<title>' + escHtml(activeReportNo || 'Test Report') + '</title>' +
     '<style>' +
       '@import url(\'https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap\');' +
       'body { font-family: \'Times New Roman\', Times, serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +

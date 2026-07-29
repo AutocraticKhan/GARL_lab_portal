@@ -657,6 +657,11 @@ thead th {
   border-bottom: 1px solid var(--border-color);
   white-space: nowrap;
 }
+/* Report & Spectroscopy datasheet tables: preserve element symbol casing (e.g. "Cu (ppm)") */
+.report-page thead th,
+.spectro-page thead th {
+  text-transform: none;
+}
 tbody tr {
   border-bottom: 1px solid var(--border-color);
   transition: var(--transition-smooth);
