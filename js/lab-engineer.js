@@ -1123,7 +1123,7 @@ function openReportForm(submissionId) {
       '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(sub.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + sub.sampleCount + '</td></tr>' +
       '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Location of Sample (Given by customer)</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sample_location || 'NA') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample receiving Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + formatDate(sub.created_at) + '</td></tr>' +
       '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sampleType || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(today) + '</td></tr>' +
-      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(test?.test_code || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">25.2 °C & 52 %</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-method-input" value="EPA3052" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-temp-input" value="25.2 °C & 52 %" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td></tr>' +
     '</tbody>';
   pageDiv.appendChild(metaTable);
 
@@ -1137,19 +1137,21 @@ function openReportForm(submissionId) {
   const resultTable = document.createElement('table');
   resultTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:32px;';
 
+  const elemColWidth = uniqueElements.length > 0 ? Math.floor(92 / uniqueElements.length) + '%' : '50%';
+
   // Build header row
   let resultHeaderHtml =
     '<thead><tr style="background:#f9fafb;">' +
-    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:12%;">S. No.</th>' +
-    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:50%;">Sample ID</th>';
+    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:6%;">S. No.</th>' +
+    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;white-space:nowrap;min-width:160px;">Sample ID</th>';
 
-  // Add element columns
+  // Add element columns (equal width for each)
   if (uniqueElements.length > 0) {
     uniqueElements.forEach(el => {
-      resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;">' + escHtml(el) + ' (%)</th>';
+      resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:' + elemColWidth + ';">' + escHtml(el) + ' (%)</th>';
     });
   } else {
-    resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;">Result (%)</th>';
+    resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:50%;">Result (%)</th>';
   }
 
   resultHeaderHtml += '</tr></thead>';
@@ -1170,7 +1172,7 @@ function openReportForm(submissionId) {
 
     // Sample ID
     const tdId = document.createElement('td');
-    tdId.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;';
+    tdId.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;white-space:nowrap;';
     tdId.textContent = sampleIdLabel;
     tr.appendChild(tdId);
 
@@ -1278,6 +1280,22 @@ function printReport() {
       cloneInputs[idx].readOnly = true;
     }
   });
+
+  // Capture method input
+  const liveMethod = document.querySelector('.report-method-input');
+  const cloneMethod = clone.querySelector('.report-method-input');
+  if (liveMethod && cloneMethod) {
+    cloneMethod.value = liveMethod.value;
+    cloneMethod.readOnly = true;
+  }
+
+  // Capture temp/humidity input
+  const liveTemp = document.querySelector('.report-temp-input');
+  const cloneTemp = clone.querySelector('.report-temp-input');
+  if (liveTemp && cloneTemp) {
+    cloneTemp.value = liveTemp.value;
+    cloneTemp.readOnly = true;
+  }
 
   const serialized = clone.innerHTML;
 
