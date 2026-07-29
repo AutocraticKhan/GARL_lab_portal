@@ -1,3 +1,4 @@
+
 /* ============================================================
    lab-engineer.js — Lab Engineer dashboard logic
    (Grouped by submission — checkbox completion, no file upload)
@@ -52,6 +53,12 @@ function wireEngEvents() {
 
   // Mark all complete button (in panel footer)
   document.getElementById('btn-mark-all-complete').addEventListener('click', handleMarkAllComplete);
+
+  // Report modal close
+  document.getElementById('close-report-panel').addEventListener('click', () => closePanel('report-overlay'));
+  document.getElementById('report-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('report-overlay')) closePanel('report-overlay');
+  });
 
   // Spectroscopy modal close
   document.getElementById('close-spectroscopy-panel').addEventListener('click', () => closePanel('spectroscopy-overlay'));
@@ -291,12 +298,18 @@ function openSubmissionPanel(submissionId) {
       '</div>' +
 
       (test && test.requires_elements !== false ?
-      '<div style="margin-bottom:var(--sp-4);">' +
-        '<button onclick="openSpectroscopyForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:center;padding:10px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.85rem;">' +
-          '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;">' +
+      '<div style="margin-bottom:var(--sp-4);display:flex;gap:10px;">' +
+        '<button onclick="openSpectroscopyForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:48%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
             '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />' +
           '</svg>' +
-          '📋 Spectroscopy Analysis Datasheet' +
+          '📋 Spectroscopy' +
+        '</button>' +
+        '<button onclick="openReportForm(\'' + sub.submissionId + '\')" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;width:48%;justify-content:center;padding:10px 6px;background:linear-gradient(135deg,#059669,#047857);border:none;color:#fff;font-weight:600;border-radius:var(--r-md);cursor:pointer;font-size:0.78rem;">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0;">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />' +
+          '</svg>' +
+          '📄 Generate Report' +
         '</button>' +
       '</div>' : '') +
 
@@ -1002,6 +1015,287 @@ function printSpectroscopy() {
       '.spectro-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }' +
       '.spectro-page:last-child { page-break-after: auto; }' +
       '.print-container { box-shadow: none !important; border: none !important; }' +
+    '</style></head><body>' + serialized + '</body></html>';
+
+  const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+  if (!printWin) { showToast('Popup blocked! Please allow popups for this site to print.', 'error'); return; }
+  printWin.document.write(fullHtml);
+  printWin.document.close();
+  printWin.focus();
+
+  setTimeout(() => {
+    printWin.print();
+    printWin.onafterprint = () => printWin.close();
+  }, 500);
+}
+
+// ── REPORT GENERATION ──────────────────────────────────────────
+function openReportForm(submissionId) {
+  const submissions = getSubmissionsForLab(engSession.lab_id);
+  const sub = submissions.find(s => s.submissionId === submissionId);
+  if (!sub) { showToast('Submission not found', 'error'); return; }
+
+  const sortedSamples = [...sub.samples].sort((a, b) => {
+    const aSeq = (a.sampleId || '').split('-').pop() || '';
+    const bSeq = (b.sampleId || '').split('-').pop() || '';
+    return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+  });
+
+  const lab = getLab(sub.lab_id);
+  const firstSample = sortedSamples[0];
+  const test = firstSample ? getTest(firstSample.test_id) : null;
+
+  // Get unique elements from all samples
+  const uniqueElements = [...new Set(
+    sortedSamples.flatMap(s => (s.selectedElements || []).map(el => normalizeElementSymbol(el)))
+  )].sort();
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Derive report number from the first sample ID prefix (e.g., "26-07-AAS-1021" from "26-07-AAS-1021-001")
+  let reportNo = sub.submissionId;
+  if (sub.firstSampleId) {
+    const parts = sub.firstSampleId.split('-');
+    if (parts.length >= 4) {
+      // Take all parts except the last sequence number
+      reportNo = parts.slice(0, -1).join('-');
+    }
+  }
+
+  // Build the report HTML
+  const reportDiv = document.createElement('div');
+  reportDiv.style.cssText = 'padding:16px 0;';
+
+  const pageDiv = document.createElement('div');
+  pageDiv.className = 'report-page print-container';
+  pageDiv.style.cssText = 'width:auto;min-height:297mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:Times New Roman,Times,serif;color:#000;';
+
+  // Top Right Serial Number
+  const serialDiv = document.createElement('div');
+  serialDiv.style.cssText = 'text-align:right;font-size:12px;font-weight:700;color:#065f46;margin-bottom:8px;';
+  serialDiv.textContent = 'Test Report Sr. No ' + reportNo;
+  pageDiv.appendChild(serialDiv);
+
+  // Header Section with Logos
+  const headerDiv = document.createElement('div');
+  headerDiv.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:12px;';
+
+  // Left Logo (actual GARL logo)
+  const leftLogo = document.createElement('div');
+  leftLogo.style.cssText = 'width:96px;height:96px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+  const logoImg = document.createElement('img');
+  // Use relative path from pages/ directory to logo/ directory
+  logoImg.src = '../logo/logo.png';
+  logoImg.style.cssText = 'max-width:80px;max-height:80px;object-fit:contain;border-radius:4px;';
+  logoImg.alt = 'GARL Logo';
+  leftLogo.appendChild(logoImg);
+  headerDiv.appendChild(leftLogo);
+
+  // Center Text
+  const centerText = document.createElement('div');
+  centerText.style.cssText = 'text-align:center;flex:1;padding:0 8px;';
+  centerText.innerHTML =
+    '<h1 style="font-size:14px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:0;">GOVERNMENT OF PAKISTAN</h1>' +
+    '<h2 style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">MINISTRY OF ENERGY (PETROLEUM DIVISION)</h2>' +
+    '<h3 style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">GEOLOGICAL SURVEY OF PAKISTAN</h3>' +
+    '<h4 style="font-size:14px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">GEOSCIENCE ADVANCED RESEARCH LABORATORIES</h4>' +
+    '<p style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">ISLAMABAD</p>';
+  headerDiv.appendChild(centerText);
+
+  // Right Logo (PNAC)
+  const rightLogo = document.createElement('div');
+  rightLogo.style.cssText = 'width:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  const pnacImg = document.createElement('img');
+  pnacImg.src = '../logo/PNAC.png';
+  pnacImg.style.cssText = 'max-width:100px;max-height:80px;object-fit:contain;';
+  pnacImg.alt = 'PNAC Logo';
+  rightLogo.appendChild(pnacImg);
+  headerDiv.appendChild(rightLogo);
+
+  pageDiv.appendChild(headerDiv);
+
+  // Customer & Sample Details Metadata Table
+  const metaTable = document.createElement('table');
+  metaTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:24px;';
+  metaTable.innerHTML =
+    '<tbody>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:28%;">Report No:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;font-weight:700;color:#065f46;width:24%;">' + escHtml(reportNo) + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:24%;">Report issue Date:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;width:24%;">' + escHtml(today) + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(sub.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + sub.sampleCount + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Location of Sample (Given by customer)</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sample_location || 'NA') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample receiving Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + formatDate(sub.created_at) + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sampleType || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(today) + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(test?.test_code || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">25.2 °C & 52 %</td></tr>' +
+    '</tbody>';
+  pageDiv.appendChild(metaTable);
+
+  // Test Report Heading
+  const testReportHeading = document.createElement('div');
+  testReportHeading.style.cssText = 'font-weight:700;font-size:15px;margin-bottom:8px;padding-left:16px;';
+  testReportHeading.textContent = 'Test Report:';
+  pageDiv.appendChild(testReportHeading);
+
+  // Test Results Table with editable input fields
+  const resultTable = document.createElement('table');
+  resultTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:32px;';
+
+  // Build header row
+  let resultHeaderHtml =
+    '<thead><tr style="background:#f9fafb;">' +
+    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:12%;">S. No.</th>' +
+    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:50%;">Sample ID</th>';
+
+  // Add element columns
+  if (uniqueElements.length > 0) {
+    uniqueElements.forEach(el => {
+      resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;">' + escHtml(el) + ' (%)</th>';
+    });
+  } else {
+    resultHeaderHtml += '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;">Result (%)</th>';
+  }
+
+  resultHeaderHtml += '</tr></thead>';
+  resultTable.innerHTML = resultHeaderHtml;
+
+  // Build body rows with editable input fields
+  const tbody = document.createElement('tbody');
+  sortedSamples.forEach((sample, idx) => {
+    const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
+    const sampleElements = (sample.selectedElements || []).map(el => normalizeElementSymbol(el));
+    const tr = document.createElement('tr');
+
+    // S.No
+    const tdNo = document.createElement('td');
+    tdNo.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;';
+    tdNo.textContent = (idx + 1) + '.';
+    tr.appendChild(tdNo);
+
+    // Sample ID
+    const tdId = document.createElement('td');
+    tdId.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;';
+    tdId.textContent = sampleIdLabel;
+    tr.appendChild(tdId);
+
+    // Element result input fields
+    if (uniqueElements.length > 0) {
+      uniqueElements.forEach(el => {
+        const td = document.createElement('td');
+        td.style.cssText = 'border:1px solid #000;padding:2px 4px;text-align:center;';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'report-result-input';
+        input.setAttribute('data-sample-id', sample.id);
+        input.setAttribute('data-element', el);
+        input.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;';
+        input.placeholder = '—';
+        tr.appendChild(td);
+        td.appendChild(input);
+      });
+    } else {
+      const td = document.createElement('td');
+      td.style.cssText = 'border:1px solid #000;padding:2px 4px;text-align:center;';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'report-result-input';
+      input.setAttribute('data-sample-id', sample.id);
+      input.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;';
+      input.placeholder = '—';
+      td.appendChild(input);
+      tr.appendChild(td);
+    }
+
+    tbody.appendChild(tr);
+  });
+  resultTable.appendChild(tbody);
+  pageDiv.appendChild(resultTable);
+
+  // Disclaimer / Terms Section
+  const disclaimerDiv = document.createElement('div');
+  disclaimerDiv.style.cssText = 'margin-bottom:32px;';
+  disclaimerDiv.innerHTML =
+    '<h5 style="font-weight:700;font-size:13.5px;margin-bottom:12px;padding-left:16px;">Disclaimer / Terms of Test Report</h5>' +
+    '<ul style="list-style:none;padding:0 16px;margin:0;">' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• This report is based solely on the specific sample(s) submitted by the customer. It must not be reproduced in part without prior written consent.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Sampling was not carried out by GARL. Therefore, the laboratory does not accept responsibility for whether the submitted sample(s) accurately represent any larger batch, stock, or full production lot.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• The customer is fully responsible for the ethical and appropriate use of the test results. The laboratory shall not be held liable for any claims or consequences arising from the use or interpretation of the data by the customer or third parties.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• The information in this report may not be used for product promotion, commercial advertising, or publicity purposes.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• After the report is issued, the sample(s) will be retained for a period of 1 month, unless an alternative arrangement has been agreed upon.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Statement of conformity /compliance (where applicable): NA</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Remarks/Comments (where requested) = NA</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Analysis Not required = NR</li>' +
+    '</ul>';
+  pageDiv.appendChild(disclaimerDiv);
+
+  // End of Report
+  const endDiv = document.createElement('div');
+  endDiv.style.cssText = 'text-align:center;font-weight:700;font-size:14px;margin:32px 0;';
+  endDiv.textContent = 'End of Report';
+  pageDiv.appendChild(endDiv);
+
+  // Signature Footer
+  const sigDiv = document.createElement('div');
+  sigDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;margin-top:64px;padding:16px 16px 0;';
+  sigDiv.innerHTML =
+    '<div style="text-align:left;">' +
+      '<div style="font-weight:700;font-size:13.5px;">Quality Manager</div>' +
+      '<div style="font-size:12px;margin-top:2px;">(Verified <span style="text-decoration:underline;color:#1d4ed8;font-family:sans-serif;">by</span>)</div>' +
+    '</div>' +
+    '<div style="text-align:right;">' +
+      '<div style="font-weight:700;font-size:13.5px;">Technical Manager</div>' +
+      '<div style="font-size:12px;margin-top:2px;">(Issued by)</div>' +
+    '</div>';
+  pageDiv.appendChild(sigDiv);
+
+  reportDiv.appendChild(pageDiv);
+
+  // Hidden container for printing
+  const printSourceEl = document.createElement('div');
+  printSourceEl.id = 'report-print-source';
+  printSourceEl.style.display = 'none';
+  printSourceEl.appendChild(reportDiv.cloneNode(true));
+
+  const body = document.getElementById('report-body');
+  body.innerHTML = '';
+  body.appendChild(reportDiv);
+  body.appendChild(printSourceEl);
+
+  openPanel('report-overlay');
+}
+
+function printReport() {
+  const source = document.getElementById('report-print-source');
+  if (!source) { showToast('No report to print. Please open the report form first.', 'warning'); return; }
+
+  const reportContainer = source.firstElementChild;
+  if (!reportContainer) { showToast('No report content found.', 'warning'); return; }
+
+  const clone = reportContainer.cloneNode(true);
+
+  // Get all input values from the live DOM and set them in the clone
+  const liveInputs = document.querySelectorAll('.report-result-input');
+  const cloneInputs = clone.querySelectorAll('.report-result-input');
+  liveInputs.forEach((liveInput, idx) => {
+    if (cloneInputs[idx]) {
+      cloneInputs[idx].value = liveInput.value;
+      cloneInputs[idx].readOnly = true;
+    }
+  });
+
+  const serialized = clone.innerHTML;
+
+  const fullHtml =
+    '<!DOCTYPE html><html lang="en"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Test Report - Geological Survey of Pakistan</title>' +
+    '<style>' +
+      '@import url(\'https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap\');' +
+      'body { font-family: \'Times New Roman\', Times, serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+      '@page { size: A4 portrait; margin: 10mm 15mm 10mm 15mm; }' +
+      '@media print { body { background: #fff !important; color: #000 !important; } .no-print { display: none !important; } .print-container { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 0 !important; width: 210mm !important; background: transparent !important; } .report-page { box-shadow: none !important; border: none !important; margin: 0 auto !important; page-break-after: always; } tr { page-break-inside: avoid; } }' +
+      '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+      'body { background: #fff; display: block; padding: 0; }' +
+      '.report-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }' +
+      '.report-page:last-child { page-break-after: auto; }' +
+      '.print-container { box-shadow: none !important; border: none !important; }' +
+      'input { border: none !important; outline: none !important; background: transparent !important; }' +
     '</style></head><body>' + serialized + '</body></html>';
 
   const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
