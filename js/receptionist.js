@@ -15,6 +15,9 @@ let pendingPage = 1;
 const PENDING_PER_PAGE = 10;
 let mySubPage = 1;
 const MY_SUB_PER_PAGE = 10;
+let reportsPage = 1;
+const REPORTS_PER_PAGE = 10;
+let activeRecReport = null; // { fullSubmissionId, reportType, reportNo }
 
 async function initReceptionist() {
   recSession = requireAuth('receptionist');
@@ -61,6 +64,7 @@ function switchRecTab(tabId) {
     currentPage = 1;
     renderSamplesTable();
   }
+  if (tabId === 'rec-tab-reports') renderLabReports();
 }
 
 // ── Global Bulk Element Picker ─────────────────────────────────
@@ -646,6 +650,38 @@ function wireReceptionistEvents() {
     if (e.target === document.getElementById('rec-sample-panel-overlay')) closePanel('rec-sample-panel-overlay');
   });
 
+  // ── Lab Reports tab events ──
+  const reportsSearch = document.getElementById('reports-search');
+  if (reportsSearch) {
+    reportsSearch.addEventListener('input', debounce(renderLabReports, 250));
+  }
+  const reportsPrev = document.getElementById('reportsPrevBtn');
+  const reportsNext = document.getElementById('reportsNextBtn');
+  if (reportsPrev) {
+    reportsPrev.addEventListener('click', () => {
+      if (reportsPage > 1) { reportsPage--; renderLabReports(); }
+    });
+  }
+  if (reportsNext) {
+    reportsNext.addEventListener('click', () => {
+      const total = (DB.savedReports || []).length;
+      const totalPages = Math.ceil(total / REPORTS_PER_PAGE) || 1;
+      if (reportsPage < totalPages) { reportsPage++; renderLabReports(); }
+    });
+  }
+
+  // Report viewer panel close
+  const closeRecReportBtn = document.getElementById('close-rec-report-panel');
+  if (closeRecReportBtn) {
+    closeRecReportBtn.addEventListener('click', () => closePanel('rec-report-overlay'));
+  }
+  const recReportOverlay = document.getElementById('rec-report-overlay');
+  if (recReportOverlay) {
+    recReportOverlay.addEventListener('click', (e) => {
+      if (e.target === recReportOverlay) closePanel('rec-report-overlay');
+    });
+  }
+
   // Intake confirmation modal close wiring
   const closeIntakeBtns = [
     document.getElementById('close-intake-modal'),
@@ -1056,6 +1092,385 @@ function openRecSubmissionPanel(submissionId) {
     '</div>';
 
   openPanel('rec-sample-panel-overlay');
+}
+
+// ============================================================
+// LAB REPORTS — Read-only viewer for receptionist
+// (View reports saved by lab engineers, print or save as PDF)
+// ============================================================
+
+// ── Render Lab Reports Table (paginated, searchable) ──────────
+function renderLabReports() {
+  const tbody = document.getElementById('lab-reports-tbody');
+  if (!tbody) return;
+
+  const query = (document.getElementById('reports-search')?.value || '').toLowerCase().trim();
+  let reports = (DB.savedReports || []).slice();
+
+  // Sort by updated_at descending (most recent first)
+  reports.sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+
+  // Filter by search query
+  if (query) {
+    reports = reports.filter(r =>
+      (r.report_number || '').toLowerCase().includes(query) ||
+      (r.customer_name || '').toLowerCase().includes(query) ||
+      (r.lab_name || '').toLowerCase().includes(query) ||
+      (r.test_name || '').toLowerCase().includes(query) ||
+      (r.submission_id || '').toLowerCase().includes(query) ||
+      (r.engineer_name || '').toLowerCase().includes(query) ||
+      (r.report_type || '').toLowerCase().includes(query)
+    );
+  }
+
+  if (!reports.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div><p>No lab reports saved yet' + (query ? ' matching your search' : '') + '</p></div></td></tr>';
+    const pagination = document.getElementById('reports-pagination');
+    if (pagination) pagination.style.display = 'none';
+    return;
+  }
+
+  const totalPages = Math.ceil(reports.length / REPORTS_PER_PAGE) || 1;
+  if (reportsPage < 1) reportsPage = 1;
+  if (reportsPage > totalPages) reportsPage = totalPages;
+
+  const startIndex = (reportsPage - 1) * REPORTS_PER_PAGE;
+  const endIndex = startIndex + REPORTS_PER_PAGE;
+  const pageData = reports.slice(startIndex, endIndex);
+
+  tbody.innerHTML = pageData.map(r => {
+    const typeLabel = r.report_type === 'pnac' ? '🛡️ PNAC' : (r.report_type === 'qscert' ? '✅ QSCert' : escHtml(r.report_type || '—'));
+    const typeBadge = '<span style="font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:10px;background:' +
+      (r.report_type === 'pnac' ? 'rgba(99,102,241,0.1);color:#4f46e5' :
+       r.report_type === 'qscert' ? 'rgba(16,185,129,0.1);color:#059669' :
+       'rgba(148,163,184,0.1);color:#64748b') +
+      ';">' + typeLabel + '</span>';
+
+    return '<tr class="clickable" onclick="openRecReportViewer(\'' + escHtml(r.submission_id) + '\',\'' + escHtml(r.report_type) + '\')">' +
+      '<td><strong style="color:var(--clr-primary);font-size:0.82rem;font-family:monospace;">' + escHtml(r.report_number || '—') + '</strong></td>' +
+      '<td>' + typeBadge + '</td>' +
+      '<td>' + escHtml(r.customer_name || '—') + '</td>' +
+      '<td class="muted">' + escHtml(r.lab_name || '—') + '</td>' +
+      '<td class="muted">' + escHtml(r.test_name || '—') + '</td>' +
+      '<td style="text-align:center;font-weight:600;">' + (r.sample_count || 0) + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + escHtml(r.report_issue_date || '—') + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + escHtml(r.engineer_name || '—') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  // Update pagination controls
+  const pagination = document.getElementById('reports-pagination');
+  const prevBtn = document.getElementById('reportsPrevBtn');
+  const nextBtn = document.getElementById('reportsNextBtn');
+  const pageIndicator = document.getElementById('reportsPageIndicator');
+
+  if (totalPages <= 1) {
+    pagination.style.display = 'none';
+  } else {
+    pagination.style.display = '';
+    prevBtn.disabled = reportsPage <= 1;
+    nextBtn.disabled = reportsPage >= totalPages;
+    if (pageIndicator) pageIndicator.textContent = 'Page ' + reportsPage + ' of ' + totalPages;
+  }
+}
+
+// ── Open Read-only Report Viewer ──────────────────────────────
+function openRecReportViewer(fullSubmissionId, reportType) {
+  const saved = getSavedReport(fullSubmissionId, reportType);
+  if (!saved) {
+    showToast('Report not found.', 'error');
+    return;
+  }
+
+  // Store active report info for printing
+  activeRecReport = {
+    fullSubmissionId: fullSubmissionId,
+    reportType: reportType,
+    reportNo: saved.report_number || fullSubmissionId,
+  };
+
+  const reportNo = saved.report_number || fullSubmissionId;
+  const reportUnit = saved.unit || 'ppm';
+  const today = saved.report_issue_date || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Get elements and data points from saved report
+  const uniqueElements = (saved.elements || []).slice().sort();
+  const dataPoints = saved.data_points || [];
+  const sampleIds = saved.sample_ids || [];
+
+  // Build the report HTML (read-only version)
+  const reportDiv = document.createElement('div');
+  reportDiv.style.cssText = 'padding:16px 0;';
+
+  const pageDiv = document.createElement('div');
+  pageDiv.className = 'report-page print-container';
+  pageDiv.style.cssText = 'width:auto;min-height:297mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:Times New Roman,Times,serif;color:#000;';
+
+  // Top Right Serial Number
+  const serialDiv = document.createElement('div');
+  serialDiv.style.cssText = 'text-align:right;font-size:12px;font-weight:700;color:#065f46;margin-bottom:8px;';
+  serialDiv.textContent = 'Test Report Sr. No ' + reportNo;
+  pageDiv.appendChild(serialDiv);
+
+  // Header Section with Logos
+  const headerDiv = document.createElement('div');
+  headerDiv.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:12px;';
+
+  // Left Logo
+  const leftLogo = document.createElement('div');
+  leftLogo.style.cssText = 'width:96px;height:96px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+  const logoImg = document.createElement('img');
+  logoImg.src = '../logo/logo.png';
+  logoImg.style.cssText = 'max-width:80px;max-height:80px;object-fit:contain;border-radius:4px;';
+  logoImg.alt = 'GARL Logo';
+  leftLogo.appendChild(logoImg);
+  headerDiv.appendChild(leftLogo);
+
+  // Center Text
+  const centerText = document.createElement('div');
+  centerText.style.cssText = 'text-align:center;flex:1;padding:0 8px;';
+  centerText.innerHTML =
+    '<h1 style="font-size:14px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:0;">GOVERNMENT OF PAKISTAN</h1>' +
+    '<h2 style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">MINISTRY OF ENERGY (PETROLEUM DIVISION)</h2>' +
+    '<h3 style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">GEOLOGICAL SURVEY OF PAKISTAN</h3>' +
+    '<h4 style="font-size:14px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">GEOSCIENCE ADVANCED RESEARCH LABORATORIES</h4>' +
+    '<p style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">ISLAMABAD</p>';
+  headerDiv.appendChild(centerText);
+
+  // Right Logo
+  const rightLogo = document.createElement('div');
+  rightLogo.style.cssText = 'width:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  const certImg = document.createElement('img');
+  certImg.src = reportType === 'qscert' ? '../logo/qscert.png' : '../logo/PNAC.png';
+  certImg.style.cssText = 'max-width:100px;max-height:80px;object-fit:contain;';
+  certImg.alt = reportType === 'qscert' ? 'QSCert Logo' : 'PNAC Logo';
+  rightLogo.appendChild(certImg);
+  headerDiv.appendChild(rightLogo);
+
+  pageDiv.appendChild(headerDiv);
+
+  // Customer & Sample Details Metadata Table
+  const metaTable = document.createElement('table');
+  metaTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:24px;';
+  metaTable.innerHTML =
+    '<tbody>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:28%;">Report No:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;font-weight:700;color:#065f46;width:24%;">' + escHtml(reportNo) + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:24%;">Report issue Date:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;width:24%;">' + escHtml(today) + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(saved.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + (saved.sample_count || 0) + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Location of Sample (Given by customer)</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(saved.sample_location || 'NA') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample receiving Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(saved.sample_receiving_date || '—') + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(saved.sample_description || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(saved.sample_analysis_date || today) + '</td></tr>' +
+      '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-method-input" value="' + escHtml(saved.method_used || 'EPA 3052') + '" readOnly style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-temp-input" value="' + escHtml(saved.temperature_humidity || '25.2 °C & 52 %') + '" readOnly style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td></tr>' +
+    '</tbody>';
+  pageDiv.appendChild(metaTable);
+
+  // Test Report Heading
+  const testReportHeading = document.createElement('div');
+  testReportHeading.style.cssText = 'font-weight:700;font-size:15px;margin-bottom:8px;padding-left:16px;';
+  testReportHeading.textContent = 'Test Report:';
+  pageDiv.appendChild(testReportHeading);
+
+  // Test Results Table (read-only — values pre-filled from saved data)
+  const resultTable = document.createElement('table');
+  resultTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:32px;';
+
+  const elemColWidth = uniqueElements.length > 0 ? Math.floor(92 / uniqueElements.length) + '%' : '50%';
+
+  // Build header row
+  let resultHeaderHtml =
+    '<thead><tr style="background:#f9fafb;">' +
+    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:6%;">S. No.</th>' +
+    '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;white-space:nowrap;min-width:160px;">Sample ID</th>';
+
+  if (uniqueElements.length > 0) {
+    uniqueElements.forEach(el => {
+      const displayEl = el.charAt(0).toUpperCase() + el.slice(1).toLowerCase();
+      resultHeaderHtml += '<th data-element="' + escHtml(el) + '" style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:' + elemColWidth + ';">' + escHtml(displayEl) + ' (' + escHtml(reportUnit) + ')</th>';
+    });
+  } else {
+    resultHeaderHtml += '<th data-element="result" style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:50%;">Result (' + escHtml(reportUnit) + ')</th>';
+  }
+
+  resultHeaderHtml += '</tr></thead>';
+  resultTable.innerHTML = resultHeaderHtml;
+
+  // Build body rows with pre-filled read-only values
+  const tbody = document.createElement('tbody');
+  sampleIds.forEach((sampleLabel, idx) => {
+    const tr = document.createElement('tr');
+
+    // S.No
+    const tdNo = document.createElement('td');
+    tdNo.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;';
+    tdNo.textContent = (idx + 1) + '.';
+    tr.appendChild(tdNo);
+
+    // Sample ID
+    const tdId = document.createElement('td');
+    tdId.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;white-space:nowrap;';
+    tdId.textContent = sampleLabel;
+    tr.appendChild(tdId);
+
+    // Element result values (read-only)
+    if (uniqueElements.length > 0) {
+      uniqueElements.forEach(el => {
+        const td = document.createElement('td');
+        td.style.cssText = 'border:1px solid #000;padding:2px 4px;text-align:center;';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'report-result-input';
+        input.setAttribute('data-sample-label', sampleLabel);
+        input.setAttribute('data-element', el);
+        input.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;';
+        input.readOnly = true;
+
+        // Find the saved value for this sample+element
+        const dp = dataPoints.find(d => d.sample_label === sampleLabel && d.element === el);
+        input.value = dp ? (dp.value || '') : '';
+
+        tr.appendChild(td);
+        td.appendChild(input);
+      });
+    } else {
+      const td = document.createElement('td');
+      td.style.cssText = 'border:1px solid #000;padding:2px 4px;text-align:center;';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'report-result-input';
+      input.setAttribute('data-sample-label', sampleLabel);
+      input.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;';
+      input.readOnly = true;
+
+      const dp = dataPoints.find(d => d.sample_label === sampleLabel);
+      input.value = dp ? (dp.value || '') : '';
+
+      tr.appendChild(td);
+      td.appendChild(input);
+    }
+
+    tbody.appendChild(tr);
+  });
+  resultTable.appendChild(tbody);
+  pageDiv.appendChild(resultTable);
+
+  // Disclaimer / Terms Section
+  const disclaimerDiv = document.createElement('div');
+  disclaimerDiv.style.cssText = 'margin-bottom:32px;';
+  disclaimerDiv.innerHTML =
+    '<h5 style="font-weight:700;font-size:13.5px;margin-bottom:12px;padding-left:16px;">Disclaimer / Terms of Test Report</h5>' +
+    '<ul style="list-style:none;padding:0 16px;margin:0;">' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• This report is based solely on the specific sample(s) submitted by the customer. It must not be reproduced in part without prior written consent.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Sampling was not carried out by GARL. Therefore, the laboratory does not accept responsibility for whether the submitted sample(s) accurately represent any larger batch, stock, or full production lot.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• The customer is fully responsible for the ethical and appropriate use of the test results. The laboratory shall not be held liable for any claims or consequences arising from the use or interpretation of the data by the customer or third parties.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• The information in this report may not be used for product promotion, commercial advertising, or publicity purposes.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• After the report is issued, the sample(s) will be retained for a period of 1 month, unless an alternative arrangement has been agreed upon.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Statement of conformity /compliance (where applicable): NA</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Remarks/Comments (where requested) = NA</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Analysis Not required = NR</li>' +
+    '</ul>';
+  pageDiv.appendChild(disclaimerDiv);
+
+  // End of Report
+  const endDiv = document.createElement('div');
+  endDiv.style.cssText = 'text-align:center;font-weight:700;font-size:14px;margin:32px 0;';
+  endDiv.textContent = 'End of Report';
+  pageDiv.appendChild(endDiv);
+
+  // Signature Footer
+  const sigDiv = document.createElement('div');
+  sigDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;margin-top:64px;padding:16px 16px 0;';
+  sigDiv.innerHTML =
+    '<div style="text-align:left;">' +
+      '<div style="font-weight:700;font-size:13.5px;">Quality Manager</div>' +
+      '<div style="font-size:12px;margin-top:2px;">(Verified <span style="text-decoration:underline;color:#1d4ed8;font-family:sans-serif;">by</span>)</div>' +
+    '</div>' +
+    '<div style="text-align:right;">' +
+      '<div style="font-weight:700;font-size:13.5px;">Technical Manager</div>' +
+      '<div style="font-size:12px;margin-top:2px;">(Issued by)</div>' +
+    '</div>';
+  pageDiv.appendChild(sigDiv);
+
+  reportDiv.appendChild(pageDiv);
+
+  // Hidden container for printing
+  const printSourceEl = document.createElement('div');
+  printSourceEl.id = 'rec-report-print-source';
+  printSourceEl.style.display = 'none';
+  printSourceEl.appendChild(reportDiv.cloneNode(true));
+
+  const body = document.getElementById('rec-report-body');
+  body.innerHTML = '';
+  body.appendChild(reportDiv);
+  body.appendChild(printSourceEl);
+
+  openPanel('rec-report-overlay');
+}
+
+// ── Print / Save as PDF (Receptionist read-only report) ───────
+function printRecReport() {
+  const source = document.getElementById('rec-report-print-source');
+  if (!source) { showToast('No report to print. Please open a report first.', 'warning'); return; }
+
+  const reportContainer = source.firstElementChild;
+  if (!reportContainer) { showToast('No report content found.', 'warning'); return; }
+
+  const clone = reportContainer.cloneNode(true);
+
+  // All inputs are already read-only, but ensure values are set as attributes for serialization
+  const liveInputs = document.querySelectorAll('#rec-report-body .report-result-input');
+  const cloneInputs = clone.querySelectorAll('.report-result-input');
+  liveInputs.forEach((liveInput, idx) => {
+    if (cloneInputs[idx]) {
+      cloneInputs[idx].setAttribute('value', liveInput.value);
+      cloneInputs[idx].readOnly = true;
+    }
+  });
+
+  // Capture method input
+  const liveMethod = document.querySelector('#rec-report-body .report-method-input');
+  const cloneMethod = clone.querySelector('.report-method-input');
+  if (liveMethod && cloneMethod) {
+    cloneMethod.setAttribute('value', liveMethod.value);
+    cloneMethod.readOnly = true;
+  }
+
+  // Capture temp/humidity input
+  const liveTemp = document.querySelector('#rec-report-body .report-temp-input');
+  const cloneTemp = clone.querySelector('.report-temp-input');
+  if (liveTemp && cloneTemp) {
+    cloneTemp.setAttribute('value', liveTemp.value);
+    cloneTemp.readOnly = true;
+  }
+
+  const serialized = clone.innerHTML;
+
+  const reportNo = (activeRecReport && activeRecReport.reportNo) || 'Test Report';
+
+  const fullHtml =
+    '<!DOCTYPE html><html lang="en"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>' + escHtml(reportNo) + '</title>' +
+    '<style>' +
+      '@import url(\'https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap\');' +
+      'body { font-family: \'Times New Roman\', Times, serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+      '@page { size: A4 portrait; margin: 10mm 15mm 10mm 15mm; }' +
+      '@media print { body { background: #fff !important; color: #000 !important; } .no-print { display: none !important; } .print-container { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 0 !important; width: 210mm !important; background: transparent !important; } .report-page { box-shadow: none !important; border: none !important; margin: 0 auto !important; page-break-after: always; } tr { page-break-inside: avoid; } }' +
+      '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+      'body { background: #fff; display: block; padding: 0; }' +
+      '.report-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; }' +
+      '.report-page:last-child { page-break-after: auto; }' +
+      '.print-container { box-shadow: none !important; border: none !important; }' +
+      'input { border: none !important; outline: none !important; background: transparent !important; }' +
+    '</style></head><body>' + serialized + '</body></html>';
+
+  const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+  if (!printWin) { showToast('Popup blocked! Please allow popups for this site to print.', 'error'); return; }
+  printWin.document.write(fullHtml);
+  printWin.document.close();
+  printWin.focus();
+
+  setTimeout(() => {
+    printWin.print();
+    printWin.onafterprint = () => printWin.close();
+  }, 500);
 }
 
 document.addEventListener('DOMContentLoaded', initReceptionist);
