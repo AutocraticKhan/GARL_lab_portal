@@ -425,3 +425,79 @@ function htmlToFragment(html) {
   tmpl.innerHTML = html.trim();
   return tmpl.content.cloneNode(true);
 }
+
+// ── Mobile / Tablet Navigation (Hamburger Sidebar) ────────────
+/**
+ * Make the fixed sidebar accessible on small screens.
+ * - Injects a hamburger button into the topbar (visible ≤768px via CSS)
+ * - Creates a dimmed overlay behind the sidebar when open
+ * - Closes on overlay tap, nav-item click, or Escape key
+ * Works with dynamically rendered sidebars (e.g. progress-report.html)
+ * because toggling uses classes and closing uses event delegation.
+ */
+function initMobileNav() {
+  const sidebar = document.querySelector('.sidebar');
+  const topbar = document.querySelector('.topbar');
+  if (!sidebar || !topbar || document.getElementById('mobile-nav-toggle')) return;
+
+  // Hamburger button (first item in topbar)
+  const toggle = document.createElement('button');
+  toggle.className = 'menu-toggle';
+  toggle.id = 'mobile-nav-toggle';
+  toggle.type = 'button';
+  toggle.setAttribute('aria-label', 'Toggle navigation menu');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.innerHTML = '<span></span><span></span><span></span>';
+  topbar.insertBefore(toggle, topbar.firstChild);
+
+  // Dimmed overlay behind the open sidebar
+  const overlay = document.createElement('div');
+  overlay.className = 'sidebar-overlay';
+  overlay.id = 'sidebar-overlay';
+  document.body.appendChild(overlay);
+
+  const openSidebar = () => {
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    toggle.classList.add('active');
+    toggle.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  };
+  const closeSidebar = () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    toggle.classList.remove('open');
+    toggle.classList.remove('active');
+    toggle.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  };
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = sidebar.classList.contains('open');
+    isOpen ? closeSidebar() : openSidebar();
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  // Close when a nav item is clicked (delegation covers dynamic sidebars)
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.closest('.nav-item, a')) closeSidebar();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+  });
+
+  // Reset state when resizing back to desktop
+  window.addEventListener('resize', debounce(() => {
+    if (window.innerWidth > 768) closeSidebar();
+  }, 150));
+}
+
+// Auto-initialise mobile navigation on every page that loads utils.js
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMobileNav);
+} else {
+  initMobileNav();
+}

@@ -1329,3 +1329,144 @@ td.muted { color: var(--txt-secondary); font-size: 0.8rem; }
     align-self: stretch !important;
   }
 }
+
+/* ── Mobile / Tablet Navigation (Hamburger) ───────────────── */
+.menu-toggle {
+  display: none; /* hidden on desktop */
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition-smooth);
+}
+.menu-toggle span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: var(--r-full);
+  background: var(--txt-main);
+  transition: transform var(--t-base), opacity var(--t-fast);
+}
+/* Hamburger → X animation when sidebar is open */
+.menu-toggle.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.menu-toggle.active span:nth-child(2) { opacity: 0; }
+.menu-toggle.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-base);
+}
+.sidebar-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Enhanced Tablet & Mobile Refinements ─────────────────── */
+@media (max-width: 768px) {
+  /* Show hamburger, animate into X when open */
+  .menu-toggle { display: flex; }
+
+  /* Sidebar slides over content with shadow when open */
+  .sidebar.open { box-shadow: 10px 0 40px rgba(15, 23, 42, 0.18); }
+
+  /* Larger touch targets for nav items */
+  .nav-item { padding: 12px 14px; font-size: 0.95rem; }
+  .nav-item .nav-icon { font-size: 1.25rem; }
+
+  /* Topbar: truncate long titles, allow actions to wrap */
+  .topbar { gap: var(--sp-2); }
+  .topbar > div { min-width: 0; }
+  .topbar-title {
+    font-size: 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-actions { gap: var(--sp-2); flex-shrink: 0; }
+
+  /* Modals: tighter padding, full-width footer buttons */
+  .modal { padding: var(--sp-5); max-height: 92vh; }
+  .modal-footer { flex-direction: column-reverse; }
+  .modal-footer .btn { width: 100%; }
+  .side-panel-header,
+  .side-panel-body,
+  .side-panel-footer { padding: var(--sp-4); }
+  .side-panel-footer { flex-direction: column-reverse; }
+  .side-panel-footer .btn { width: 100%; }
+
+  /* Tables: tighter cells, keep horizontal scroll */
+  thead th { padding: var(--sp-3) var(--sp-4); }
+  td { padding: 12px var(--sp-4); }
+
+  /* Section headers stack when tight */
+  .section-header { flex-wrap: wrap; gap: var(--sp-2); }
+
+  /* Table toolbars stack */
+  .table-toolbar { padding: var(--sp-3) var(--sp-4); }
+  .table-toolbar .search-box { width: 100%; }
+
+  /* Cards and stat cards: reduce padding */
+  .card { padding: var(--sp-4); }
+  .stat-card { padding: var(--sp-4); }
+  .stat-value { font-size: 1.6rem; }
+
+  /* Toasts fit small screens */
+  #toast-container { left: var(--sp-3); right: var(--sp-3); top: var(--sp-3); }
+  .toast { min-width: 0; width: 100%; }
+
+  /* Pagination wraps comfortably */
+  .pagination-container { flex-wrap: wrap; gap: var(--sp-2); }
+  .pagination-container button { padding: var(--sp-2) var(--sp-4); }
+
+  /* Modal backdrop: align sheet to bottom on mobile for reachability */
+  .modal-backdrop { align-items: flex-end; padding: var(--sp-2); }
+  .modal {
+    max-height: 94vh;
+    border-radius: var(--r-lg) var(--r-lg) var(--r-md) var(--r-md);
+  }
+}
+
+/* ── Small Phones ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Buttons stretch in toolbars and footers */
+  .table-toolbar .btn,
+  .side-panel-footer .btn,
+  .modal-footer .btn { width: 100%; }
+
+  /* Compact stat cards */
+  .stat-card { padding: var(--sp-3); }
+  .stat-value { font-size: 1.5rem; }
+  .stat-icon { width: 34px; height: 34px; font-size: 1.2rem; }
+
+  /* Compact table cells */
+  thead th { padding: var(--sp-3); font-size: 0.72rem; }
+  td { padding: 10px var(--sp-3); font-size: 0.82rem; }
+
+  /* Sidebar takes most of the screen but not all */
+  .sidebar { width: min(84vw, 300px); }
+
+  /* Empty states breathe less */
+  .empty-state { padding: var(--sp-8) var(--sp-4); }
+
+  /* Upload zone tighter */
+  .upload-zone { padding: var(--sp-6) var(--sp-4); }
+}
