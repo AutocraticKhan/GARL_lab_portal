@@ -254,7 +254,7 @@ async function updateLab(id, patch) {
 async function deleteLab(id) {
   const engineers = DB.users.filter(u => u.lab_id === id && u.active);
   if (engineers.length) throw new Error(`Cannot delete: ${engineers.length} active engineer(s) assigned.`);
-  const pending = DB.samples.filter(s => s.lab_id === id && s.status !== 'completed');
+  const pending = DB.samples.filter(s => s.lab_id === id && !isSampleDone(s));
   if (pending.length) throw new Error(`Cannot delete: ${pending.length} pending sample(s) in this lab.`);
   // Cascade-delete all tests belonging to this lab
   const labTests = DB.tests.filter(t => t.lab_id === id);
@@ -385,6 +385,370 @@ async function setSampleStatus(id, status, note = '') {
   return sample;
 }
 
+/* ============================================================
+   RETURN / REVIEW / ARCHIVE WORKFLOW
+   ------------------------------------------------------------
+   Lab engineer : returnSamplesToReception()  → status 'returned'
+   Reception    : resubmitSamples()           → status 'assigned'
+   Reception    : archiveReturnedSamples()    → status 'archived'
+   Reception    : restoreArchivedSamples()    → status 'assigned'
+   ============================================================ */
+
+// Common reasons offered when the lab returns a sample to reception.
+const RETURN_REASONS = [
+  'Insufficient sample quantity',
+  'Sample unusable / damaged',
+  'Wrong test requested',
+  'Wrong laboratory assigned',
+  'Elements not applicable to this sample type',
+  'Required sample preparation unavailable',
+  'Instrument unavailable / under maintenance',
+  'Suspected contamination',
+  'Other (specify in notes)',
+];
+
+// Common reasons offered when reception archives a returned sample.
+const ARCHIVE_REASONS = [
+  'Customer informed — analysis not possible',
+  'Sample unusable / damaged',
+  'Customer cancelled the request',
+  'Test discontinued',
+  'Duplicate of another submission',
+  'Other (specify in notes)',
+];
+
+/**
+ * Apply per-sample patches to the samples table.
+ * Uses true UPDATE statements (a partial upsert is unsafe here because the
+ * samples table has NOT NULL columns such as customer_name).
+ * @param {Array<{id: string} & object>} patches
+ * @returns {Promise<{updated: number, failed: number, errors: string[]}>}
+ */
+async function bulkUpdateSamples(patches) {
+  let updated = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const patch of patches) {
+    const { id, ...fields } = patch;
+    try {
+      const ok = await supabaseUpdate('samples', id, fields);
+      if (!ok) throw new Error('Update was rejected by the database');
+      const idx = DB.samples.findIndex(s => s.id === id);
+      if (idx !== -1) DB.samples[idx] = { ...DB.samples[idx], ...fields };
+      updated++;
+    } catch (err) {
+      failed++;
+      errors.push((fields.sampleId || id) + ': ' + err.message);
+    }
+  }
+
+  return { updated, failed, errors };
+}
+
+/**
+ * Lab engineer sends one or more samples back to reception for review.
+ * @param {string[]} sampleIds
+ * @param {string} reason - required
+ * @param {string} [note] - optional free-text note
+ * @returns {Promise<{updated:number, failed:number, errors:string[]}>}
+ */
+async function returnSamplesToReception(sampleIds, reason, note) {
+  const ids = [...new Set(sampleIds || [])];
+  if (!ids.length) throw new Error('Select at least one sample to return.');
+  if (!reason) throw new Error('A return reason is required.');
+
+  const targets = ids.map(id => getSample(id)).filter(Boolean);
+  if (targets.length !== ids.length) {
+    throw new Error('Some selected samples no longer exist. Refresh and try again.');
+  }
+
+  const blocked = targets.filter(s => isSampleReturned(s) || isSampleArchived(s));
+  if (blocked.length) {
+    throw new Error(blocked.length + ' selected sample(s) are already returned or archived.');
+  }
+
+  const now   = new Date().toISOString();
+  const actor = currentUser();
+  const actorName = actor ? actor.full_name : 'Lab Engineer';
+
+  const patches = targets.map(s => ({
+    id: s.id,
+    sampleId: s.sampleId,
+    status: 'returned',
+    returned_at: now,
+    return_reason: reason,
+    returned_by: actorName,
+    return_count: (Number(s.return_count) || 0) + 1,
+    // Keep status and timestamp columns in sync — the sample is no longer complete.
+    completed_at: null,
+  }));
+
+  const result = await bulkUpdateSamples(patches);
+  const logNote = note ? (reason + ' — ' + note) : reason;
+  for (const s of targets) {
+    await logEvent(s.id, 'returned', 'Returned to reception: ' + logNote);
+  }
+  return result;
+}
+
+/**
+ * Reception edits and resubmits returned samples to their lab.
+ * @param {Array<{id:string, lab_id:string, test_id:string, test_name?:string,
+ *                sampleType?:string, selectedElements?:string[]}>} items
+ * @param {string} [note]
+ */
+async function resubmitSamples(items, note) {
+  const list = items || [];
+  if (!list.length) throw new Error('Select at least one sample to resubmit.');
+
+  // Validate everything first so a partial batch is never written.
+  const validated = list.map(item => {
+    const s = getSample(item.id);
+    if (!s) throw new Error('Sample not found. Refresh and try again.');
+    if (!isSampleReturned(s)) {
+      throw new Error('Sample ' + (s.sampleId || s.id) + ' is no longer awaiting review.');
+    }
+    if (!item.lab_id) throw new Error('Select a laboratory before resubmitting.');
+    if (!item.test_id) throw new Error('Select a test for sample ' + (s.sampleId || s.id) + '.');
+
+    const test = getTest(item.test_id);
+    const elements = item.selectedElements || [];
+    if (test && test.requires_elements !== false && elements.length === 0) {
+      throw new Error('Select at least one element for sample ' + (s.sampleId || s.id) + '.');
+    }
+
+    return { sample: s, item, test, elements };
+  });
+
+  const now = new Date().toISOString();
+  const patches = validated.map(({ sample, item, test, elements }) => ({
+    id: sample.id,
+    sampleId: sample.sampleId,
+    lab_id: item.lab_id,
+    test_id: item.test_id,
+    test_name: item.test_name || (test ? test.test_name : sample.test_name || ''),
+    sampleType: item.sampleType || sample.sampleType,
+    selectedElements: elements,
+    elementCount: elements.length,
+    status: 'assigned',
+    assigned_at: now,
+    // Clear the return metadata (return_count is kept as an audit counter).
+    return_reason: '',
+    returned_by: '',
+    returned_at: null,
+  }));
+
+  const result = await bulkUpdateSamples(patches);
+  for (const { sample } of validated) {
+    await logEvent(sample.id, 'resubmitted', note || 'Edited and resubmitted to lab by reception');
+  }
+  return result;
+}
+
+/**
+ * Reception closes returned samples without analysis.
+ * Archived samples count as "completed" in the progress report.
+ * @param {string[]} sampleIds
+ * @param {string} reason - required
+ * @param {string} [note]
+ */
+async function archiveReturnedSamples(sampleIds, reason, note) {
+  const ids = [...new Set(sampleIds || [])];
+  if (!ids.length) throw new Error('Select at least one sample to archive.');
+  if (!reason) throw new Error('An archive reason is required.');
+
+  const targets = ids.map(id => getSample(id)).filter(Boolean);
+  if (targets.length !== ids.length) {
+    throw new Error('Some selected samples no longer exist. Refresh and try again.');
+  }
+
+  const notReturned = targets.filter(s => !isSampleReturned(s));
+  if (notReturned.length) {
+    throw new Error(notReturned.length + ' selected sample(s) are not awaiting review. Refresh the page.');
+  }
+
+  const now   = new Date().toISOString();
+  const actor = currentUser();
+  const actorName = actor ? actor.full_name : 'Receptionist';
+
+  const patches = targets.map(s => ({
+    id: s.id,
+    sampleId: s.sampleId,
+    status: 'archived',
+    archived_at: now,
+    archived_by: actorName,
+    archive_reason: reason,
+  }));
+
+  const result = await bulkUpdateSamples(patches);
+  const logNote = note ? (reason + ' — ' + note) : reason;
+  for (const s of targets) {
+    await logEvent(s.id, 'archived', 'Archived by reception: ' + logNote);
+  }
+  return result;
+}
+
+/**
+ * Move archived samples back into the lab queue.
+ * @param {string[]} sampleIds
+ * @param {string} [note]
+ */
+async function restoreArchivedSamples(sampleIds, note) {
+  const ids = [...new Set(sampleIds || [])];
+  if (!ids.length) throw new Error('Select at least one sample to restore.');
+
+  const targets = ids.map(id => getSample(id)).filter(Boolean);
+  if (targets.length !== ids.length) {
+    throw new Error('Some selected samples no longer exist. Refresh and try again.');
+  }
+
+  const notArchived = targets.filter(s => !isSampleArchived(s));
+  if (notArchived.length) {
+    throw new Error(notArchived.length + ' selected sample(s) are not archived. Refresh the page.');
+  }
+
+  const now = new Date().toISOString();
+  const patches = targets.map(s => ({
+    id: s.id,
+    sampleId: s.sampleId,
+    status: 'assigned',
+    assigned_at: now,
+    archived_at: null,
+    archived_by: '',
+    archive_reason: '',
+  }));
+
+  const result = await bulkUpdateSamples(patches);
+  for (const s of targets) {
+    await logEvent(s.id, 'restored', note || 'Restored from archive and sent back to lab');
+  }
+  return result;
+}
+
+/**
+ * Flag any saved PNAC/QSCert report data for a submission as out of date
+ * (called after reception edits and resubmits samples).
+ * @param {string} fullSubmissionId - e.g. "26-07-AAS-1041"
+ * @returns {Promise<number>} number of reports flagged
+ */
+async function markSavedReportsStale(fullSubmissionId) {
+  if (!fullSubmissionId) return 0;
+  const targets = DB.savedReports.filter(r => r.submission_id === fullSubmissionId && !r.is_stale);
+  for (const r of targets) {
+    try {
+      await supabaseUpdate('saved_reports', r.id, { is_stale: true, updated_at: new Date().toISOString() });
+      r.is_stale = true;
+    } catch (err) {
+      console.warn('[DB] Could not flag saved report as stale:', err.message);
+    }
+  }
+  return targets.length;
+}
+
+/* ── Workflow queries ────────────────────────────────────────── */
+
+/** All samples currently waiting for reception review, newest first. */
+function getReturnedSamples() {
+  return DB.samples
+    .filter(isSampleReturned)
+    .sort((a, b) => new Date(b.returned_at || b.created_at) - new Date(a.returned_at || a.created_at));
+}
+
+/** All archived samples, most recently archived first. */
+function getArchivedSamples() {
+  return DB.samples
+    .filter(isSampleArchived)
+    .sort((a, b) => new Date(b.archived_at || b.created_at) - new Date(a.archived_at || a.created_at));
+}
+
+/** Count of samples waiting for reception review (used for tab badges). */
+function getReturnedSampleCount() {
+  return DB.samples.filter(isSampleReturned).length;
+}
+
+/**
+ * Group an arbitrary list of samples by submission.
+ * Shared by the lab dashboard, reception dashboard and review queue so the
+ * aggregate status rules can never drift apart.
+ * @param {Array<object>} samples
+ * @returns {Array<object>}
+ */
+function groupSamplesBySubmission(samples) {
+  const list = samples || [];
+  const grouped = {};
+
+  list.forEach(s => {
+    const subId = s.submissionId || 'standalone';
+    if (!grouped[subId]) {
+      grouped[subId] = {
+        submissionId: subId,
+        samples: [],
+        customer_name: s.customer_name || '',
+        lab_id: s.lab_id || '',
+        test_name: s.test_name || '',
+        collected_by: s.collected_by || '',
+        created_at: s.created_at || '',
+      };
+    }
+    grouped[subId].samples.push(s);
+  });
+
+  return Object.values(grouped).map(g => {
+    const sorted = [...g.samples].sort((a, b) => {
+      const aSeq = (a.sampleId || '').split('-').pop() || '';
+      const bSeq = (b.sampleId || '').split('-').pop() || '';
+      return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+    });
+
+    const returned = g.samples.filter(isSampleReturned);
+    const archived = g.samples.filter(isSampleArchived);
+    const done     = g.samples.filter(isSampleDone);
+
+    const firstSampleId = sorted.length ? (sorted[0].sampleId || sorted[0].sampleNumber || '') : '';
+    const lastSampleId  = sorted.length ? (sorted[sorted.length - 1].sampleId || sorted[sorted.length - 1].sampleNumber || '') : '';
+
+    const dates       = g.samples.map(s => s.created_at).filter(Boolean).sort();
+    const returnDates = returned.map(s => s.returned_at).filter(Boolean).sort().reverse();
+
+    return {
+      submissionId: g.submissionId,
+      samples: g.samples,
+      sortedSamples: sorted,
+      customer_name: g.customer_name,
+      lab_id: g.lab_id,
+      test_name: g.test_name,
+      collected_by: g.collected_by,
+      sampleCount: g.samples.length,
+      statusSummary: summariseSampleStatuses(g.samples),
+      firstSampleId,
+      lastSampleId,
+      created_at: dates[0] || g.created_at,
+      // Workflow flags
+      returnedSamples: returned,
+      returnedCount: returned.length,
+      hasReturned: returned.length > 0,
+      archivedCount: archived.length,
+      hasArchived: archived.length > 0,
+      doneCount: done.length,
+      allDone: g.samples.length > 0 && done.length === g.samples.length,
+      latestReturnedAt: returnDates[0] || null,
+    };
+  });
+}
+
+/** Submissions (from any receptionist) containing at least one returned sample. */
+function getReturnedSubmissions() {
+  return groupSamplesBySubmission(getReturnedSamples())
+    .sort((a, b) => new Date(b.latestReturnedAt || b.created_at) - new Date(a.latestReturnedAt || a.created_at));
+}
+
+/** Submissions containing at least one archived sample. */
+function getArchivedSubmissions() {
+  return groupSamplesBySubmission(getArchivedSamples())
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
 /* Reports */
 async function createReport(data) {
   const lab = DB.labs.find(l => l.id === data.lab_id);
@@ -478,16 +842,10 @@ function getSubmissionsForLab(lab_id) {
 
   return Object.values(grouped).map(g => {
     const sampleIds = g.samples.map(s => s.sampleId || s.sampleNumber || s.id).filter(Boolean);
-    const statuses = g.samples.map(s => s.status);
-    // Determine aggregate status (least progressed = highest priority, shown first)
-    const statusOrder = ['received', 'assigned', 'in_progress', 'completed'];
-    let statusSummary = 'received';
-    for (const st of statusOrder) {
-      if (statuses.includes(st)) {
-        statusSummary = st;
-        break;
-      }
-    }
+    // Aggregate status — anything needing attention wins, archived counts as completed
+    const statusSummary   = summariseSampleStatuses(g.samples);
+    const returnedSamples = g.samples.filter(isSampleReturned);
+    const archivedSamples = g.samples.filter(isSampleArchived);
 
     // Sort samples by their sequence number within the sampleId
     const sorted = [...g.samples].sort((a, b) => {
@@ -515,6 +873,12 @@ function getSubmissionsForLab(lab_id) {
       firstSampleId,
       lastSampleId,
       created_at,
+      // Workflow flags
+      hasReturned: returnedSamples.length > 0,
+      returnedCount: returnedSamples.length,
+      hasArchived: archivedSamples.length > 0,
+      archivedCount: archivedSamples.length,
+      allDone: g.samples.length > 0 && g.samples.every(isSampleDone),
     };
   }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
@@ -539,6 +903,9 @@ function getReportsForSubmission(submissionId) {
  */
 async function generateSubmissionReports(submissionId, lab_id, actorId, actorName) {
   const samples = DB.samples.filter(s => s.submissionId === submissionId);
+  // Only analysed samples get a report. Archived samples (closed by reception
+  // without analysis) are intentionally excluded — they still count as
+  // "completed" in the progress report, but they have no analytical results.
   const completedSamples = samples.filter(s => s.status === 'completed');
   const lab = DB.labs.find(l => l.id === lab_id);
   const labCode = lab?.lab_code || 'LAB';

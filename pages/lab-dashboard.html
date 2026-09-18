@@ -72,11 +72,17 @@
           <div class="stat-value" id="stat-done">0</div>
           <div class="stat-label">Completed</div>
         </div>
+        <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#f59e0b,#b45309);">
+          <div class="stat-icon">↩</div>
+          <div class="stat-value" id="stat-returned">0</div>
+          <div class="stat-label">Returned to Reception</div>
+        </div>
       </div>
 
       <!-- Tab Bar -->
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="eng-tab-assigned">🧫 Assigned Samples</button>
+        <button class="tab-btn" data-tab="eng-tab-returned">↩ Returned to Reception</button>
         <button class="tab-btn" data-tab="eng-tab-completed">📄 Completed Reports</button>
       </div>
 
@@ -101,7 +107,29 @@
           </table>
         </div>
         <p style="font-size:0.78rem;color:var(--txt-muted);margin-top:var(--sp-3);padding-left:4px;">
-          💡 Click any row to open the sample details panel.
+          💡 Click any row to open the sample details panel. Use "↩ Return" if this lab cannot analyse a sample.
+        </p>
+        <div id="assigned-returned-banner" style="display:none;margin-top:var(--sp-3);padding:var(--sp-3) var(--sp-4);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--r-md);font-size:0.8rem;color:#b45309;"></div>
+      </div>
+
+      <!-- ── TAB: RETURNED TO RECEPTION ──────────────────────── -->
+      <div id="eng-tab-returned" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Samples Returned to Reception</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Submission #</th><th>Client</th><th>Returned</th>
+                <th>Samples</th><th>Return Reason</th><th>Returned By</th><th>Returned On</th>
+              </tr>
+            </thead>
+            <tbody id="returned-tbody"></tbody>
+          </table>
+        </div>
+        <p style="font-size:0.78rem;color:var(--txt-muted);margin-top:var(--sp-3);padding-left:4px;">
+          💡 Samples leave this list automatically once reception resubmits them (they move back to Assigned Samples) or archives them (they move to Completed Reports).
         </p>
       </div>
 
@@ -115,7 +143,7 @@
             <thead>
               <tr>
                 <th>Submission #</th><th>Client</th><th>Test</th>
-                <th>Samples</th><th>Sample Range</th><th>Report #</th><th>Completed</th>
+                <th>Samples</th><th>Sample Range</th><th>Status</th><th>Report #</th><th>Completed</th>
               </tr>
             </thead>
             <tbody id="completed-tbody"></tbody>
@@ -137,7 +165,10 @@
     <div class="side-panel-body" id="panel-body">
       <!-- Populated by JS -->
     </div>
-    <div class="side-panel-footer">
+    <div class="side-panel-footer" style="display:flex;gap:var(--sp-2);flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="btn-return-to-reception" style="display:none;color:#b45309;border:1px solid rgba(245,158,11,0.4);">
+        ↩ Return to Reception
+      </button>
       <button class="btn btn-success" id="btn-mark-all-complete" style="display:none;">
         ✓ Mark All Complete
       </button>
@@ -145,6 +176,51 @@
   </div>
 </div>
 
+<!-- ── MODAL: Return Samples to Reception ────────────────────── -->
+<div class="modal-backdrop" id="modal-return-sample">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title" style="color:#b45309;">↩ Return Samples to Reception</h2>
+      <button class="modal-close" id="close-return-modal">✕</button>
+    </div>
+    <div class="modal-body" style="padding:var(--sp-6);">
+      <p id="return-modal-info" style="font-size:0.82rem;color:var(--txt-secondary);margin-bottom:var(--sp-4);"></p>
+
+      <div id="return-saved-report-warning" style="display:none;margin-bottom:var(--sp-4);padding:var(--sp-3);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--r-md);font-size:0.78rem;color:#b45309;"></div>
+
+      <div class="form-group" style="margin-bottom:var(--sp-4);">
+        <label class="form-label" for="return-reason-select">Reason <span style="color:var(--clr-danger);">*</span></label>
+        <select class="form-control" id="return-reason-select">
+          <option value="">Select a reason…</option>
+        </select>
+        <p style="font-size:0.72rem;color:var(--txt-muted);margin-top:4px;">
+          Reception sees this reason and can change the lab, test, elements or sample type before resubmitting.
+        </p>
+      </div>
+
+      <div class="form-group" id="return-other-wrap" style="margin-bottom:var(--sp-4);">
+        <label class="form-label" for="return-note-input">
+          Notes <span id="return-note-required" style="color:var(--clr-danger);display:none;">*</span>
+        </label>
+        <textarea class="form-control" id="return-note-input" rows="2"
+                  placeholder="Add any detail reception should know…" style="resize:vertical;"></textarea>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:var(--sp-2);font-size:0.78rem;font-weight:600;margin-bottom:var(--sp-2);cursor:pointer;">
+        <input type="checkbox" id="return-select-all" checked style="width:16px;height:16px;cursor:pointer;" />
+        Select all samples
+      </label>
+      <div id="return-samples-list" style="max-height:280px;overflow-y:auto;"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="cancel-return-modal">Cancel</button>
+      <button type="button" class="btn btn-primary" id="btn-confirm-return"
+              style="background:linear-gradient(135deg,#f59e0b,#b45309);border:none;color:#fff;">↩ Return to Reception</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── REPORT GENERATION MODAL ────────────────────────────── -->
 <!-- ── REPORT GENERATION MODAL ────────────────────────────── -->
 <div class="side-panel-overlay" id="report-overlay">
   <div class="side-panel" style="max-width:900px;width:90%;">

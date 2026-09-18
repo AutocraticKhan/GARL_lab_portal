@@ -54,6 +54,8 @@
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="rec-tab-new">➕ New Submission</button>
         <button class="tab-btn" data-tab="rec-tab-submissions">📋 My Submissions</button>
+        <button class="tab-btn" data-tab="rec-tab-review">↩ Review Samples</button>
+        <button class="tab-btn" data-tab="rec-tab-archived">🗄️ Archived</button>
         <button class="tab-btn" data-tab="rec-tab-all-samples">📊 All Samples</button>
         <button class="tab-btn" data-tab="rec-tab-reports">📄 Lab Reports</button>
         <button class="tab-btn" data-tab="rec-tab-lookup">🔍 Sample Lookup</button>
@@ -214,6 +216,14 @@
         <div class="table-wrap">
           <div class="table-toolbar">
             <span class="table-toolbar-title">My Submitted Samples</span>
+            <div style="display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" id="mySubFilterAll">All</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="mySubFilterReview">Needs Review (0)</button>
+              <div class="search-box">
+                <span>🔍</span>
+                <input type="text" id="mySubSearch" placeholder="Search…" />
+              </div>
+            </div>
           </div>
           <table>
             <thead>
@@ -232,12 +242,78 @@
         </div>
       </div>
 
+      <!-- ── TAB: REVIEW SAMPLES (returned by the lab) ───────── -->
+      <div id="rec-tab-review" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">↩ Samples Returned for Review</span>
+            <span id="review-queue-count" style="font-size:0.8rem;color:var(--txt-muted);"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Submission #</th><th>Customer</th><th>Lab</th><th>Test</th>
+                <th style="text-align:center;">Returned</th><th>Reason (latest)</th>
+                <th>Returned At</th><th>Submitted By</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="review-tbody"></tbody>
+          </table>
+          <div class="pagination-container" id="review-pagination" style="display:none;">
+            <button id="reviewPrevBtn" disabled>← Previous</button>
+            <span class="page-indicator" id="reviewPageIndicator">Page 1 of 1</span>
+            <button id="reviewNextBtn" disabled>Next →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: ARCHIVED SAMPLES ───────────────────────────── -->
+      <div id="rec-tab-archived" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">🗄️ Archived Samples</span>
+            <div style="display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap;">
+              <div class="search-box">
+                <span>🔍</span>
+                <input type="text" id="archived-search" placeholder="Search…" />
+              </div>
+              <span id="archived-count" style="font-size:0.8rem;color:var(--txt-muted);"></span>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Sample ID</th><th>Submission #</th><th>Customer</th><th>Lab</th>
+                <th>Test</th><th>Archive Reason</th><th>Archived By</th><th>Archived At</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="archived-tbody"></tbody>
+          </table>
+          <div class="pagination-container" id="archived-pagination" style="display:none;">
+            <button id="archivedPrevBtn" disabled>← Previous</button>
+            <span class="page-indicator" id="archivedPageIndicator">Page 1 of 1</span>
+            <button id="archivedNextBtn" disabled>Next →</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ── TAB: ALL SAMPLES (Paginated Table) ─────────────── -->
       <div id="rec-tab-all-samples" class="tab-panel">
         <div class="table-wrap">
           <div class="table-toolbar">
             <span class="table-toolbar-title">Registered Samples</span>
-            <span id="total-sample-count" style="font-size:0.8rem;color:var(--txt-muted);"></span>
+            <div style="display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap;">
+              <select id="all-samples-status-filter" class="form-control" style="padding:4px 8px;font-size:0.8rem;">
+                <option value="">All Statuses</option>
+                <option value="received">Received</option>
+                <option value="assigned">Assigned</option>
+                <option value="in_progress">In Progress</option>
+                <option value="returned">Returned to Reception</option>
+                <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
+              </select>
+              <span id="total-sample-count" style="font-size:0.8rem;color:var(--txt-muted);"></span>
+            </div>
           </div>
           <table>
             <thead>
@@ -339,6 +415,37 @@
     </div>
     <div class="side-panel-body" id="rec-report-body" style="padding:0;background:#f1f5f9;overflow-y:auto;">
       <!-- Dynamically populated by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ── SIDE PANEL: Review & Resubmit (returned samples) ────── -->
+<div class="side-panel-overlay" id="rec-review-overlay">
+  <div class="side-panel" style="max-width:780px;width:96%;">
+    <div class="side-panel-header">
+      <div class="side-panel-title" id="rec-review-title">Review Returned Samples</div>
+      <button class="modal-close" id="close-rec-review-panel">✕</button>
+    </div>
+    <div class="side-panel-body" id="rec-review-body">
+      <!-- Populated by JS -->
+    </div>
+    <div class="side-panel-footer" id="rec-review-footer" style="display:none;">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ── CONFIRMATION MODAL (generic, reception) ──────────────── -->
+<div class="modal-backdrop" id="modal-rec-confirm">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="rec-confirm-title">Please Confirm</h2>
+      <button class="modal-close" id="rec-confirm-x">✕</button>
+    </div>
+    <div class="modal-body" id="rec-confirm-message" style="padding:var(--sp-6);font-size:0.9rem;"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" id="rec-confirm-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="rec-confirm-ok">Confirm</button>
     </div>
   </div>
 </div>

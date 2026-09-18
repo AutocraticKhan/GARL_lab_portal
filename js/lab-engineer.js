@@ -30,7 +30,7 @@ function wireLabEngineerLabName() {
 }
 
 // ── Tab switching ─────────────────────────────────────────────
-function switchEngTab(tabId) {
+async function switchEngTab(tabId) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const btn   = document.querySelector(`[data-tab="${tabId}"]`);
@@ -38,7 +38,19 @@ function switchEngTab(tabId) {
   if (btn) btn.classList.add('active');
   if (panel) panel.classList.add('active');
 
+  // Pull the latest samples so a resubmission made by reception shows up
+  // immediately without a page reload. Falls back to the cache when offline.
+  if (tabId === 'eng-tab-assigned' || tabId === 'eng-tab-returned' || tabId === 'eng-tab-completed') {
+    try {
+      await refreshTable('samples');
+    } catch (err) {
+      console.warn('[LAB] Could not refresh samples, using cached data:', err.message);
+    }
+  }
+
+  renderLabStats();
   if (tabId === 'eng-tab-assigned')  renderAssignedSamples();
+  if (tabId === 'eng-tab-returned')  renderReturnedSubmissions();
   if (tabId === 'eng-tab-completed') renderCompletedReports();
 }
 
@@ -56,6 +68,37 @@ function wireEngEvents() {
 
   // Mark all complete button (in panel footer)
   document.getElementById('btn-mark-all-complete').addEventListener('click', handleMarkAllComplete);
+
+  // ── Return-to-reception wiring ──
+  const returnBtn = document.getElementById('btn-return-to-reception');
+  if (returnBtn) returnBtn.addEventListener('click', () => openReturnModal(activeSubmissionId));
+
+  const closeReturnBtn = document.getElementById('close-return-modal');
+  if (closeReturnBtn) closeReturnBtn.addEventListener('click', () => closeModal('modal-return-sample'));
+  const cancelReturnBtn = document.getElementById('cancel-return-modal');
+  if (cancelReturnBtn) cancelReturnBtn.addEventListener('click', () => closeModal('modal-return-sample'));
+
+  const returnOverlay = document.getElementById('modal-return-sample');
+  if (returnOverlay) {
+    returnOverlay.addEventListener('click', (e) => {
+      if (e.target === returnOverlay) closeModal('modal-return-sample');
+    });
+  }
+
+  const returnReasonSel = document.getElementById('return-reason-select');
+  if (returnReasonSel) returnReasonSel.addEventListener('change', toggleReturnOtherField);
+
+  const confirmReturnBtn = document.getElementById('btn-confirm-return');
+  if (confirmReturnBtn) confirmReturnBtn.addEventListener('click', handleReturnSubmit);
+
+  const returnSelectAll = document.getElementById('return-select-all');
+  if (returnSelectAll) {
+    returnSelectAll.addEventListener('change', () => {
+      document.querySelectorAll('#return-samples-list input[type="checkbox"]').forEach(chk => {
+        if (!chk.disabled) chk.checked = returnSelectAll.checked;
+      });
+    });
+  }
 
   // Report modal close
   document.getElementById('close-report-panel').addEventListener('click', () => closePanel('report-overlay'));
@@ -82,23 +125,47 @@ function wireEngEvents() {
   document.getElementById('assigned-search').addEventListener('input', debounce(renderAssignedSamples, 250));
 }
 
+// ── Lab stats row ─────────────────────────────────────────────
+function renderLabStats() {
+  const allSamples = getSamplesForLab(engSession.lab_id);
+
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
+  setText('stat-total', allSamples.length);
+  setText('stat-assigned', allSamples.filter(isSampleActionable).length);
+  setText('stat-progress', allSamples.filter(s => s.status === 'in_progress').length);
+  setText('stat-done', allSamples.filter(isSampleDone).length);
+  setText('stat-returned', allSamples.filter(isSampleReturned).length);
+}
+
 // ── Assigned Samples (Grouped by Submission) ─────────────────
 function renderAssignedSamples() {
   const query = (document.getElementById('assigned-search').value || '').toLowerCase();
   const tbody = document.getElementById('assigned-tbody');
   const lab   = getLab(engSession.lab_id);
 
-  // Stats (individual samples)
-  const allSamples = getSamplesForLab(engSession.lab_id);
-  document.getElementById('stat-total').textContent   = allSamples.length;
-  document.getElementById('stat-assigned').textContent = allSamples.filter(s => s.status === 'assigned').length;
-  document.getElementById('stat-progress').textContent  = allSamples.filter(s => s.status === 'in_progress').length;
-  document.getElementById('stat-done').textContent      = allSamples.filter(s => s.status === 'completed').length;
+  renderLabStats();
 
-  // Get submissions (only ones with at least one non-completed sample)
+  // Only submissions that still have at least one sample for this lab to work on
   let submissions = getSubmissionsForLab(engSession.lab_id)
-    .filter(sub => sub.samples.some(s => s.status !== 'completed'))
+    .filter(sub => sub.samples.some(isSampleActionable))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  // Banner: samples sent back and now waiting on reception
+  const banner = document.getElementById('assigned-returned-banner');
+  if (banner) {
+    const returnedCount = getSamplesForLab(engSession.lab_id).filter(isSampleReturned).length;
+    if (returnedCount > 0) {
+      banner.style.display = 'block';
+      banner.innerHTML = '↩ <strong>' + returnedCount + '</strong> sample(s) from this lab are waiting on reception review. ' +
+        '<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="switchEngTab(\'eng-tab-returned\')">View Returned</button>';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
 
   if (query) {
     submissions = submissions.filter(sub =>
@@ -142,7 +209,9 @@ function renderAssignedSamples() {
       '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
       '<td style="text-align:center;font-weight:600;">' + sub.sampleCount + '</td>' +
       '<td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">' + sampleRange + '</td>' +
-      '<td>' + statusBadge(sub.statusSummary) + '</td>' +
+      '<td>' + statusBadge(sub.statusSummary) +
+        (sub.hasReturned ? ' <span class="badge badge-returned" title="Samples waiting on reception review">↩ ' + sub.returnedCount + '</span>' : '') +
+      '</td>' +
       '<td>' + (overdue ? '<span class="badge badge-danger" style="background:rgba(239,68,68,0.1);color:#dc2626;border:1px solid rgba(239,68,68,0.2);">⚠ Overdue</span>' : '<span style="color:var(--txt-muted);font-size:0.8rem;">On track</span>') + '</td>' +
     '</tr>';
   }).join('');
@@ -152,11 +221,11 @@ function renderAssignedSamples() {
 function renderCompletedReports() {
   const tbody = document.getElementById('completed-tbody');
   const submissions = getSubmissionsForLab(engSession.lab_id)
-    .filter(sub => sub.samples.every(s => s.status === 'completed'))
+    .filter(sub => sub.samples.length > 0 && sub.samples.every(isSampleDone))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (!submissions.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed submissions yet</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div><p>No completed submissions yet</p></div></td></tr>';
     return;
   }
 
@@ -164,7 +233,12 @@ function renderCompletedReports() {
     const subReports = getReportsForSubmission(sub.submissionId);
     const reportNumbers = subReports.map(r => r.report_number).filter(Boolean).join(', ');
 
-    const completedDates = sub.samples.map(s => s.completed_at).filter(Boolean).sort().reverse();
+    // Archived samples have no completed_at — fall back to archived_at
+    const completedDates = sub.samples
+      .map(s => s.completed_at || s.archived_at)
+      .filter(Boolean)
+      .sort()
+      .reverse();
     const completedDate = completedDates[0] || sub.created_at;
 
     let sampleRange = '—';
@@ -189,8 +263,43 @@ function renderCompletedReports() {
       '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
       '<td style="text-align:center;font-weight:600;">' + sub.sampleCount + '</td>' +
       '<td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">' + sampleRange + '</td>' +
+      '<td>' + statusBadge(sub.statusSummary) +
+        (sub.hasArchived ? ' <span class="badge badge-archived" title="' + sub.archivedCount + ' sample(s) archived without analysis">🗄️ ' + sub.archivedCount + '</span>' : '') +
+      '</td>' +
       '<td><code style="font-size:0.75rem;color:var(--clr-accent)">' + escHtml(reportNumbers || '—') + '</code></td>' +
       '<td class="muted">' + formatDate(completedDate) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ─ Returned to Reception (read-only, for the lab's own records) ──
+function renderReturnedSubmissions() {
+  const tbody = document.getElementById('returned-tbody');
+  if (!tbody) return;
+
+  const submissions = groupSamplesBySubmission(getSamplesForLab(engSession.lab_id).filter(isSampleReturned))
+    .sort((a, b) => new Date(b.latestReturnedAt || b.created_at) - new Date(a.latestReturnedAt || a.created_at));
+
+  if (!submissions.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">↩</div><p>No samples have been returned to reception from this lab</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = submissions.map(sub => {
+    const reasons = [...new Set(sub.returnedSamples.map(s => s.return_reason).filter(Boolean))];
+    const sampleList = sub.returnedSamples
+      .map(s => s.sampleId || s.sampleNumber || s.id)
+      .slice(0, 3)
+      .join(', ') + (sub.returnedSamples.length > 3 ? ' +' + (sub.returnedSamples.length - 3) + ' more' : '');
+
+    return '<tr class="clickable" onclick="openSubmissionPanel(\'' + sub.submissionId + '\')">' +
+      '<td><strong style="color:var(--clr-primary)">#' + escHtml(sub.submissionId) + '</strong></td>' +
+      '<td>' + escHtml(sub.customer_name || '—') + '</td>' +
+      '<td style="text-align:center;font-weight:600;">' + sub.returnedCount + '</td>' +
+      '<td style="font-size:0.75rem;font-family:monospace;color:var(--txt-secondary);">' + escHtml(sampleList) + '</td>' +
+      '<td style="font-size:0.78rem;color:#b45309;">' + escHtml(reasons.join(' · ') || '—') + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + escHtml([...new Set(sub.returnedSamples.map(s => s.returned_by).filter(Boolean))].join(', ') || '—') + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + (sub.latestReturnedAt ? formatDateTime(sub.latestReturnedAt) : '—') + '</td>' +
     '</tr>';
   }).join('');
 }
@@ -239,7 +348,9 @@ function openSubmissionPanel(submissionId) {
     .map(([st, cnt]) => st.replace('_', ' ') + ': ' + cnt)
     .join(' · ');
 
-  const allCompleted = sortedSamples.every(s => s.status === 'completed');
+  const allDone = sortedSamples.length > 0 && sortedSamples.every(isSampleDone);
+  const actionableSamples = sortedSamples.filter(isSampleActionable);
+  const returnableSamples = sortedSamples.filter(s => !isSampleDone(s) && !isSampleReturned(s));
 
   const sampleRows = sortedSamples.map(s => {
     const elements = s.selectedElements || [];
@@ -253,27 +364,59 @@ function openSubmissionPanel(submissionId) {
         }).join(', ')
       : (requiresElems ? '—' : 'No elements required');
     const isCompleted = s.status === 'completed';
+    const isArchived  = isSampleArchived(s);
+    const isReturned  = isSampleReturned(s);
+    const isDone      = isSampleDone(s);
+    const canReturn   = !isDone && !isReturned;
     const sampleIdLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
 
-    return '<div class="submission-sample-row" data-sample-id="' + s.id + '" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:' + (isCompleted ? 'rgba(16,185,129,0.05)' : 'var(--clr-surface)') + ';">' +
+    const rowBg = isArchived ? 'rgba(100,116,139,0.08)'
+                : isReturned ? 'rgba(245,158,11,0.08)'
+                : isCompleted ? 'rgba(16,185,129,0.05)'
+                : 'var(--clr-surface)';
+
+    const statusCell = isArchived
+      ? '<span style="font-size:0.72rem;color:var(--txt-secondary);font-weight:600;">🗄️ Archived</span>'
+      : isReturned
+        ? '<span style="font-size:0.72rem;color:#b45309;font-weight:600;">↩ Awaiting reception</span>'
+        : isCompleted
+          ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>'
+          : statusBadge(s.status);
+
+    return '<div class="submission-sample-row" data-sample-id="' + s.id + '" style="border:1px solid var(--clr-border);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2);background:' + rowBg + ';">' +
       '<div style="display:flex;align-items:flex-start;gap:var(--sp-3);">' +
         '<div style="padding-top:2px;">' +
           '<input type="checkbox" class="sample-complete-chk" data-sample-id="' + s.id + '" ' +
                  (isCompleted ? 'checked' : '') + ' ' +
+                 (isDone || isReturned ? 'disabled title="This sample is no longer being analysed here"' : '') + ' ' +
                  'onchange="toggleSampleComplete(\'' + s.id + '\', this.checked)" ' +
                  'style="width:18px;height:18px;cursor:pointer;accent-color:var(--clr-success);" />' +
         '</div>' +
         '<div style="flex:1;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-1);gap:8px;flex-wrap:wrap;">' +
             '<div>' +
               '<span style="font-weight:600;font-family:monospace;font-size:0.85rem;color:' + (isCompleted ? 'var(--clr-success)' : 'var(--clr-primary)') + ';">' + escHtml(sampleIdLabel) + '</span>' +
               '<span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">' + escHtml(s.sampleType || '—') + '</span>' +
             '</div>' +
-            (isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)) +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              statusCell +
+              (canReturn ? '<button class="btn btn-ghost btn-sm" title="Send this sample back to reception" onclick="openReturnModal(\'' + sub.submissionId + '\', \'' + s.id + '\')" style="color:#b45309;">↩ Return</button>' : '') +
+            '</div>' +
           '</div>' +
           '<div style="font-size:0.75rem;color:var(--txt-secondary);">' +
             '<span><strong>Elements (' + elements.length + '):</strong> ' + escHtml(elementLabels) + '</span>' +
           '</div>' +
+          (isReturned ? '<div style="margin-top:6px;font-size:0.75rem;color:#b45309;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:var(--r-sm);padding:4px 8px;">' +
+            '<strong>Returned:</strong> ' + escHtml(s.return_reason || 'No reason given') +
+            (s.returned_by ? ' · by ' + escHtml(s.returned_by) : '') +
+            (s.returned_at ? ' · ' + formatDateTime(s.returned_at) : '') +
+            ((Number(s.return_count) || 0) > 1 ? ' · returned ' + s.return_count + '×' : '') +
+          '</div>' : '') +
+          (isArchived ? '<div style="margin-top:6px;font-size:0.75rem;color:var(--txt-secondary);background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.25);border-radius:var(--r-sm);padding:4px 8px;">' +
+            '<strong>Archived:</strong> ' + escHtml(s.archive_reason || 'No reason given') +
+            (s.archived_by ? ' · by ' + escHtml(s.archived_by) : '') +
+            (s.archived_at ? ' · ' + formatDateTime(s.archived_at) : '') +
+          '</div>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -284,7 +427,9 @@ function openSubmissionPanel(submissionId) {
       '<div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">' +
         statusBadge(sub.statusSummary) +
         '<span style="font-size:0.78rem;color:var(--txt-muted);">' + statusSummaryStr + '</span>' +
-        (allCompleted ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : '') +
+        (allDone ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : '') +
+        (sub.hasReturned ? '<span style="font-size:0.72rem;background:rgba(245,158,11,0.12);color:#b45309;padding:2px 10px;border-radius:12px;font-weight:600;">↩ ' + sub.returnedCount + ' with reception</span>' : '') +
+        (sub.hasArchived ? '<span style="font-size:0.72rem;background:rgba(100,116,139,0.12);color:#475569;padding:2px 10px;border-radius:12px;font-weight:600;">🗄️ ' + sub.archivedCount + ' archived</span>' : '') +
       '</div>' +
 
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">' +
@@ -349,14 +494,24 @@ function openSubmissionPanel(submissionId) {
       '</div>' +
     '</div>';
 
-  // Show/hide the Mark All Complete button
+  // Show/hide the panel footer actions
   const markAllBtn = document.getElementById('btn-mark-all-complete');
   if (markAllBtn) {
-    if (!allCompleted && sortedSamples.length > 0) {
+    if (actionableSamples.length > 0) {
       markAllBtn.style.display = 'flex';
-      markAllBtn.textContent = '✓ Mark All Complete (' + sortedSamples.length + ')';
+      markAllBtn.textContent = '✓ Mark All Complete (' + actionableSamples.length + ')';
     } else {
       markAllBtn.style.display = 'none';
+    }
+  }
+
+  const returnToRecBtn = document.getElementById('btn-return-to-reception');
+  if (returnToRecBtn) {
+    if (returnableSamples.length > 0) {
+      returnToRecBtn.style.display = 'flex';
+      returnToRecBtn.textContent = '↩ Return to Reception (' + returnableSamples.length + ')';
+    } else {
+      returnToRecBtn.style.display = 'none';
     }
   }
 
@@ -365,6 +520,12 @@ function openSubmissionPanel(submissionId) {
 
 // ── Toggle a single sample's completion ────────────────────────
 async function toggleSampleComplete(sampleId, checked) {
+  const target = getSample(sampleId);
+  if (target && (isSampleReturned(target) || isSampleArchived(target))) {
+    showToast('This sample is no longer being analysed here. Reception is reviewing it.', 'warning');
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+    return;
+  }
   try {
     if (checked) {
       await setSampleStatus(sampleId, 'completed', 'Sample completed by ' + engSession.full_name);
@@ -372,6 +533,7 @@ async function toggleSampleComplete(sampleId, checked) {
       await setSampleStatus(sampleId, 'assigned', 'Sample reopened by ' + engSession.full_name);
     }
     showToast(checked ? 'Sample marked as complete.' : 'Sample reopened.', 'success');
+    renderLabStats();
     renderAssignedSamples();
     if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
   } catch (err) {
@@ -387,9 +549,10 @@ async function handleMarkAllComplete() {
   const sub = submissions.find(s => s.submissionId === activeSubmissionId);
   if (!sub) return;
 
-  const incomplete = sub.samples.filter(s => s.status !== 'completed');
+  // Returned and archived samples are not part of this lab's work any more.
+  const incomplete = sub.samples.filter(isSampleActionable);
   if (!incomplete.length) {
-    showToast('All samples are already complete.', 'info');
+    showToast('No samples here are waiting for analysis.', 'info');
     return;
   }
 
@@ -415,11 +578,156 @@ async function handleMarkAllComplete() {
     showToast(successCount + ' completed, ' + errorCount + ' failed.', 'warning');
   }
 
+  renderLabStats();
   renderAssignedSamples();
   if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
 }
 
-// ── Helpers for building spectro page DOM ──────────────────────
+/* ============================================================
+   RETURN TO RECEPTION  (lab engineer → reception review)
+   ============================================================ */
+
+/**
+ * Open the "return to reception" modal for a submission.
+ * @param {string} [submissionId] - defaults to the open side panel's submission
+ * @param {string} [preCheckedSampleId] - a single sample to pre-tick
+ */
+function openReturnModal(submissionId, preCheckedSampleId) {
+  const subId = submissionId || activeSubmissionId;
+  if (!subId) { showToast('Open a submission first.', 'warning'); return; }
+
+  const sub = getSubmissionsForLab(engSession.lab_id).find(s => s.submissionId === subId);
+  if (!sub) { showToast('Submission not found.', 'error'); return; }
+
+  // Only samples still being analysed here can be returned.
+  const candidates = [...sub.samples]
+    .sort((a, b) => {
+      const aSeq = (a.sampleId || '').split('-').pop() || '';
+      const bSeq = (b.sampleId || '').split('-').pop() || '';
+      return aSeq.localeCompare(bSeq, undefined, { numeric: true });
+    })
+    .filter(s => !isSampleDone(s) && !isSampleReturned(s));
+
+  if (!candidates.length) {
+    showToast('Every sample in this submission is already complete, archived, or with reception.', 'info');
+    return;
+  }
+
+  const alreadyReturned = sub.samples.filter(isSampleReturned);
+
+  // Populate the reason dropdown
+  const reasonSelect = document.getElementById('return-reason-select');
+  if (reasonSelect) {
+    reasonSelect.innerHTML = '<option value="">Select a reason…</option>' +
+      RETURN_REASONS.map(r => '<option value="' + escHtml(r) + '">' + escHtml(r) + '</option>').join('');
+    reasonSelect.value = '';
+  }
+
+  const noteInput = document.getElementById('return-note-input');
+  if (noteInput) noteInput.value = '';
+
+  // Warning about existing saved report data
+  const savedWarning = document.getElementById('return-saved-report-warning');
+  if (savedWarning) {
+    const fullSubId = getFullSubmissionId(sub);
+    const savedCount = getSavedReportsForSubmission(fullSubId).length;
+    if (savedCount > 0) {
+      savedWarning.style.display = 'block';
+      savedWarning.innerHTML = '⚠ <strong>' + savedCount + ' saved report(s)</strong> already exist for this submission. ' +
+        'Returning samples does not delete them, but reception may need to re-check the results.';
+    } else {
+      savedWarning.style.display = 'none';
+    }
+  }
+
+  renderReturnSampleList(candidates, preCheckedSampleId);
+
+  const selectAll = document.getElementById('return-select-all');
+  if (selectAll) selectAll.checked = !preCheckedSampleId;
+
+  const info = document.getElementById('return-modal-info');
+  if (info) {
+    info.textContent = 'Submission #' + sub.submissionId + ' · ' + (sub.customer_name || '—') +
+      (alreadyReturned.length ? ' · ' + alreadyReturned.length + ' sample(s) already with reception' : '');
+  }
+
+  toggleReturnOtherField();
+  openModal('modal-return-sample');
+}
+
+/** Render the selectable sample list inside the return modal. */
+function renderReturnSampleList(candidates, preCheckedSampleId) {
+  const list = document.getElementById('return-samples-list');
+  if (!list) return;
+
+  const preChecked = preCheckedSampleId ? [preCheckedSampleId] : candidates.map(s => s.id);
+
+  list.innerHTML = candidates.map(s => {
+    const idLabel = s.sampleId || s.sampleNumber || s.sampleName || '—';
+    const elements = (s.selectedElements || []).map(normalizeElementSymbol).join(', ');
+    const wasCompleted = s.status === 'completed';
+    return '<label style="display:flex;align-items:flex-start;gap:var(--sp-3);padding:var(--sp-2);border:1px solid var(--clr-border);border-radius:var(--r-sm);margin-bottom:var(--sp-2);cursor:pointer;background:var(--clr-surface);">' +
+      '<input type="checkbox" value="' + escHtml(s.id) + '" ' + (preChecked.includes(s.id) ? 'checked' : '') +
+        ' style="width:16px;height:16px;margin-top:3px;cursor:pointer;accent-color:var(--clr-warning);" />' +
+      '<span style="flex:1;">' +
+        '<span style="display:block;font-weight:600;font-family:monospace;font-size:0.82rem;color:var(--clr-primary);">' + escHtml(idLabel) + '</span>' +
+        '<span style="display:block;font-size:0.72rem;color:var(--txt-muted);">' + escHtml(s.sampleType || '—') + ' · ' + escHtml(s.test_name || '—') + '</span>' +
+        '<span style="display:block;font-size:0.72rem;color:var(--txt-secondary);">Elements: ' + escHtml(elements || '—') + '</span>' +
+        (wasCompleted ? '<span style="display:block;font-size:0.72rem;color:var(--clr-danger);margin-top:2px;">⚠ Currently marked complete — it will be reopened for review.</span>' : '') +
+      '</span>' +
+    '</label>';
+  }).join('');
+}
+
+// Highlight the notes field as required when "Other" is chosen as the reason
+function toggleReturnOtherField() {
+  const sel      = document.getElementById('return-reason-select');
+  const required = document.getElementById('return-note-required');
+  if (!sel) return;
+  const isOther = sel.value === 'Other (specify in notes)';
+  if (required) required.style.display = isOther ? 'inline' : 'none';
+}
+async function handleReturnSubmit() {
+  const subId = activeSubmissionId;
+  if (!subId) { showToast('No submission selected.', 'warning'); return; }
+
+  const reasonSelect = document.getElementById('return-reason-select');
+  const reason = reasonSelect ? reasonSelect.value : '';
+  const note = (document.getElementById('return-note-input')?.value || '').trim();
+
+  if (!reason) { showToast('Please choose a return reason.', 'warning'); return; }
+  if (reason === 'Other (specify in notes)' && !note) {
+    showToast('Please add a note explaining the reason.', 'warning');
+    return;
+  }
+
+  const checkedIds = [...document.querySelectorAll('#return-samples-list input[type="checkbox"]:checked')]
+    .map(chk => chk.value);
+  if (!checkedIds.length) { showToast('Select at least one sample to return.', 'warning'); return; }
+
+  const btn = document.getElementById('btn-confirm-return');
+  if (btn) { btn.disabled = true; btn.textContent = 'Returning…'; }
+
+  try {
+    const result = await returnSamplesToReception(checkedIds, reason, note);
+    if (result.failed > 0) {
+      showToast(result.updated + ' returned, ' + result.failed + ' failed: ' + result.errors[0], 'warning');
+    } else {
+      showToast(result.updated + ' sample(s) returned to reception for review.', 'success');
+    }
+    closeModal('modal-return-sample');
+    renderLabStats();
+    renderAssignedSamples();
+    renderReturnedSubmissions();
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+  } catch (err) {
+    showToast('Error returning sample(s): ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↩ Return to Reception'; }
+  }
+}
+
+// ─ Helpers for building spectro page DOM ──────────────────────
 
 /**
  * Create the metadata section rows for a spectro page

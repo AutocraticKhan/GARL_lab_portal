@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS samples (
   test_name TEXT DEFAULT '',
   "selectedElements" JSONB DEFAULT '[]',
   "elementCount" INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'assigned' CHECK (status IN ('received','assigned','in_progress','completed')),
+  status TEXT DEFAULT 'assigned' CHECK (status IN ('received','assigned','in_progress','completed','returned','archived')),
   customer_name TEXT NOT NULL,
   customer_contact TEXT DEFAULT '',
   customer_address TEXT DEFAULT '',
@@ -287,3 +287,37 @@ INSERT INTO elements (symbol, name, category) VALUES
   ('Tl', 'Thallium', 'trace_elements'),
   ('F', 'Fluorine', 'light_elements')
 ON CONFLICT (symbol) DO NOTHING;
+
+-- ============================================================
+-- Return / Review / Archive workflow (added later)
+-- Adds 'returned' and 'archived' sample statuses + audit columns.
+-- See also: sql/migration_return_archive.sql (standalone version)
+-- ============================================================
+
+-- Drop any existing CHECK constraint on samples.status (name-agnostic)
+DO $$
+DECLARE
+  c record;
+BEGIN
+  FOR c IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'samples'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%status%'
+  LOOP
+    EXECUTE format('ALTER TABLE samples DROP CONSTRAINT %I', c.conname);
+  END LOOP;
+END $$;
+
+ALTER TABLE samples ADD CONSTRAINT samples_status_check
+  CHECK (status IN ('received', 'assigned', 'in_progress', 'completed', 'returned', 'archived'));
+
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS returned_at    TIMESTAMPTZ;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS archived_at    TIMESTAMPTZ;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS return_reason  TEXT DEFAULT '';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS returned_by    TEXT DEFAULT '';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS return_count   INTEGER DEFAULT 0;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS archive_reason TEXT DEFAULT '';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS archived_by    TEXT DEFAULT '';
+ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS is_stale BOOLEAN DEFAULT false;

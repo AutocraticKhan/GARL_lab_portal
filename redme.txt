@@ -1,1 +1,28 @@
 ilovepakistansba
+
+════════════════════════════════════════════════════════════════
+RETURN & ARCHIVE WORKFLOW (added)
+════════════════════════════════════════════════════════════════
+
+New sample statuses (in addition to received / assigned / in_progress / completed):
+  • returned  — the lab could not analyse the sample and sent it back to reception for review.
+  • archived  — reception closed the sample without analysis. Counts as COMPLETED in the
+    progress report but no analysis report is generated for it.
+
+Flow:
+  1. Lab engineer opens an assigned submission and clicks "↩ Return to Reception"
+     (per-sample or submission-level). A return reason is REQUIRED.
+  2. Reception sees the submission highlighted in "My Submissions" (Needs Review filter)
+     and in the "↩ Review Samples" tab.
+  3. Reception opens the review panel and can:
+       - edit lab / test / sample type / elements per sample, then "↩ Resubmit Selected"
+         (samples go back to the lab queue; saved reports for that submission are
+         marked stale and must be regenerated), or
+       - pick an archive reason and "🗄️ Archive Selected" (closes without analysis).
+  4. Archived samples appear in the "🗄️ Archived" tab and can be "↻ Restore"d back
+     into the lab queue at any time.
+
+REQUIRED SQL before use — run these against Supabase (idempotent):
+  • sql/migration_return_archive.sql        (adds return/archive columns + status CHECK)
+  • the ALTER TABLE samples block appended at the end of sql/migration.sql
+  • is_stale column addition in sql/create_saved_reports.sql

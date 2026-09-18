@@ -486,7 +486,7 @@ function renderAllSamples() {
       '<td class="muted">' + formatDate(s.created_at) + '</td>' +
       '<td>' +
         '<select class="filter-control" style="font-size:0.75rem;" onchange="adminOverrideStatus(\'' + s.id + '\', this.value)">' +
-          ['received','assigned','in_progress','completed'].map(st =>
+          ['received','assigned','in_progress','returned','completed','archived'].map(st =>
             '<option value="' + st + '" ' + (s.status === st ? 'selected' : '') + '>' + st.replace('_',' ') + '</option>'
           ).join('') +
         '</select>' +

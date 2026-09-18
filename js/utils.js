@@ -221,15 +221,90 @@ function closePanel(id) {
   if (p) p.classList.remove('open');
 }
 
+// ── Sample status helpers (shared across dashboards) ──────────
+// The full lifecycle is:
+//   received → assigned → in_progress → completed
+//                            ↘ returned ↗ (lab → reception review)
+//                        returned → archived (closed without analysis)
+//                        archived → assigned (restored by reception)
+const SAMPLE_STATUS_LABELS = {
+  received:    'Received',
+  assigned:    'Assigned',
+  in_progress: 'In Progress',
+  completed:   'Completed',
+  returned:    'Returned to Reception',
+  archived:    'Archived',
+};
+
+// Priority order used when a whole submission is summarised into one badge.
+// Anything that needs attention wins over progress states.
+const SAMPLE_STATUS_ORDER = ['returned', 'received', 'assigned', 'in_progress', 'completed'];
+
+/** Archived or completed — the lab no longer has any work to do. */
+function isSampleDone(s) {
+  return !!s && (s.status === 'completed' || s.status === 'archived');
+}
+
+/** Sent back by the lab, currently sitting in the reception review queue. */
+function isSampleReturned(s) {
+  return !!s && s.status === 'returned';
+}
+
+/** Closed by reception without analysis (counts as completed in reports). */
+function isSampleArchived(s) {
+  return !!s && s.status === 'archived';
+}
+
+/** Still with the lab: received, assigned, or being analysed. */
+function isSampleActionable(s) {
+  return !!s && (s.status === 'received' || s.status === 'assigned' || s.status === 'in_progress');
+}
+
+/**
+ * Collapse a list of samples into a single summary status.
+ * Archived samples are treated as completed for display purposes.
+ * @param {Array<object>} samples
+ * @returns {string}
+ */
+function summariseSampleStatuses(samples) {
+  const list = samples || [];
+  const normalised = list.map(s => (isSampleArchived(s) ? 'completed' : s.status));
+  for (const st of SAMPLE_STATUS_ORDER) {
+    if (normalised.includes(st)) return st;
+  }
+  return normalised[0] || 'received';
+}
+
+function sampleStatusLabel(status) {
+  return SAMPLE_STATUS_LABELS[status] || status || '—';
+}
+
 // ── Status Badge ──────────────────────────────────────────────
 function statusBadge(status) {
-  const labels = {
-    received:    'Received',
-    assigned:    'Assigned',
-    in_progress: 'In Progress',
-    completed:   'Completed',
-  };
-  return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
+  return `<span class="badge badge-${status}">${sampleStatusLabel(status)}</span>`;
+}
+
+/**
+ * Disable a button while an async operation runs, showing a busy label.
+ * Restores the original label and re-enables afterwards.
+ * @param {string} id - button element id
+ * @param {boolean} busy
+ * @param {string} [label] - text to show while busy
+ */
+function setBusy(id, busy, label) {
+  const btn = typeof id === 'string' ? document.getElementById(id) : id;
+  if (!btn) return;
+  if (busy) {
+    if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ ' + (label || 'Working…');
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.origHtml) {
+      btn.innerHTML = btn.dataset.origHtml;
+      delete btn.dataset.origHtml;
+    }
+  }
 }
 
 function roleBadge(role) {

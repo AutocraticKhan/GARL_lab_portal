@@ -19,6 +19,16 @@ let reportsPage = 1;
 const REPORTS_PER_PAGE = 10;
 let activeRecReport = null; // { fullSubmissionId, reportType, reportNo }
 
+// ── Review / archive workflow state ───────────────────────────
+let reviewQueuePage = 1;
+const REVIEW_PER_PAGE = 10;
+let archivedPage = 1;
+const ARCHIVED_PER_PAGE = 10;
+let mySubFilter = 'all';        // 'all' | 'review'
+let mySubSearch = '';
+let activeReviewSubmissionId = null;
+let confirmCallback = null;
+
 async function initReceptionist() {
   recSession = requireAuth('receptionist');
   if (!recSession) return;
@@ -29,7 +39,7 @@ async function initReceptionist() {
   wireReceptionistEvents();
 }
 
-function switchRecTab(tabId) {
+async function switchRecTab(tabId) {
   // Sync top tab buttons
   document.querySelectorAll('.tab-btn').forEach(b => {
     if (b.dataset.tab === tabId) {
@@ -40,7 +50,7 @@ function switchRecTab(tabId) {
   });
 
   // Sync sidebar dashboard active state
-  const isDashboardTab = ['rec-tab-new', 'rec-tab-submissions', 'rec-tab-all-samples', 'rec-tab-lookup'].includes(tabId);
+  const isDashboardTab = ['rec-tab-new', 'rec-tab-submissions', 'rec-tab-review', 'rec-tab-archived', 'rec-tab-all-samples', 'rec-tab-lookup'].includes(tabId);
   const dashboardBtn = document.getElementById('nav-receptionist-dashboard');
   if (dashboardBtn) {
     if (isDashboardTab) {
@@ -59,12 +69,40 @@ function switchRecTab(tabId) {
     }
   });
 
+  // Pull the newest samples so returns/resubmissions from other users show up
+  if (tabId === 'rec-tab-submissions' || tabId === 'rec-tab-review' || tabId === 'rec-tab-archived' || tabId === 'rec-tab-all-samples') {
+    try {
+      await refreshTable('samples');
+    } catch (err) {
+      console.warn('[RECEPTIONIST] Could not refresh samples, using cached data:', err.message);
+    }
+  }
+
+  refreshReviewCounts();
+
   if (tabId === 'rec-tab-submissions') renderMySubmissions();
+  if (tabId === 'rec-tab-review') { reviewQueuePage = 1; renderReviewQueue(); }
+  if (tabId === 'rec-tab-archived') { archivedPage = 1; renderArchivedSamples(); }
   if (tabId === 'rec-tab-all-samples') {
     currentPage = 1;
     renderSamplesTable();
   }
   if (tabId === 'rec-tab-reports') renderLabReports();
+}
+
+/** Update the tab badges that show how many samples need reception review. */
+function refreshReviewCounts() {
+  const count = getReturnedSampleCount();
+  const tabBtn = document.querySelector('[data-tab="rec-tab-review"]');
+  if (tabBtn) {
+    tabBtn.textContent = count > 0 ? '↩ Review Samples (' + count + ')' : '↩ Review Samples';
+  }
+  const subTabBtn = document.querySelector('[data-tab="rec-tab-submissions"]');
+  if (subTabBtn) {
+    subTabBtn.textContent = count > 0 ? '📋 My Submissions (' + count + ')' : '📋 My Submissions';
+  }
+  const filterBtn = document.getElementById('mySubFilterReview');
+  if (filterBtn) filterBtn.textContent = 'Needs Review (' + count + ')';
 }
 
 // ── Global Bulk Element Picker ─────────────────────────────────
@@ -76,13 +114,37 @@ const BULK_ELEMENT_GROUPS_PANEL = [
 function initBulkElementPicker() {
   const wrapper = document.getElementById('bulkElementPicker');
   if (!wrapper) return;
+  initElementPicker(wrapper, document.getElementById('bulkSelectedElements'));
+}
 
-  const trigger = wrapper.querySelector('.bulk-element-trigger');
-  const dropdown = wrapper.querySelector('.bulk-element-dropdown');
-  const searchInput = wrapper.querySelector('.bulk-element-search');
-  const hiddenInput = document.getElementById('bulkSelectedElements');
+/**
+ * Initialise an element picker inside any wrapper that follows the
+ * .bulk-element-trigger / .bulk-element-dropdown / .bulk-chips-container
+ * markup, keeping its selection in the supplied hidden input.
+ * Safe to call once per wrapper (the review panel marks initialised wrappers).
+ * @param {HTMLElement} wrapper
+ * @param {HTMLInputElement} hiddenInput
+ */
+function initElementPicker(wrapper, hiddenInput) {
+  if (!wrapper || !hiddenInput) return;
+
+  const trigger         = wrapper.querySelector('.bulk-element-trigger');
+  const dropdown        = wrapper.querySelector('.bulk-element-dropdown');
+  const searchInput     = wrapper.querySelector('.bulk-element-search');
   const groupsContainer = wrapper.querySelector('.bulk-element-groups');
-  const itemsContainer = wrapper.querySelector('.bulk-element-items');
+  const itemsContainer  = wrapper.querySelector('.bulk-element-items');
+  if (!trigger || !dropdown || !searchInput || !itemsContainer) return;
+
+  const getSelected = () => getPickerElements(hiddenInput);
+  const setSelected = (symbols) => applyPickerElements(wrapper, hiddenInput, symbols);
+
+  function toggleSymbol(symbol) {
+    const current = getSelected();
+    const idx = current.indexOf(symbol);
+    if (idx >= 0) current.splice(idx, 1);
+    else current.push(symbol);
+    setSelected(current);
+  }
 
   // Render group buttons
   groupsContainer.innerHTML = BULK_ELEMENT_GROUPS_PANEL.map(g =>
@@ -137,7 +199,7 @@ function initBulkElementPicker() {
     const groupName = btn.dataset.group;
     const symbols = getElementSymbols(groupName);
     if (!symbols) return;
-    const current = getBulkElements();
+    const current = getSelected();
     const allInGroup = symbols.every(s => current.includes(s));
     let newElements;
     if (allInGroup) {
@@ -146,12 +208,12 @@ function initBulkElementPicker() {
       newElements = [...current];
       symbols.forEach(s => { if (!newElements.includes(s)) newElements.push(s); });
     }
-    setBulkElements(newElements);
+    setSelected(newElements);
     renderBulkItems(searchInput.value.trim());
   });
 
   function renderBulkItems(query) {
-    const selected = getBulkElements();
+    const selected = getSelected();
     const allElements = getAllElements();
 
     let filtered = allElements;
@@ -180,43 +242,63 @@ function initBulkElementPicker() {
 
     itemsContainer.querySelectorAll('.bulk-element-item').forEach(el => {
       el.addEventListener('click', () => {
-        toggleBulkElement(el.dataset.symbol);
+        toggleSymbol(el.dataset.symbol);
         renderBulkItems(searchInput.value.trim());
       });
     });
   }
 }
 
-function getBulkElements() {
-  const hidden = document.getElementById('bulkSelectedElements');
-  if (!hidden) return [];
-  return hidden.value ? hidden.value.split(',') : [];
+// ── Element picker selection helpers (shared) ─────────────────
+
+/** Read the selected symbols from a picker's hidden input. */
+function getPickerElements(hiddenInput) {
+  if (!hiddenInput || !hiddenInput.value) return [];
+  return hiddenInput.value.split(',').filter(Boolean);
 }
 
-function setBulkElements(symbols) {
-  const hidden = document.getElementById('bulkSelectedElements');
-  const chipsContainer = document.querySelector('.bulk-chips-container');
-  if (!hidden || !chipsContainer) return;
+/**
+ * Write a selection into a picker's hidden input and render its chips.
+ * @param {HTMLElement} wrapper - the picker wrapper (for chip lookup)
+ * @param {HTMLInputElement} hiddenInput
+ * @param {string[]} symbols
+ */
+function applyPickerElements(wrapper, hiddenInput, symbols) {
+  if (!hiddenInput) return;
 
-  const unique = [...new Set(symbols)].sort();
-  hidden.value = unique.join(',');
+  const unique = [...new Set(symbols || [])].sort();
+  hiddenInput.value = unique.join(',');
 
-  const chips = unique.map(s => {
-    const info = getElementInfo(s);
-    return '<span class="bulk-chip" data-symbol="' + s + '" style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;background:var(--clr-primary-g, #dbeafe);border-radius:10px;font-size:0.7rem;font-weight:600;line-height:1.4;cursor:pointer;">' +
+  const chipsContainer = wrapper ? wrapper.querySelector('.bulk-chips-container') : null;
+  if (!chipsContainer) return;
+
+  chipsContainer.innerHTML = unique.map(s =>
+    '<span class="bulk-chip" data-symbol="' + s + '" style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;background:var(--clr-primary-g, #dbeafe);border-radius:10px;font-size:0.7rem;font-weight:600;line-height:1.4;cursor:pointer;">' +
       s +
       '<span class="bulk-chip-remove">×</span>' +
-    '</span>';
-  }).join('');
-  chipsContainer.innerHTML = chips;
+    '</span>'
+  ).join('');
 
   chipsContainer.querySelectorAll('.bulk-chip').forEach(chip => {
     chip.addEventListener('click', (e) => {
       e.stopPropagation();
       const symbol = chip.dataset.symbol;
-      setBulkElements(getBulkElements().filter(s => s !== symbol));
+      applyPickerElements(wrapper, hiddenInput, getPickerElements(hiddenInput).filter(s => s !== symbol));
     });
   });
+}
+
+// ── Bulk (new submission) element picker accessors ────────────
+function getBulkElements() {
+  return getPickerElements(document.getElementById('bulkSelectedElements'));
+}
+
+function setBulkElements(symbols) {
+  applyPickerElements(
+    document.getElementById('bulkElementPicker'),
+    document.getElementById('bulkSelectedElements'),
+    symbols
+  );
 }
 
 function toggleBulkElement(symbol) {
@@ -699,6 +781,124 @@ function wireReceptionistEvents() {
     });
   }
 
+  // ── My Submissions filter & search ──
+  const mySubAllBtn = document.getElementById('mySubFilterAll');
+  const mySubReviewBtn = document.getElementById('mySubFilterReview');
+  if (mySubAllBtn) {
+    mySubAllBtn.addEventListener('click', () => {
+      mySubFilter = 'all';
+      mySubPage = 1;
+      mySubAllBtn.classList.add('active');
+      if (mySubReviewBtn) mySubReviewBtn.classList.remove('active');
+      renderMySubmissions();
+    });
+  }
+  if (mySubReviewBtn) {
+    mySubReviewBtn.addEventListener('click', () => {
+      mySubFilter = 'review';
+      mySubPage = 1;
+      mySubReviewBtn.classList.add('active');
+      if (mySubAllBtn) mySubAllBtn.classList.remove('active');
+      renderMySubmissions();
+    });
+  }
+  const mySubSearchInput = document.getElementById('mySubSearch');
+  if (mySubSearchInput) {
+    mySubSearchInput.addEventListener('input', debounce(() => {
+      mySubSearch = mySubSearchInput.value.trim();
+      mySubPage = 1;
+      renderMySubmissions();
+    }, 250));
+  }
+
+  // ── Review queue pagination ──
+  const reviewPrev = document.getElementById('reviewPrevBtn');
+  const reviewNext = document.getElementById('reviewNextBtn');
+  if (reviewPrev) {
+    reviewPrev.addEventListener('click', () => {
+      if (reviewQueuePage > 1) { reviewQueuePage--; renderReviewQueue(); }
+    });
+  }
+  if (reviewNext) {
+    reviewNext.addEventListener('click', () => {
+      const totalPages = Math.ceil(getReturnedSubmissions().length / REVIEW_PER_PAGE) || 1;
+      if (reviewQueuePage < totalPages) { reviewQueuePage++; renderReviewQueue(); }
+    });
+  }
+
+  // ── Archived tab search & pagination ──
+  const archivedSearchInput = document.getElementById('archived-search');
+  if (archivedSearchInput) {
+    archivedSearchInput.addEventListener('input', debounce(() => {
+      archivedPage = 1;
+      renderArchivedSamples();
+    }, 250));
+  }
+  const archivedPrev = document.getElementById('archivedPrevBtn');
+  const archivedNext = document.getElementById('archivedNextBtn');
+  if (archivedPrev) {
+    archivedPrev.addEventListener('click', () => {
+      if (archivedPage > 1) { archivedPage--; renderArchivedSamples(); }
+    });
+  }
+  if (archivedNext) {
+    archivedNext.addEventListener('click', () => {
+      archivedPage++;
+      renderArchivedSamples(); // render clamps the page into range
+    });
+  }
+
+  // ── All Samples status filter ──
+  const allSamplesFilter = document.getElementById('all-samples-status-filter');
+  if (allSamplesFilter) {
+    allSamplesFilter.addEventListener('change', () => {
+      currentPage = 1;
+      renderSamplesTable();
+    });
+  }
+
+  // ── Review panel close ──
+  const closeReviewBtn = document.getElementById('close-rec-review-panel');
+  if (closeReviewBtn) {
+    closeReviewBtn.addEventListener('click', () => {
+      activeReviewSubmissionId = null;
+      closePanel('rec-review-overlay');
+    });
+  }
+  const reviewOverlay = document.getElementById('rec-review-overlay');
+  if (reviewOverlay) {
+    reviewOverlay.addEventListener('click', (e) => {
+      if (e.target === reviewOverlay) {
+        activeReviewSubmissionId = null;
+        closePanel('rec-review-overlay');
+      }
+    });
+  }
+
+  // ── Generic confirm modal ──
+  const confirmOk = document.getElementById('rec-confirm-ok');
+  const confirmCancel = document.getElementById('rec-confirm-cancel');
+  const confirmX = document.getElementById('rec-confirm-x');
+  const confirmModal = document.getElementById('modal-rec-confirm');
+  const closeRecConfirmModal = () => {
+    closeModal('modal-rec-confirm');
+    confirmCallback = null;
+  };
+  if (confirmOk) {
+    confirmOk.addEventListener('click', () => {
+      const action = confirmCallback;
+      closeRecConfirmModal();
+      if (action) action();
+    });
+  }
+  if (confirmCancel) confirmCancel.addEventListener('click', closeRecConfirmModal);
+  if (confirmX) confirmX.addEventListener('click', closeRecConfirmModal);
+  if (confirmModal) {
+    confirmModal.addEventListener('click', (e) => {
+      if (e.target === confirmModal) closeRecConfirmModal();
+    });
+  }
+
   // Sample lookup
   const lookupInput = document.getElementById('lookup-input');
   if (lookupInput) {
@@ -710,65 +910,18 @@ function wireReceptionistEvents() {
   }
 }
 
-// ── Helper: get submissions collected by this receptionist ─────
+// ─ Helper: get submissions collected by this receptionist ─────
 function getMySubmissionGroups() {
   const mySamples = DB.samples.filter(s => s.collected_by === recSession.id);
-  const grouped = {};
 
-  mySamples.forEach(s => {
-    const subId = s.submissionId || 'standalone';
-    if (!grouped[subId]) {
-      grouped[subId] = {
-        submissionId: subId,
-        samples: [],
-        customer_name: s.customer_name || '',
-        lab_id: s.lab_id || '',
-        test_name: s.test_name || '',
-        created_at: s.created_at || '',
-      };
-    }
-    grouped[subId].samples.push(s);
-  });
-
-  return Object.values(grouped).map(g => {
-    const statuses = g.samples.map(s => s.status);
-    const statusOrder = ['completed', 'in_progress', 'assigned', 'received'];
-    let statusSummary = 'received';
-    for (const st of statusOrder) {
-      if (statuses.includes(st)) {
-        statusSummary = st;
-        break;
-      }
-    }
-    const allCompleted = g.samples.every(s => s.status === 'completed');
-    const hasReports = g.samples.every(s => !!getReportForSample(s.id));
-
-    const sorted = [...g.samples].sort((a, b) => {
-      const aSeq = (a.sampleId || '').split('-').pop() || '';
-      const bSeq = (b.sampleId || '').split('-').pop() || '';
-      return aSeq.localeCompare(bSeq, undefined, { numeric: true });
-    });
-
-    const firstSampleId = sorted.length > 0 ? (sorted[0].sampleId || '') : '';
-    const lastSampleId  = sorted.length > 0 ? (sorted[sorted.length - 1].sampleId || '') : '';
-    const dates = g.samples.map(s => s.created_at).filter(Boolean).sort();
-    const created_at = dates[0] || g.created_at;
-
-    return {
-      submissionId: g.submissionId,
-      samples: g.samples,
-      customer_name: g.customer_name,
-      lab_id: g.lab_id,
-      test_name: g.test_name,
-      sampleCount: g.samples.length,
-      statusSummary,
-      allCompleted,
-      hasReports,
-      firstSampleId,
-      lastSampleId,
-      created_at,
-    };
-  }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return groupSamplesBySubmission(mySamples)
+    .map(g => ({
+      ...g,
+      // Legacy flags kept for existing rendering code
+      allCompleted: g.allDone,
+      hasReports: g.samples.every(s => !!getReportForSample(s.id)),
+    }))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
 // ── My Submissions (Grouped, with Generate Report button) ─────
@@ -776,8 +929,24 @@ function renderMySubmissions() {
   const tbody = document.getElementById('my-submissions-tbody');
   let submissions = getMySubmissionGroups();
 
+  // Apply the All / Needs Review filter
+  if (mySubFilter === 'review') {
+    submissions = submissions.filter(sub => sub.hasReturned);
+  }
+  // Apply the toolbar search
+  if (mySubSearch) {
+    const q = mySubSearch.toLowerCase();
+    submissions = submissions.filter(sub =>
+      (sub.submissionId || '').toLowerCase().includes(q) ||
+      (sub.customer_name || '').toLowerCase().includes(q) ||
+      (sub.test_name || '').toLowerCase().includes(q) ||
+      (sub.samples || []).some(s => (s.sampleId || '').toLowerCase().includes(q))
+    );
+  }
+
     if (!submissions.length) {
-      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>No submissions yet</p></div></td></tr>';
+      const emptyMsg = mySubFilter === 'review' ? 'No samples currently need review' : 'No submissions yet';
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>' + emptyMsg + '</p></div></td></tr>';
     document.getElementById('my-sub-pagination').style.display = 'none';
     return;
   }
@@ -811,17 +980,24 @@ function renderMySubmissions() {
       }
     }
 
-    const completedDates = sub.samples.map(s => s.completed_at).filter(Boolean).sort().reverse();
+    // A sample counts as finished once completed OR archived
+    const completedDates = sub.samples
+      .map(s => s.completed_at || s.archived_at)
+      .filter(Boolean).sort().reverse();
     const completedDate = completedDates[0] || null;
 
-    return '<tr class="clickable" onclick="openRecSubmissionPanel(\'' + sub.submissionId + '\')">' +
+    const returnReasons = [...new Set(sub.returnedSamples.map(s => s.return_reason).filter(Boolean))].join(' · ');
+
+    return '<tr class="clickable' + (sub.hasReturned ? ' needs-review-row' : '') + '" onclick="openRecSubmissionPanel(\'' + sub.submissionId + '\')">' +
       '<td><strong style="color:var(--clr-primary);font-size:0.82rem;">#' + escHtml(sub.submissionId) + '</strong></td>' +
       '<td>' + escHtml(sub.customer_name || '—') + '</td>' +
       '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
       '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
       '<td class="muted" style="font-family:monospace;font-size:0.75rem;">' + sampleRange + '</td>' +
       '<td style="text-align:center;font-weight:600;">' + sub.sampleCount + '</td>' +
-      '<td>' + statusBadge(sub.statusSummary) + '</td>' +
+      '<td>' + statusBadge(sub.statusSummary) +
+        (sub.hasReturned ? ' <span class="badge badge-returned" title="' + escHtml(returnReasons) + '">↩ ' + sub.returnedCount + '</span>' : '') +
+      '</td>' +
       '<td class="muted" style="font-size:0.75rem;">' + (completedDate ? formatDate(completedDate) : '—') + '</td>' +
     '</tr>';
   }).join('');
@@ -840,6 +1016,410 @@ function renderMySubmissions() {
     nextBtn.disabled = mySubPage >= totalPages;
     if (pageIndicator) pageIndicator.textContent = 'Page ' + mySubPage + ' of ' + totalPages;
   }
+}
+
+// ── Review Queue (samples returned by the lab) ────────────────
+function getUserName(userId) {
+  if (!userId) return '—';
+  const u = (DB.users || []).find(x => x.id === userId);
+  return u ? (u.full_name || u.username || '—') : '—';
+}
+
+function renderReviewQueue() {
+  const tbody = document.getElementById('review-tbody');
+  if (!tbody) return;
+
+  const submissions = getReturnedSubmissions();
+  const countEl = document.getElementById('review-queue-count');
+  if (countEl) {
+    countEl.textContent = submissions.length
+      ? getReturnedSampleCount() + ' sample(s) waiting for review'
+      : '';
+  }
+
+  if (!submissions.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">✅</div><p>No samples are waiting for review</p></div></td></tr>';
+    const p = document.getElementById('review-pagination');
+    if (p) p.style.display = 'none';
+    return;
+  }
+
+  const totalPages = Math.ceil(submissions.length / REVIEW_PER_PAGE) || 1;
+  if (reviewQueuePage < 1) reviewQueuePage = 1;
+  if (reviewQueuePage > totalPages) reviewQueuePage = totalPages;
+  const pageData = submissions.slice((reviewQueuePage - 1) * REVIEW_PER_PAGE, reviewQueuePage * REVIEW_PER_PAGE);
+
+  tbody.innerHTML = pageData.map(sub => {
+    const lab = getLab(sub.lab_id);
+    // Latest reason across the returned samples of this submission
+    const latestReturn = sub.returnedSamples.reduce((acc, s) =>
+      (!acc || new Date(s.returned_at || 0) > new Date(acc.returned_at || 0)) ? s : acc, null);
+    return '<tr class="clickable needs-review-row" onclick="openReviewPanel(\'' + sub.submissionId + '\')">' +
+      '<td><strong style="color:var(--clr-primary);font-size:0.82rem;">#' + escHtml(sub.submissionId) + '</strong></td>' +
+      '<td>' + escHtml(sub.customer_name || '—') + '</td>' +
+      '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
+      '<td class="muted">' + escHtml(sub.test_name || '—') + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:#dc2626;">' + sub.returnedCount + ' / ' + sub.sampleCount + '</td>' +
+      '<td class="muted" style="font-size:0.78rem;max-width:220px;">' + escHtml(latestReturn ? (latestReturn.return_reason || '—') : '—') + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + (sub.latestReturnedAt ? formatDateTime(sub.latestReturnedAt) : '—') + '</td>' +
+      '<td class="muted" style="font-size:0.78rem;">' + escHtml(getUserName(sub.collected_by)) + '</td>' +
+      '<td><button type="button" class="btn btn-primary btn-sm">Review →</button></td>' +
+    '</tr>';
+  }).join('');
+
+  const pagination = document.getElementById('review-pagination');
+  const prevBtn = document.getElementById('reviewPrevBtn');
+  const nextBtn = document.getElementById('reviewNextBtn');
+  const pageIndicator = document.getElementById('reviewPageIndicator');
+  if (pagination) {
+    if (totalPages <= 1) {
+      pagination.style.display = 'none';
+    } else {
+      pagination.style.display = '';
+      if (prevBtn) prevBtn.disabled = reviewQueuePage <= 1;
+      if (nextBtn) nextBtn.disabled = reviewQueuePage >= totalPages;
+      if (pageIndicator) pageIndicator.textContent = 'Page ' + reviewQueuePage + ' of ' + totalPages;
+    }
+  }
+}
+
+// ── Archived Samples (closed without analysis) ────────────────
+function renderArchivedSamples() {
+  const tbody = document.getElementById('archived-tbody');
+  if (!tbody) return;
+
+  const searchEl = document.getElementById('archived-search');
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  let samples = getArchivedSamples();
+  if (q) {
+    samples = samples.filter(s =>
+      (s.sampleId || '').toLowerCase().includes(q) ||
+      (s.submissionId || '').toLowerCase().includes(q) ||
+      (s.customer_name || '').toLowerCase().includes(q) ||
+      (s.archive_reason || '').toLowerCase().includes(q) ||
+      (s.archived_by || '').toLowerCase().includes(q)
+    );
+  }
+  const countEl = document.getElementById('archived-count');
+  if (countEl) countEl.textContent = samples.length + ' archived';
+
+  if (!samples.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🗄️</div><p>' +
+      (q ? 'No archived samples match your search' : 'No archived samples yet') + '</p></div></td></tr>';
+    const p = document.getElementById('archived-pagination');
+    if (p) p.style.display = 'none';
+    return;
+  }
+
+  const totalPages = Math.ceil(samples.length / ARCHIVED_PER_PAGE) || 1;
+  if (archivedPage < 1) archivedPage = 1;
+  if (archivedPage > totalPages) archivedPage = totalPages;
+  const pageData = samples.slice((archivedPage - 1) * ARCHIVED_PER_PAGE, archivedPage * ARCHIVED_PER_PAGE);
+
+  tbody.innerHTML = pageData.map(s => {
+    const lab = getLab(s.lab_id);
+    return '<tr>' +
+      '<td><strong style="color:var(--clr-primary);font-size:0.82rem;">' + escHtml(s.sampleId || s.id) + '</strong></td>' +
+      '<td class="muted">' + escHtml(s.submissionId || '—') + '</td>' +
+      '<td>' + escHtml(s.customer_name || '—') + '</td>' +
+      '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
+      '<td class="muted">' + escHtml(s.test_name || '—') + '</td>' +
+      '<td class="muted" style="font-size:0.78rem;max-width:200px;">' + escHtml(s.archive_reason || '—') + '</td>' +
+      '<td class="muted" style="font-size:0.78rem;">' + escHtml(s.archived_by || '—') + '</td>' +
+      '<td class="muted" style="font-size:0.75rem;">' + (s.archived_at ? formatDateTime(s.archived_at) : '—') + '</td>' +
+      '<td><button type="button" class="btn btn-secondary btn-sm" onclick="handleRestoreArchived(\'' + escHtml(s.id) + '\')">↻ Restore</button></td>' +
+    '</tr>';
+  }).join('');
+
+  const pagination = document.getElementById('archived-pagination');
+  const prevBtn = document.getElementById('archivedPrevBtn');
+  const nextBtn = document.getElementById('archivedNextBtn');
+  const pageIndicator = document.getElementById('archivedPageIndicator');
+  if (pagination) {
+    if (totalPages <= 1) {
+      pagination.style.display = 'none';
+    } else {
+      pagination.style.display = '';
+      if (prevBtn) prevBtn.disabled = archivedPage <= 1;
+      if (nextBtn) nextBtn.disabled = archivedPage >= totalPages;
+      if (pageIndicator) pageIndicator.textContent = 'Page ' + archivedPage + ' of ' + totalPages;
+    }
+  }
+}
+
+// ── Review Panel: edit & resubmit or archive ──────────────────
+function openReviewPanel(submissionId) {
+  const body = document.getElementById('rec-review-body');
+  const footer = document.getElementById('rec-review-footer');
+  if (!body) return;
+
+  const samples = DB.samples.filter(s => s.submissionId === submissionId);
+  const returned = samples.filter(isSampleReturned);
+  if (!returned.length) {
+    showToast('No samples in this submission are awaiting review.', 'info');
+    return;
+  }
+
+  activeReviewSubmissionId = submissionId;
+  const title = document.getElementById('rec-review-title');
+  if (title) title.textContent = 'Review — ' + submissionId;
+
+  // Banner: who returned what and why
+  const reasons = [...new Set(returned.map(s => s.return_reason).filter(Boolean))];
+  const returnedBy = [...new Set(returned.map(s => s.returned_by).filter(Boolean))];
+  const banner = '<div class="review-alert review-alert-warning">' +
+    '<span style="font-size:1.1rem;">↩</span>' +
+    '<div><strong>' + returned.length + ' of ' + samples.length + ' sample(s) returned' +
+    (returnedBy.length ? ' by ' + escHtml(returnedBy.join(', ')) : '') + '</strong>' +
+    (reasons.length ? '<div style="margin-top:2px;">Reason: ' + escHtml(reasons.join(' · ')) + '</div>' : '') +
+    '<div style="margin-top:2px;">Edit the details below, then resubmit to the lab — or archive to close without analysis.</div></div></div>';
+
+  // Warn when saved reports already exist for this submission
+  const existingReports = (DB.savedReports || []).filter(r => r.submission_id === submissionId);
+  const staleWarning = existingReports.length
+    ? '<div class="review-alert review-alert-info"><span style="font-size:1.1rem;">⚠️</span><div>This submission already has ' + existingReports.length +
+      ' saved report(s). After resubmitting they are marked out of date and must be regenerated before issuing.</div></div>'
+    : '';
+
+  // Editable card per returned sample
+  const typeOptions = ['Rock', 'Ore', 'Core', 'Soil', 'Sediment', 'Water', 'Concentrate', 'Tailings', 'Dust', 'Sludge'];
+
+  const cards = returned.map((s, idx) => {
+    const labOpts = (DB.labs || [])
+      .filter(l => l.active !== false)
+      .map(l => '<option value="' + escHtml(l.id) + '">' + escHtml(l.lab_name) + '</option>')
+      .join('');
+    const testOpts = (DB.tests || [])
+      .map(t => '<option value="' + escHtml(t.id) + '">' + escHtml(t.test_name || t.name || t.id) + '</option>')
+      .join('');
+    const typeOpts = typeOptions.map(t =>
+      '<option value="' + t + '"' + (s.sampleType === t ? ' selected' : '') + '>' + t + '</option>').join('');
+    return '<div class="review-sample-card" data-id="' + escHtml(s.id) + '">' +
+      '<div style="display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-3);flex-wrap:wrap;">' +
+        '<input type="checkbox" class="review-sample-check" checked />' +
+        '<strong style="color:var(--clr-primary);font-size:0.85rem;">' + escHtml(s.sampleId || s.id) + '</strong>' +
+        (s.return_reason ? '<span class="badge badge-returned" style="font-size:0.68rem;">' + escHtml(s.return_reason) + '</span>' : '') +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">' +
+        '<div class="form-group" style="margin:0;"><label class="form-label">Laboratory</label>' +
+          '<select class="form-control review-lab-select">' + labOpts + '</select></div>' +
+        '<div class="form-group" style="margin:0;"><label class="form-label">Test</label>' +
+          '<select class="form-control review-test-select">' + testOpts + '</select></div>' +
+        '<div class="form-group" style="margin:0;"><label class="form-label">Sample Type</label>' +
+          '<select class="form-control review-type-input"><option value="">Type…</option>' + typeOpts + '</select></div>' +
+        '<div class="form-group" style="margin:0;"><label class="form-label">Elements</label>' + reviewPickerTpl(idx) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  body.innerHTML = banner + staleWarning + cards;
+
+  // Initialise each per-sample element picker with the sample's current values
+  returned.forEach((s, idx) => {
+    const card = document.querySelector('#rec-review-body .review-sample-card[data-id="' + s.id + '"]');
+    if (!card) return;
+    const wrapper = card.querySelector('.review-picker');
+    const hidden = card.querySelector('input[type="hidden"]');
+    initElementPicker(wrapper, hidden);
+    applyPickerElements(wrapper, hidden, s.selectedElements || []);
+    const labSel = card.querySelector('.review-lab-select');
+    const testSel = card.querySelector('.review-test-select');
+    if (labSel) labSel.value = s.lab_id || '';
+    if (testSel) testSel.value = s.test_id || '';
+  });
+
+  // Footer with the archive reason + actions
+  if (footer) {
+    footer.innerHTML =
+      '<div style="width:100%;display:flex;flex-direction:column;gap:var(--sp-2);">' +
+        '<select id="rec-archive-reason" class="form-control">' +
+          '<option value="">Archive reason (only needed for archiving)…</option>' +
+          ARCHIVE_REASONS.map(r => '<option value="' + escHtml(r) + '">' + escHtml(r) + '</option>').join('') +
+        '</select>' +
+        '<input type="text" id="rec-review-note" class="form-control" placeholder="Optional note for the lab…" />' +
+        '<div style="display:flex;gap:var(--sp-2);flex-wrap:wrap;">' +
+          '<button type="button" class="btn btn-primary" id="rec-resubmit-btn" onclick="handleReviewResubmit()">↩ Resubmit Selected</button>' +
+          '<button type="button" class="btn btn-secondary" id="rec-archive-btn" style="border-color:#fca5a5;color:#dc2626;" onclick="handleReviewArchive()">🗄️ Archive Selected</button>' +
+        '</div>' +
+      '</div>';
+    footer.style.display = '';
+  }
+
+  openPanel('rec-review-overlay');
+}
+
+/** Markup template for a per-sample element picker inside the review panel. */
+function reviewPickerTpl(idx) {
+  return '<div class="review-picker" style="position:relative;">' +
+    '<div class="bulk-element-trigger" style="display:flex;flex-wrap:wrap;gap:2px;min-height:32px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:var(--r-sm);cursor:pointer;background:var(--clr-surface);align-items:center;">' +
+      '<div class="bulk-chips-container" style="display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;"></div>' +
+      '<input type="text" class="bulk-element-search" placeholder="Search elements…" style="border:none;outline:none;background:none;flex:1;min-width:60px;font-size:0.8rem;padding:2px;" />' +
+    '</div>' +
+    '<div class="bulk-element-dropdown" style="display:none;position:absolute;z-index:1050;top:100%;left:0;right:0;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:280px;overflow-y:auto;font-size:0.8rem;">' +
+      '<div class="bulk-element-groups" style="padding:4px;border-bottom:1px solid var(--clr-border);"></div>' +
+      '<div class="bulk-element-items" style="padding:4px;display:grid;grid-template-columns:1fr 1fr;gap:2px;"></div>' +
+    '</div>' +
+    '<input type="hidden" id="reviewElements_' + idx + '" class="review-elements-input" value="" />' +
+  '</div>';
+}
+
+/** Generic reception confirm dialog (pass a callback to run on OK). */
+function showRecConfirm(title, message, onOk) {
+  const titleEl = document.getElementById('rec-confirm-title');
+  const msgEl = document.getElementById('rec-confirm-message');
+  if (!titleEl || !msgEl) {
+    // Fallback: run immediately rather than blocking the workflow
+    if (onOk) onOk();
+    return;
+  }
+  titleEl.textContent = title;
+  msgEl.innerHTML = message;
+  confirmCallback = onOk || null;
+  openModal('modal-rec-confirm');
+}
+
+/** Read the edited values of every checked returned sample in the review panel. */
+function collectReviewSelections() {
+  const cards = document.querySelectorAll('#rec-review-body .review-sample-card');
+  const items = [];
+  cards.forEach(card => {
+    const check = card.querySelector('.review-sample-check');
+    if (!check || !check.checked) return;
+    const labSel = card.querySelector('.review-lab-select');
+    const testSel = card.querySelector('.review-test-select');
+    const typeInput = card.querySelector('.review-type-input');
+    const hidden = card.querySelector('.review-elements-input');
+    const test = getTest(testSel ? testSel.value : '');
+    items.push({
+      id: card.dataset.id,
+      lab_id: labSel ? labSel.value : '',
+      test_id: testSel ? testSel.value : '',
+      test_name: test ? (test.test_name || test.name || '') : '',
+      sampleType: typeInput ? typeInput.value : '',
+      selectedElements: hidden ? getPickerElements(hidden) : [],
+    });
+  });
+  return items;
+}
+
+/** Resubmit the checked returned samples to their (possibly re-selected) lab. */
+async function handleReviewResubmit() {
+  if (!activeReviewSubmissionId) return;
+  const items = collectReviewSelections();
+  if (!items.length) {
+    showToast('Tick at least one sample to resubmit.', 'warning');
+    return;
+  }
+  const noteInput = document.getElementById('rec-review-note');
+  const note = noteInput ? noteInput.value : '';
+  const reasonSel = document.getElementById('rec-archive-reason');
+  const archiveReason = reasonSel ? reasonSel.value : '';
+
+  showRecConfirm(
+    'Resubmit to Lab',
+    'Resubmit <strong>' + items.length + '</strong> sample(s) of <strong>' +
+      escHtml(activeReviewSubmissionId) + '</strong> to the lab?' +
+      (archiveReason ? '<div class="muted" style="margin-top:6px;font-size:0.8rem;">Note: an archive reason is selected but will be ignored because you are resubmitting.</div>' : ''),
+    async () => {
+      try {
+        setBusy('rec-resubmit-btn', true, 'Resubmitting…');
+        await resubmitSamples(items, note);
+        const fullId = activeReviewSubmissionId;
+        activeReviewSubmissionId = null;
+        closePanel('rec-review-overlay');
+        await markSavedReportsStale(fullId);
+        showToast(items.length + ' sample(s) resubmitted to the lab.', 'success');
+        await refreshTable('samples');
+        refreshReviewCounts();
+        renderMySubmissions();
+        renderReviewQueue();
+        renderSamplesTable();
+      } catch (err) {
+        console.error('[RECEPTIONIST] Resubmit failed:', err);
+        showToast(err.message || 'Could not resubmit samples.', 'error');
+      } finally {
+        setBusy('rec-resubmit-btn', false);
+      }
+    }
+  );
+}
+
+/** Archive the checked returned samples (closed without analysis). */
+async function handleReviewArchive() {
+  if (!activeReviewSubmissionId) return;
+  const cards = document.querySelectorAll('#rec-review-body .review-sample-card');
+  const ids = [];
+  cards.forEach(card => {
+    const check = card.querySelector('.review-sample-check');
+    if (check && check.checked) ids.push(card.dataset.id);
+  });
+  if (!ids.length) {
+    showToast('Tick at least one sample to archive.', 'warning');
+    return;
+  }
+  const reasonSel = document.getElementById('rec-archive-reason');
+  const reason = reasonSel ? reasonSel.value : '';
+  if (!reason) {
+    showToast('Select an archive reason first (required).', 'warning');
+    if (reasonSel) reasonSel.focus();
+    return;
+  }
+  const noteInput = document.getElementById('rec-review-note');
+  const note = noteInput ? noteInput.value : '';
+
+  showRecConfirm(
+    'Archive Samples',
+    'Archive <strong>' + ids.length + '</strong> sample(s) of <strong>' +
+      escHtml(activeReviewSubmissionId) + '</strong> without analysis?<br/>' +
+      '<span class="muted" style="font-size:0.8rem;">They will count as completed in progress reports, get no analysis report, and can be restored from the Archived tab later.</span>',
+    async () => {
+      try {
+        setBusy('rec-archive-btn', true, 'Archiving…');
+        await archiveReturnedSamples(ids, reason, note);
+        activeReviewSubmissionId = null;
+        closePanel('rec-review-overlay');
+        showToast(ids.length + ' sample(s) archived.', 'success');
+        await refreshTable('samples');
+        refreshReviewCounts();
+        renderMySubmissions();
+        renderReviewQueue();
+        renderArchivedSamples();
+        renderSamplesTable();
+      } catch (err) {
+        console.error('[RECEPTIONIST] Archive failed:', err);
+        showToast(err.message || 'Could not archive samples.', 'error');
+      } finally {
+        setBusy('rec-archive-btn', false);
+      }
+    }
+  );
+}
+
+/** Restore a single archived sample back into the lab queue. */
+async function handleRestoreArchived(sampleId) {
+  const sample = getSample(sampleId);
+  if (!sample) {
+    showToast('Sample not found. Refresh and try again.', 'error');
+    return;
+  }
+  showRecConfirm(
+    'Restore Archived Sample',
+    'Restore <strong>' + escHtml(sample.sampleId || sample.id) + '</strong> from archive and send it back to the lab queue for analysis?',
+    async () => {
+      try {
+        await restoreArchivedSamples([sampleId]);
+        showToast('Sample restored to the lab queue.', 'success');
+        await refreshTable('samples');
+        refreshReviewCounts();
+        renderArchivedSamples();
+        renderMySubmissions();
+        renderSamplesTable();
+      } catch (err) {
+        console.error('[RECEPTIONIST] Restore failed:', err);
+        showToast(err.message || 'Could not restore sample.', 'error');
+      }
+    }
+  );
 }
 
 // ── Generate Report for Submission ─────────────────────────────
@@ -879,8 +1459,14 @@ async function generateReportForSubmission(submissionId) {
 
 // ── Paginated Samples Table ───────────────────────────────────
 function renderSamplesTable() {
-  const samples = DB.samples || [];
-  document.getElementById('total-sample-count').textContent = samples.length + ' total';
+  const allSamples = DB.samples || [];
+  const statusFilterEl = document.getElementById('all-samples-status-filter');
+  const statusFilter = statusFilterEl ? statusFilterEl.value : '';
+  const samples = statusFilter
+    ? allSamples.filter(s => s.status === statusFilter)
+    : allSamples;
+  document.getElementById('total-sample-count').textContent =
+    allSamples.length + ' total' + (statusFilter ? ' · ' + samples.length + ' shown' : '');
 
   const reversedSamples = [...samples].reverse();
   const totalRows = reversedSamples.length;
@@ -908,7 +1494,7 @@ function renderSamplesTable() {
         '<td>' + escHtml(sample.sampleName || sample.customer_name || '—') + '</td>' +
         '<td class="muted">' + escHtml(sample.sampleType || '—') + '</td>' +
         '<td style="font-size:0.78rem;">' + (elements.length > 0 ? escHtml(elements.map(normalizeElementSymbol).join(', ')) : '—') + '</td>' +
-        '<td><span class="status-badge ' + (sample.status || '').toLowerCase().replace(/\s+/g, '_') + '">' + escHtml(sample.status || '—') + '</span></td>' +
+        '<td>' + statusBadge(sample.status || 'received') + '</td>' +
         '<td class="muted">' + formatDateTime(sample.created_at) + '</td>';
       displayTableBody.appendChild(row);
     });

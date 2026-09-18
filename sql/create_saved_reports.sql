@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS saved_reports (
   engineer_name TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
+  is_stale BOOLEAN DEFAULT false,       -- true when reception edited/resubmitted the submission
   UNIQUE(submission_id, report_type)
 );
 
@@ -44,3 +45,8 @@ CREATE POLICY "Allow public all saved_reports" ON saved_reports FOR ALL USING (t
 -- That's it! The table is ready to use.
 -- The app will automatically save and load report data.
 -- ============================================================
+
+-- ── Later addition: staleness flag ───────────────────────────
+-- Marks saved report data as out of date when reception edits and
+-- resubmits a submission. Safe to run on an existing database.
+ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS is_stale BOOLEAN DEFAULT false;

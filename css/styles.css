@@ -1470,3 +1470,65 @@ td.muted { color: var(--txt-secondary); font-size: 0.8rem; }
   /* Upload zone tighter */
   .upload-zone { padding: var(--sp-6) var(--sp-4); }
 }
+
+/* ── Return & Archive workflow ──────────────────────────────── */
+.badge-returned {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.badge-archived {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+}
+
+.status-badge.returned,
+.status-badge.archived {
+  font-size: 0.7rem;
+}
+
+/* Rows containing returned samples get a red left edge */
+tr.needs-review-row td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+/* Banner inside the reception review panel */
+.review-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: var(--sp-4);
+}
+
+.review-alert-warning {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #b91c1c;
+}
+
+.review-alert-info {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #b45309;
+}
+
+/* Editable card per returned sample in the review panel */
+.review-sample-card {
+  border: 1px solid var(--clr-border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-3);
+  background: var(--clr-surface-2, rgba(0, 0, 0, 0.02));
+}
+
+@media (max-width: 640px) {
+  .review-sample-card > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+}

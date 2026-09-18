@@ -125,17 +125,22 @@ function aggregateData(filters) {
     const received   = samples.filter(s => s.status === 'received').length;
     const assigned   = samples.filter(s => s.status === 'assigned').length;
     const inProgress = samples.filter(s => s.status === 'in_progress').length;
-    const completed  = samples.filter(s => s.status === 'completed').length;
-    const pending    = received + assigned + inProgress;
+    const returned   = samples.filter(s => s.status === 'returned').length;
+    // Archived samples are closed without analysis but still count as completed work
+    const archived   = samples.filter(s => s.status === 'archived').length;
+    const completed  = samples.filter(s => s.status === 'completed').length + archived;
+    const pending    = received + assigned + inProgress + returned;
 
     // Average turnaround: days from created_at to completed_at for completed
-    const completedSamples = samples.filter(s => s.status === 'completed');
+    // samples (archived samples close with archived_at instead)
+    const completedSamples = samples.filter(s => s.status === 'completed' || s.status === 'archived');
     let avgTurnaround = '—';
     let latestCompletionDate = null;
     if (completedSamples.length) {
       const total_days = completedSamples.reduce((sum, s) => {
-        if (s.completed_at) {
-          return sum + daysBetween(s.created_at, s.completed_at);
+        const closedAt = s.completed_at || s.archived_at;
+        if (closedAt) {
+          return sum + daysBetween(s.created_at, closedAt);
         }
         return sum;
       }, 0);
@@ -143,7 +148,8 @@ function aggregateData(filters) {
       avgTurnaround = avg + ' day' + (avg == 1 ? '' : 's');
 
       // Get latest completion date
-      const completionDates = completedSamples.map(s => s.completed_at).filter(Boolean).sort().reverse();
+      const completionDates = completedSamples
+        .map(s => s.completed_at || s.archived_at).filter(Boolean).sort().reverse();
       latestCompletionDate = completionDates[0] || null;
     }
 
@@ -156,7 +162,9 @@ function aggregateData(filters) {
       received,
       assigned,
       in_progress:   inProgress,
+      returned,
       completed,
+      archived,
       pending,
       avg_turnaround: avgTurnaround,
       latest_completion: latestCompletionDate,
@@ -176,14 +184,17 @@ function renderReport() {
     acc.pending     += r.pending;
     acc.completed   += r.completed;
     acc.inProgress  += r.in_progress;
+    acc.returned    += r.returned;
     return acc;
-  }, { total: 0, estimations: 0, pending: 0, completed: 0, inProgress: 0 });
+  }, { total: 0, estimations: 0, pending: 0, completed: 0, inProgress: 0, returned: 0 });
 
   document.getElementById('summary-total').textContent      = totals.total;
   document.getElementById('summary-estimations').textContent = totals.estimations.toLocaleString();
   document.getElementById('summary-pending').textContent    = totals.pending;
   document.getElementById('summary-progress').textContent   = totals.inProgress;
   document.getElementById('summary-completed').textContent  = totals.completed;
+  const summaryReturned = document.getElementById('summary-returned');
+  if (summaryReturned) summaryReturned.textContent = totals.returned;
 
   const pct = totals.total ? Math.round((totals.completed / totals.total) * 100) : 0;
   document.getElementById('completion-pct').textContent = pct + '%';
@@ -196,7 +207,7 @@ function renderReport() {
 function renderTable(rows) {
   const tbody = document.getElementById('report-tbody');
   if (!rows.length || rows.every(r => r.total === 0)) {
-    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📊</div><p>No data for selected filters</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📊</div><p>No data for selected filters</p></div></td></tr>';
     return;
   }
 
@@ -209,7 +220,9 @@ function renderTable(rows) {
       '<td style="text-align:center;font-weight:700;color:var(--clr-primary);">' + r.estimations.toLocaleString() + '</td>' +
       '<td style="text-align:center;">' + (r.assigned > 0 ? '<span style="color:#b45309;font-weight:600;">' + r.assigned + '</span>' : '<span class="muted">0</span>') + '</td>' +
       '<td style="text-align:center;">' + (r.in_progress > 0 ? '<span style="color:#7c3aed;font-weight:600;">' + r.in_progress + '</span>' : '<span class="muted">0</span>') + '</td>' +
+      '<td style="text-align:center;">' + (r.returned > 0 ? '<span style="color:#dc2626;font-weight:600;">' + r.returned + '</span>' : '<span class="muted">0</span>') + '</td>' +
       '<td style="text-align:center;">' + (r.completed > 0 ? '<span style="color:#059669;font-weight:600;">' + r.completed + '</span>' : '<span class="muted">0</span>') + '</td>' +
+      '<td style="text-align:center;">' + (r.archived > 0 ? '<span class="badge badge-archived">' + r.archived + '</span>' : '<span class="muted">0</span>') + '</td>' +
       '<td style="text-align:center;">' + (r.pending > 0 ? '<span style="color:#dc2626;font-weight:600;">' + r.pending + '</span>' : '<span class="muted">0</span>') + '</td>' +
       '<td>' +
         '<div style="display:flex;align-items:center;gap:var(--sp-3);">' +
@@ -228,8 +241,10 @@ function renderTable(rows) {
       total: a.total+r.total, estimations: a.estimations+r.estimations,
       assigned: a.assigned+r.assigned,
       in_progress: a.in_progress+r.in_progress,
+      returned: (a.returned||0)+r.returned,
       completed: a.completed+r.completed, pending: a.pending+r.pending,
-    }), { total:0, estimations:0, assigned:0, in_progress:0, completed:0, pending:0 });
+      archived: (a.archived||0)+r.archived,
+    }), { total:0, estimations:0, assigned:0, in_progress:0, returned:0, completed:0, pending:0, archived:0 });
     const tp = Math.round((t.completed/t.total)*100);
     const allCompletionDates = rows2.flatMap(r => r.latest_completion ? [r.latest_completion] : []).sort().reverse();
     const allLatestCompletion = allCompletionDates[0] || null;
@@ -240,7 +255,9 @@ function renderTable(rows) {
       '<td style="text-align:center;font-weight:800;color:var(--clr-primary);">' + t.estimations.toLocaleString() + '</td>' +
       '<td style="text-align:center;font-weight:700;color:#b45309;">' + t.assigned + '</td>' +
       '<td style="text-align:center;font-weight:700;color:#7c3aed;">' + t.in_progress + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:#dc2626;">' + t.returned + '</td>' +
       '<td style="text-align:center;font-weight:700;color:#059669;">' + t.completed + '</td>' +
+      '<td style="text-align:center;font-weight:700;">' + t.archived + '</td>' +
       '<td style="text-align:center;font-weight:700;color:#dc2626;">' + t.pending + '</td>' +
       '<td>' +
         '<div style="display:flex;align-items:center;gap:var(--sp-3);">' +
@@ -267,7 +284,9 @@ function exportReportCSV() {
     'Estimations':    r.estimations,
     'Assigned':       r.assigned,
     'In Progress':    r.in_progress,
+    'Returned':       r.returned,
     'Completed':      r.completed,
+    'Archived':       r.archived,
     'Pending':        r.pending,
     'Avg Turnaround': r.avg_turnaround,
   }));
