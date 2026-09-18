@@ -539,7 +539,7 @@ async function handleSubmissionSubmit(e) {
 
   if (!labId) { showToast('Please select a laboratory.', 'error'); return; }
   if (!dateVal) { showToast('Please select a date.', 'error'); return; }
-  if (!customerName) { showToast('Please enter patient name.', 'error'); return; }
+  if (!customerName) { showToast('Please enter customer name.', 'error'); return; }
   if (pendingSamples.length === 0) {
     showToast('Please add at least one sample using the bulk generator.', 'error');
     return;
@@ -628,7 +628,7 @@ function renderIntakeConfirmation(submission, samples, lab, labCode, customerNam
   body.innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">' +
       '<div class="detail-row"><span class="detail-label">Submission #</span><span class="detail-value" style="font-size:1rem;font-weight:700;color:var(--clr-primary);">' + escHtml(submission.submissionId) + '</span></div>' +
-      '<div class="detail-row"><span class="detail-label">Patient</span><span class="detail-value">' + escHtml(customerName || '—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">Customer</span><span class="detail-value">' + escHtml(customerName || '—') + '</span></div>' +
       '<div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">' + escHtml(customerContact || '—') + '</span></div>' +
       '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(cnic || '—') + '</span></div>' +
       '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
