@@ -63,11 +63,19 @@ async function initReports() {
 
 // ── Wire events ───────────────────────────────────────────────
 function wireReportEvents() {
-  document.getElementById('btn-apply-filter').addEventListener('click', renderReport);
-  document.getElementById('btn-export-report').addEventListener('click', exportReportCSV);
-  document.getElementById('filter-date-start').addEventListener('change', renderReport);
-  document.getElementById('filter-date-end').addEventListener('change', renderReport);
-  document.getElementById('filter-lab').addEventListener('change', renderReport);
+  const applyBtn = document.getElementById('btn-apply-filter');
+  if (applyBtn) applyBtn.addEventListener('click', renderReport);
+
+  // Export lives in the filter bar as 'btn-export-report-mobile' (older builds
+  // used 'btn-export-report'). Wire whichever one exists so the button works.
+  const exportBtn = document.getElementById('btn-export-report-mobile')
+                 || document.getElementById('btn-export-report');
+  if (exportBtn) exportBtn.addEventListener('click', exportReportCSV);
+
+  ['filter-date-start', 'filter-date-end', 'filter-lab'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', renderReport);
+  });
 }
 
 // ── Filters ───────────────────────────────────────────────────

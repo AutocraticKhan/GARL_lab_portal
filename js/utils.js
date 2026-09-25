@@ -334,7 +334,12 @@ function downloadCSV(filename, rows) {
       }).join(',')
     )
   ];
-  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  // Prepend a UTF-8 BOM so Excel/Windows detects UTF-8 instead of assuming the
+  // ANSI codepage — otherwise multi-byte characters (e.g. the em dash "—" shown
+  // for missing Avg Turnaround) get mis-decoded into mojibake like "â€"".
+  // CRLF line endings keep Excel happy on Windows.
+  const csv = '\uFEFF' + csvRows.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href     = url;
