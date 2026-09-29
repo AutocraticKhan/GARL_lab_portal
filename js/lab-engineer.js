@@ -1596,7 +1596,7 @@ function openReportForm(submissionId, reportType) {
       '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Statement of conformity /compliance (where applicable): NA</li>' +
       '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Remarks/Comments (where requested) = NA</li>' +
       '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• Analysis Not required = NR</li>' +
-      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• BDL (Below Detection Limit) = If BDL appears in the analysis, it means the analyte was below the detection limit of the instrument.</li>' +
+      '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">• BDL = Below Detection Limit</li>' +
     '</ul>';
   pageDiv.appendChild(disclaimerDiv);
 
