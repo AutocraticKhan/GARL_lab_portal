@@ -26,3 +26,6 @@ REQUIRED SQL before use — run these against Supabase (idempotent):
   • sql/migration_return_archive.sql        (adds return/archive columns + status CHECK)
   • the ALTER TABLE samples block appended at the end of sql/migration.sql
   • is_stale column addition in sql/create_saved_reports.sql
+
+
+https://autocratickhan.github.io/GARL_lab_portal/index.html
