@@ -386,6 +386,78 @@ async function setSampleStatus(id, status, note = '') {
 }
 
 /* ============================================================
+   REOPEN / REANALYSE WORKFLOW (lab engineer)
+   ------------------------------------------------------------
+   completed → assigned   within REOPEN_FREE_WINDOW_DAYS of
+                          completed_at: no reason needed
+                          (accidental completion correction)
+   completed → assigned   after the window: a reason IS required
+                          (reassignment for reanalysis)
+   The reason / audit trail is kept in the events table only —
+   no extra columns on samples.
+   ============================================================ */
+
+// Common reasons offered when a sample is reopened for reanalysis.
+// Required once the 3-day correction window has passed.
+const REANALYSIS_REASONS = [
+  'Mistakenly marked complete',
+  'Instrument reading needs verification',
+  'Sample preparation to be repeated',
+  'Calculation / data entry error',
+  'Contamination suspected during analysis',
+  'Supervisor requested re-analysis',
+  'Other (specify in notes)',
+];
+
+/**
+ * Reopen a completed sample back to the lab's pending queue.
+ * Within REOPEN_FREE_WINDOW_DAYS of `completed_at` no reason is
+ * required; after that a reason must be supplied.
+ * @param {string} sampleId
+ * @param {string} [reason] - required once the free window has passed
+ * @param {string} [note] - optional free-text note
+ * @returns {Promise<object>} the updated sample
+ */
+async function reopenSampleForReanalysis(sampleId, reason = '', note = '') {
+  const sample = getSample(sampleId);
+  if (!sample) throw new Error('Sample not found. Refresh and try again.');
+  if (sample.status !== 'completed') {
+    throw new Error('Only samples marked complete can be reopened.');
+  }
+
+  const windowInfo = getReopenWindowInfo(sample);
+  const cleanReason = (reason || '').trim();
+  const cleanNote   = (note || '').trim();
+
+  if (!windowInfo.withinWindow && !cleanReason) {
+    throw new Error('This sample was completed more than ' + REOPEN_FREE_WINDOW_DAYS +
+      ' days ago — a reason is required to reopen it for reanalysis.');
+  }
+
+  const actor     = currentUser();
+  const actorName = actor ? actor.full_name : 'Lab Engineer';
+
+  const patch = {
+    status: 'assigned',
+    assigned_at: new Date().toISOString(),
+    // Keep status and timestamp columns in sync — the sample is no longer complete.
+    completed_at: null,
+  };
+  const updated = await updateSample(sampleId, patch);
+  if (!updated) throw new Error('Failed to update sample in database');
+
+  const windowTxt = windowInfo.withinWindow
+    ? 'within the ' + REOPEN_FREE_WINDOW_DAYS + '-day correction window'
+    : 'after the ' + REOPEN_FREE_WINDOW_DAYS + '-day correction window';
+  let logNote = 'Reopened for reanalysis by ' + actorName + ' (' + windowTxt + ')';
+  if (cleanReason) logNote += ': ' + cleanReason;
+  if (cleanNote)   logNote += (cleanReason ? ' — ' : ': ') + cleanNote;
+  await logEvent(sampleId, 'reanalyse', logNote);
+
+  return updated;
+}
+
+/* ============================================================
    RETURN / REVIEW / ARCHIVE WORKFLOW
    ------------------------------------------------------------
    Lab engineer : returnSamplesToReception()  → status 'returned'

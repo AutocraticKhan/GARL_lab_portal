@@ -220,6 +220,43 @@
   </div>
 </div>
 
+<!-- ── MODAL: Reopen Sample for Reanalysis (completed → pending) ── -->
+<div class="modal-backdrop" id="modal-reanalyse-sample">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" style="color:var(--clr-primary);">↺ Reopen Sample for Reanalysis</h2>
+      <button class="modal-close" id="close-reanalyse-modal">✕</button>
+    </div>
+    <div class="modal-body" style="padding:var(--sp-6);">
+      <p id="reanalyse-modal-info" style="font-size:0.82rem;color:var(--txt-secondary);margin-bottom:var(--sp-4);"></p>
+
+      <div id="reanalyse-window-banner" style="display:none;margin-bottom:var(--sp-4);padding:var(--sp-3);border-radius:var(--r-md);font-size:0.78rem;font-weight:600;border:1px solid;"></div>
+
+      <div class="form-group" id="reanalyse-reason-group" style="margin-bottom:var(--sp-4);">
+        <label class="form-label" for="reanalyse-reason-select">Reason <span style="color:var(--clr-danger);">*</span></label>
+        <select class="form-control" id="reanalyse-reason-select">
+          <option value="">Select a reason…</option>
+        </select>
+        <p style="font-size:0.72rem;color:var(--txt-muted);margin-top:4px;">
+          The reason is recorded in the audit trail and is required once the 3-day correction window has passed.
+        </p>
+      </div>
+
+      <div class="form-group" id="reanalyse-note-wrap" style="margin-bottom:var(--sp-4);">
+        <label class="form-label" for="reanalyse-note-input">
+          Notes <span id="reanalyse-note-required" style="color:var(--clr-danger);display:none;">*</span>
+        </label>
+        <textarea class="form-control" id="reanalyse-note-input" rows="2"
+                  placeholder="Add any detail worth recording…" style="resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="cancel-reanalyse-modal">Cancel</button>
+      <button type="button" class="btn btn-primary" id="btn-confirm-reanalyse">↺ Reopen to Pending</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── REPORT GENERATION MODAL ────────────────────────────── -->
 <!-- ── REPORT GENERATION MODAL ────────────────────────────── -->
 <div class="side-panel-overlay" id="report-overlay">

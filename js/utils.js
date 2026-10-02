@@ -260,6 +260,31 @@ function isSampleActionable(s) {
   return !!s && (s.status === 'received' || s.status === 'assigned' || s.status === 'in_progress');
 }
 
+// ── Reopen (completed → assigned) correction window ────────────
+// A lab engineer may reopen a sample they accidentally marked
+// complete without giving a reason, for up to 3 days after the
+// completion. Once that window has passed a reason is required
+// (reanalysis).
+const REOPEN_FREE_WINDOW_DAYS = 3;
+
+/**
+ * Work out whether a completed sample is still inside the free
+ * reopen window (measured from `completed_at`).
+ * Samples without a usable `completed_at` are treated as expired so
+ * a reason is always required for them.
+ * @param {object} sample
+ * @returns {{completedAt: Date|null, deadline: Date|null, withinWindow: boolean}}
+ */
+function getReopenWindowInfo(sample) {
+  const parsed = sample && sample.completed_at ? new Date(sample.completed_at) : null;
+  const completedAt = parsed && !isNaN(parsed) ? parsed : null;
+  const deadline = completedAt
+    ? new Date(completedAt.getTime() + REOPEN_FREE_WINDOW_DAYS * 86400000)
+    : null;
+  const withinWindow = !!deadline && Date.now() <= deadline.getTime();
+  return { completedAt, deadline, withinWindow };
+}
+
 /**
  * Collapse a list of samples into a single summary status.
  * Archived samples are treated as completed for display purposes.

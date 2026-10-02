@@ -10,6 +10,7 @@ let activeSubmissionId = null;
 let activeReportNo = null; // current report number (used for PDF filename)
 let activeReportType = null; // current report type: 'pnac' or 'qscert'
 let activeFullSubmissionId = null; // full submission ID e.g. "26-07-AAS-1041"
+let activeReopenSampleId = null; // sample loaded in the reopen/reanalyse modal
 
 // ── Init ──────────────────────────────────────────────────────
 async function initLabEngineer() {
@@ -99,6 +100,25 @@ function wireEngEvents() {
       });
     });
   }
+
+  // ── Reopen / reanalyse wiring (completed → pending) ──
+  const closeReanalyseBtn = document.getElementById('close-reanalyse-modal');
+  if (closeReanalyseBtn) closeReanalyseBtn.addEventListener('click', () => closeModal('modal-reanalyse-sample'));
+  const cancelReanalyseBtn = document.getElementById('cancel-reanalyse-modal');
+  if (cancelReanalyseBtn) cancelReanalyseBtn.addEventListener('click', () => closeModal('modal-reanalyse-sample'));
+
+  const reanalyseOverlay = document.getElementById('modal-reanalyse-sample');
+  if (reanalyseOverlay) {
+    reanalyseOverlay.addEventListener('click', (e) => {
+      if (e.target === reanalyseOverlay) closeModal('modal-reanalyse-sample');
+    });
+  }
+
+  const reanalyseReasonSel = document.getElementById('reanalyse-reason-select');
+  if (reanalyseReasonSel) reanalyseReasonSel.addEventListener('change', toggleReanalyseOtherField);
+
+  const confirmReanalyseBtn = document.getElementById('btn-confirm-reanalyse');
+  if (confirmReanalyseBtn) confirmReanalyseBtn.addEventListener('click', handleReopenSubmit);
 
   // Report modal close
   document.getElementById('close-report-panel').addEventListener('click', () => closePanel('report-overlay'));
@@ -401,11 +421,30 @@ function openSubmissionPanel(submissionId) {
             '<div style="display:flex;align-items:center;gap:8px;">' +
               statusCell +
               (canReturn ? '<button class="btn btn-ghost btn-sm" title="Send this sample back to reception" onclick="openReturnModal(\'' + sub.submissionId + '\', \'' + s.id + '\')" style="color:#b45309;">↩ Return</button>' : '') +
+              (isCompleted ? '<button class="btn btn-ghost btn-sm" title="Reopen this sample back to pending (free within ' + REOPEN_FREE_WINDOW_DAYS + ' days of completion)" onclick="openReopenModal(\'' + s.id + '\')" style="color:var(--clr-primary);">↺ Reopen</button>' : '') +
             '</div>' +
           '</div>' +
           '<div style="font-size:0.75rem;color:var(--txt-secondary);">' +
             '<span><strong>Elements (' + elements.length + '):</strong> ' + escHtml(elementLabels) + '</span>' +
           '</div>' +
+          (isCompleted ? (function() {
+            const win = getReopenWindowInfo(s);
+            const style = win.withinWindow
+              ? 'margin-top:6px;font-size:0.75rem;color:#047857;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:var(--r-sm);padding:4px 8px;'
+              : 'margin-top:6px;font-size:0.75rem;color:#b45309;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:var(--r-sm);padding:4px 8px;';
+            const winTxt = win.withinWindow
+              ? '<strong>Completed:</strong> ' + formatDateTime(s.completed_at) + ' · free reopen available until ' + formatDateTime(win.deadline.toISOString())
+              : '<strong>Completed:</strong> ' + formatDateTime(s.completed_at) + ' · ' + REOPEN_FREE_WINDOW_DAYS + '-day window passed — reopening now requires a reason';
+            return '<div style="' + style + '">↺ ' + winTxt + '</div>';
+          })() : '') +
+          (function() {
+            const lastReanalyse = getEventsForSample(s.id).filter(e => e.type === 'reanalyse').pop();
+            if (!lastReanalyse) return '';
+            return '<div style="margin-top:6px;font-size:0.75rem;color:#4338ca;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:var(--r-sm);padding:4px 8px;">' +
+              '<strong>Reanalyse:</strong> ' + escHtml(lastReanalyse.note || 'No reason given') +
+              (lastReanalyse.timestamp ? ' · ' + formatDateTime(lastReanalyse.timestamp) : '') +
+            '</div>';
+          })() +
           (isReturned ? '<div style="margin-top:6px;font-size:0.75rem;color:#b45309;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:var(--r-sm);padding:4px 8px;">' +
             '<strong>Returned:</strong> ' + escHtml(s.return_reason || 'No reason given') +
             (s.returned_by ? ' · by ' + escHtml(s.returned_by) : '') +
@@ -529,6 +568,12 @@ async function toggleSampleComplete(sampleId, checked) {
   try {
     if (checked) {
       await setSampleStatus(sampleId, 'completed', 'Sample completed by ' + engSession.full_name);
+    } else if (target && target.status === 'completed') {
+      // Completed samples must go through the reopen/reanalyse flow so
+      // the 3-day window and reason rules are always enforced.
+      if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+      openReopenModal(sampleId);
+      return;
     } else {
       await setSampleStatus(sampleId, 'assigned', 'Sample reopened by ' + engSession.full_name);
     }
@@ -581,6 +626,130 @@ async function handleMarkAllComplete() {
   renderLabStats();
   renderAssignedSamples();
   if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+}
+
+/* ============================================================
+   REOPEN / REANALYSE  (completed → pending)
+   ------------------------------------------------------------
+   Free (no reason) for REOPEN_FREE_WINDOW_DAYS after completion;
+   after that a reason is mandatory. See reopenSampleForReanalysis().
+   ============================================================ */
+
+/**
+ * Open the "reopen for reanalysis" modal for a completed sample.
+ * Inside the free window the reason group is hidden (confirmation
+ * only); once the window has passed the reason becomes required.
+ * @param {string} sampleId
+ */
+function openReopenModal(sampleId) {
+  const sample = getSample(sampleId);
+  if (!sample) { showToast('Sample not found. Refresh and try again.', 'error'); return; }
+  if (sample.status !== 'completed') {
+    showToast('Only samples marked complete can be reopened.', 'warning');
+    return;
+  }
+
+  activeReopenSampleId = sampleId;
+  const info    = getReopenWindowInfo(sample);
+  const idLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || sample.id;
+
+  const infoEl = document.getElementById('reanalyse-modal-info');
+  if (infoEl) {
+    infoEl.textContent = 'Sample ' + idLabel + ' was completed on ' + formatDateTime(sample.completed_at) +
+      '. Reopening sends it back to the pending queue for reanalysis.';
+  }
+
+  const banner = document.getElementById('reanalyse-window-banner');
+  const reasonGroup = document.getElementById('reanalyse-reason-group');
+  if (info.withinWindow) {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(16,185,129,0.1)';
+      banner.style.borderColor = 'rgba(16,185,129,0.3)';
+      banner.style.color = '#047857';
+      banner.innerHTML = '✓ Within the ' + REOPEN_FREE_WINDOW_DAYS + '-day correction window (until ' +
+        formatDateTime(info.deadline.toISOString()) + ') — no reason is required.';
+    }
+    if (reasonGroup) reasonGroup.style.display = 'none';
+  } else {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(245,158,11,0.1)';
+      banner.style.borderColor = 'rgba(245,158,11,0.3)';
+      banner.style.color = '#b45309';
+      banner.innerHTML = '⚠ The ' + REOPEN_FREE_WINDOW_DAYS +
+        '-day correction window has passed — a reason is required to reopen this sample for reanalysis.';
+    }
+    if (reasonGroup) reasonGroup.style.display = 'block';
+  }
+
+  // Populate the reason dropdown
+  const reasonSelect = document.getElementById('reanalyse-reason-select');
+  if (reasonSelect) {
+    reasonSelect.innerHTML = '<option value="">Select a reason…</option>' +
+      REANALYSIS_REASONS.map(r => '<option value="' + escHtml(r) + '">' + escHtml(r) + '</option>').join('');
+    reasonSelect.value = '';
+  }
+
+  const noteInput = document.getElementById('reanalyse-note-input');
+  if (noteInput) noteInput.value = '';
+
+  toggleReanalyseOtherField();
+  openModal('modal-reanalyse-sample');
+}
+
+/** Highlight the notes field as required when "Other" is chosen as the reason. */
+function toggleReanalyseOtherField() {
+  const sel      = document.getElementById('reanalyse-reason-select');
+  const required = document.getElementById('reanalyse-note-required');
+  if (!sel) return;
+  const isOther = sel.value === 'Other (specify in notes)';
+  if (required) required.style.display = isOther ? 'inline' : 'none';
+}
+
+/** Confirm the reopen and push it to the database (3-day rule enforced). */
+async function handleReopenSubmit() {
+  const sampleId = activeReopenSampleId;
+  if (!sampleId) { showToast('No sample selected.', 'warning'); return; }
+
+  const sample = getSample(sampleId);
+  if (!sample) { showToast('Sample not found. Refresh and try again.', 'error'); return; }
+
+  const info = getReopenWindowInfo(sample);
+
+  const reasonSelect = document.getElementById('reanalyse-reason-select');
+  const reason = info.withinWindow ? '' : (reasonSelect ? reasonSelect.value.trim() : '');
+  const note   = (document.getElementById('reanalyse-note-input')?.value || '').trim();
+
+  if (!info.withinWindow && !reason) {
+    showToast('Please choose a reason for reopening this sample.', 'warning');
+    return;
+  }
+  if (reason === 'Other (specify in notes)' && !note) {
+    showToast('Please add a note explaining the reason.', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btn-confirm-reanalyse');
+  if (btn) { btn.disabled = true; btn.textContent = 'Reopening…'; }
+
+  try {
+    await reopenSampleForReanalysis(sampleId, reason, note);
+    showToast(
+      info.withinWindow
+        ? 'Sample reopened and back in the pending queue.'
+        : 'Sample reopened for reanalysis.',
+      'success');
+    closeModal('modal-reanalyse-sample');
+    activeReopenSampleId = null;
+    renderLabStats();
+    renderAssignedSamples();
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+  } catch (err) {
+    showToast('Error reopening sample: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↺ Reopen to Pending'; }
+  }
 }
 
 /* ============================================================
