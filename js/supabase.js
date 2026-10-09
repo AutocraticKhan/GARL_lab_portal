@@ -28,12 +28,37 @@ function initSupabase() {
 }
 
 // ── Generic Supabase CRUD helpers ────────────────────────────
+// Supabase/PostgREST caps one response at `max-rows` (1000 by default).
+// Fetch in pages so large tables (samples, events) are never truncated —
+// a truncated list makes newly logged samples silently disappear.
+const SUPABASE_PAGE_SIZE = 1000;
+const SUPABASE_MAX_PAGES = 200; // safety valve (~200k rows)
+
+// Primary-key columns that aren't named `id`.
+const TABLE_ORDER_COLUMNS = {
+  submissions: 'submissionId',
+  system_state: 'key',
+};
+
 async function supabaseFetch(table) {
   if (!supabaseClient) return null;
   try {
-    const { data, error } = await supabaseClient.from(table).select('*');
-    if (error) throw error;
-    return data;
+    const orderCol = TABLE_ORDER_COLUMNS[table] || 'id';
+    const rows = [];
+    for (let page = 0; page < SUPABASE_MAX_PAGES; page++) {
+      const from = page * SUPABASE_PAGE_SIZE;
+      const to = from + SUPABASE_PAGE_SIZE - 1;
+      const { data, error } = await supabaseClient
+        .from(table)
+        .select('*')
+        .order(orderCol, { ascending: true })
+        .range(from, to);
+      if (error) throw error;
+      const batch = data || [];
+      rows.push(...batch);
+      if (batch.length < SUPABASE_PAGE_SIZE) break; // last page
+    }
+    return rows;
   } catch (err) {
     console.error(`[SUPABASE] Error fetching ${table}:`, err);
     throw err; // Re-throw so callers can handle errors
