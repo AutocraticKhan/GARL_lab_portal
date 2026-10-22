@@ -458,6 +458,93 @@ async function reopenSampleForReanalysis(sampleId, reason = '', note = '') {
 }
 
 /* ============================================================
+   RE-ANALYSIS REVISION (reassign completed sample to lab)
+   ------------------------------------------------------------
+   Creates a new sample record with the same submissionId but a
+   revision-suffixed sampleId (e.g. "26-10-AAS-1156-001-R1")
+   and status "assigned" so it re-enters the lab queue.
+   The original completed sample and its report are left untouched.
+   ============================================================ */
+
+/**
+ * Create a re-analysis revision sample for a completed sample.
+ * @param {object} originalSample - the completed sample to re-analyse
+ * @param {string} reason - reason for re-analysis
+ * @param {string} [note] - optional free-text note
+ * @param {object} [actor] - user performing the action
+ * @returns {Promise<object>} the created revision sample
+ */
+async function createReanalysisSample(originalSample, reason = '', note = '', actor) {
+  const rawId = originalSample.sampleId || originalSample.sampleNumber || originalSample.id;
+  if (!rawId) throw new Error('Original sample has no usable ID.');
+
+  // Strip any existing revision suffix (-R1, -R2, ...) to get the true base id.
+  // e.g. "26-09-AAS-1100-001-R1" -> "26-09-AAS-1100-001"
+  const baseId = rawId.replace(/-R\d+$/, '');
+  if (!baseId) throw new Error('Original sample has no usable base ID.');
+
+  // Find existing revision samples for this base id (e.g. baseId-R1, baseId-R2)
+  const revisionPrefix = baseId + '-R';
+  const existingRevisions = DB.samples.filter(s =>
+    s.sampleId && s.sampleId.startsWith(revisionPrefix)
+  );
+
+  let nextRev = 1;
+  if (existingRevisions.length) {
+    const nums = existingRevisions.map(s => {
+      const match = s.sampleId.match(/-R(\d+)$/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+    nextRev = Math.max(...nums) + 1;
+  }
+
+  const revisionId = baseId + '-R' + nextRev;
+
+  // Guard against duplicates
+  if (DB.samples.some(s => s.sampleId === revisionId)) {
+    throw new Error('Revision sample ' + revisionId + ' already exists.');
+  }
+
+  const revisionSample = {
+    id: generateId('smp'),
+    sampleId: revisionId,
+    submissionId: originalSample.submissionId,
+    sampleNumber: originalSample.sampleNumber,
+    sampleName: revisionId,
+    sampleType: originalSample.sampleType,
+    test_id: originalSample.test_id,
+    test_name: originalSample.test_name,
+    selectedElements: originalSample.selectedElements || [],
+    elementCount: originalSample.elementCount || 0,
+    status: 'assigned',
+    customer_name: originalSample.customer_name || '',
+    customer_contact: originalSample.customer_contact || '',
+    customer_address: originalSample.customer_address || '',
+    external_sample_id: originalSample.external_sample_id || '',
+    cnic: originalSample.cnic || '',
+    sample_location: originalSample.sample_location || '',
+    collection_date: originalSample.collection_date || '',
+    collected_by: originalSample.collected_by || '',
+    lab_id: originalSample.lab_id || '',
+    notes: (originalSample.notes || '') + (note ? ' | Re-analysis note: ' + note : ''),
+    created_at: new Date().toISOString(),
+    assigned_at: new Date().toISOString(),
+    completed_at: null,
+  };
+
+  const ok = await supabaseUpsert('samples', revisionSample);
+  if (!ok) throw new Error('Failed to create revision sample in database');
+  DB.samples.push(revisionSample);
+
+  const actorName = actor ? actor.full_name : 'Receptionist';
+  await logEvent(originalSample.id, 'reanalyse_assign',
+    'Assigned revision ' + revisionId + ' for re-analysis by ' + actorName +
+    (reason ? ' — ' + reason : ''));
+
+  return revisionSample;
+}
+
+/* ============================================================
    RETURN / REVIEW / ARCHIVE WORKFLOW
    ------------------------------------------------------------
    Lab engineer : returnSamplesToReception()  → status 'returned'

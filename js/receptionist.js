@@ -1306,6 +1306,89 @@ function collectReviewSelections() {
   return items;
 }
 
+/** Reassign all completed samples of a submission to the lab for re-analysis.
+ *  Creates revision samples (R1, R2, ...) with the same submissionId.
+ *  @param {string} submissionId
+ */
+/** Reassign a single completed sample to the lab for re-analysis.
+ *  Creates one revision sample (R1, R2, ...) with the same submissionId.
+ *  @param {string} sampleId
+ */
+async function handleReassignSingleSampleForReanalysis(sampleId) {
+  const sample = getSample(sampleId);
+  if (!sample) {
+    showToast('Sample not found.', 'error');
+    return;
+  }
+  if (sample.status !== 'completed') {
+    showToast('Only completed samples can be reassigned for re-analysis.', 'warning');
+    return;
+  }
+
+  showRecConfirm(
+    'Reassign Sample to Lab',
+    'Create revision sample for <strong>' + escHtml(sample.sampleId || sample.id) + '</strong> ' +
+    'of submission <strong>#' + escHtml(sample.submissionId) + '</strong>?' +
+    '<div class="muted" style="margin-top:6px;font-size:0.8rem;">The revision keeps the same submission ID ' +
+    'and gets a suffixed sample ID (e.g. 26-10-AAS-1156-001-R1).</div>',
+    async () => {
+      try {
+        const actor = currentUser();
+        const rev = await createReanalysisSample(sample, '', '', actor);
+        showToast('Revision sample ' + rev.sampleId + ' created and sent to the lab queue.', 'success');
+        await refreshTable('samples');
+        renderMySubmissions();
+        renderReviewQueue();
+        renderSamplesTable();
+        // Re-open the panel to reflect changes
+        openRecSubmissionPanel(sample.submissionId);
+      } catch (err) {
+        console.error('[RECEPTIONIST] Single reassign failed:', err);
+        showToast(err.message || 'Could not create revision sample.', 'error');
+      }
+    }
+  );
+}
+
+/** Reassign all completed samples of a submission to the lab for re-analysis.
+ *  Creates revision samples (R1, R2, ...) with the same submissionId.
+ *  @param {string} submissionId
+ */
+async function handleReassignAllSamplesForReanalysis(submissionId) {
+  const samples = DB.samples.filter(s => s.submissionId === submissionId);
+  const completed = samples.filter(s => s.status === 'completed');
+  if (!completed.length) {
+    showToast('No completed samples to re-assign.', 'warning');
+    return;
+  }
+
+  showRecConfirm(
+    'Reassign for Re-analysis',
+    'Create revision samples for <strong>' + completed.length + '</strong> completed sample(s) ' +
+    'of submission <strong>#' + escHtml(submissionId) + '</strong>?' +
+    '<div class="muted" style="margin-top:6px;font-size:0.8rem;">Each revision keeps the same submission ID ' +
+    'and gets a suffixed sample ID (e.g. 26-10-AAS-1156-001-R1).</div>',
+    async () => {
+      try {
+        const actor = currentUser();
+        const created = [];
+        for (const sample of completed) {
+          const rev = await createReanalysisSample(sample, '', '', actor);
+          created.push(rev);
+        }
+        showToast(created.length + ' revision sample(s) created and sent to the lab queue.', 'success');
+        await refreshTable('samples');
+        renderMySubmissions();
+        renderReviewQueue();
+        renderSamplesTable();
+      } catch (err) {
+        console.error('[RECEPTIONIST] Reassign failed:', err);
+        showToast(err.message || 'Could not create revision samples.', 'error');
+      }
+    }
+  );
+}
+
 /** Resubmit the checked returned samples to their (possibly re-selected) lab. */
 async function handleReviewResubmit() {
   if (!activeReviewSubmissionId) return;
@@ -1642,6 +1725,9 @@ function openRecSubmissionPanel(submissionId) {
               '<span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">' + escHtml(s.sampleType || '—') + '</span>' +
             '</div>' +
             (isCompleted ? '<span style="font-size:0.72rem;color:var(--clr-success);font-weight:600;">✓ Complete</span>' : statusBadge(s.status)) +
+            (isCompleted
+              ? '<button type="button" class="btn btn-secondary btn-sm" style="margin-left:auto;" onclick="event.stopPropagation(); handleReassignSingleSampleForReanalysis(\'' + escHtml(s.id) + '\')">Reassign to Lab</button>'
+              : '') +
           '</div>' +
           '<div style="font-size:0.75rem;color:var(--txt-secondary);">' +
             '<span><strong>Elements (' + elements.length + '):</strong> ' + escHtml(elementLabels) + '</span>' +
@@ -1678,6 +1764,13 @@ function openRecSubmissionPanel(submissionId) {
         '<div id="rec-submission-samples-list">' +
           sampleRows +
         '</div>' +
+        (allCompleted
+          ? '<div style="margin-top:var(--sp-4);padding-top:var(--sp-3);border-top:1px solid var(--clr-border);text-align:center;">' +
+            '<button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation(); handleReassignAllSamplesForReanalysis(\'' + escHtml(submissionId) + '\')">↻ Reassign All Completed Samples to Lab</button>' +
+          '</div>'
+          : '<div style="margin-top:var(--sp-4);padding-top:var(--sp-3);border-top:1px solid var(--clr-border);text-align:center;color:var(--txt-muted);font-size:0.8rem;">' +
+            'Not all samples are completed yet.' +
+          '</div>') +
       '</div>' +
     '</div>';
 
