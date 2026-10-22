@@ -538,6 +538,7 @@ async function handleSubmissionSubmit(e) {
   const customerName = document.getElementById('customer-name').value.trim();
   const customerContact = document.getElementById('customer-contact').value.trim();
   const customerAddress = document.getElementById('customer-address').value.trim();
+  const customerNote = document.getElementById('customer-note').value.trim();
   const cnic = document.getElementById('customer-cnic').value.trim();
   const sampleLocation = document.getElementById('sample-location').value.trim();
 
@@ -582,7 +583,7 @@ async function handleSubmissionSubmit(e) {
         status: 'received',
         customer_name: customerName,
         customer_contact: customerContact,
-        customer_address: customerAddress,
+        customer_address: combineAddressWithNote(customerAddress, customerNote),
         cnic: cnic,
         sample_location: sampleLocation,
         lab_id: labId,
@@ -618,6 +619,7 @@ function resetForm() {
   document.getElementById('customer-name').value = '';
   document.getElementById('customer-contact').value = '';
   document.getElementById('customer-address').value = '';
+  document.getElementById('customer-note').value = '';
   document.getElementById('customer-cnic').value = '';
   document.getElementById('sample-location').value = '';
   document.getElementById('submission-date').value = new Date().toISOString().slice(0, 10);
@@ -1656,6 +1658,7 @@ function openRecSubmissionPanel(submissionId) {
   const lab = getLab(samples[0].lab_id);
   const firstSample = sortedSamples[0];
   const test = firstSample ? getTest(firstSample.test_id) : null;
+  const addrInfo = splitAddressNote(firstSample?.customer_address);
 
   const sampleCount = samples.length;
   const firstSampleId = sortedSamples.length > 0 ? (sortedSamples[0].sampleId || '') : '';
@@ -1752,6 +1755,8 @@ function openRecSubmissionPanel(submissionId) {
         '<div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">' + escHtml(firstSample?.customer_name || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">' + escHtml(firstSample?.customer_contact || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(firstSample?.cnic || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">' + escHtml(addrInfo.address || '—') + '</span></div>' +
+        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Note</span><span class="detail-value">' + escHtml(addrInfo.note || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">' + escHtml(firstSample?.sample_location || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">' + escHtml(test?.test_name || samples[0]?.test_name || '—') + (test ? ' <code style="font-size:0.75rem;color:var(--clr-accent)">' + test.test_code + '</code>' : '') + '</span></div>' +

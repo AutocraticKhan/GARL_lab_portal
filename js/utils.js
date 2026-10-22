@@ -391,6 +391,40 @@ function escHtml(str) {
     .replace(/"/g, '"');
 }
 
+// ── Address + Note packing (single existing DB column) ────────
+/**
+ * Combine the reception "Address" and "Note" entries into the single
+ * existing samples.customer_address column using a "|" delimiter.
+ * No Supabase schema change is required.
+ * @param {string} address
+ * @param {string} note
+ * @returns {string}
+ */
+function combineAddressWithNote(address, note) {
+  const a = String(address ?? '').trim();
+  const n = String(note ?? '').trim();
+  if (!a && !n) return '';
+  // A pipe inside the address would be mistaken for the delimiter
+  return a.replace(/\|/g, '/') + '|' + n;
+}
+
+/**
+ * Split a stored customer_address back into { address, note }.
+ * Splits on the FIRST "|" only, so pipes typed inside the note are kept.
+ * Legacy rows without a "|" return the whole value as the address.
+ * @param {string} raw
+ * @returns {{address: string, note: string}}
+ */
+function splitAddressNote(raw) {
+  const str = String(raw ?? '');
+  const idx = str.indexOf('|');
+  if (idx === -1) return { address: str.trim(), note: '' };
+  return {
+    address: str.slice(0, idx).trim(),
+    note: str.slice(idx + 1).trim(),
+  };
+}
+
 // ── Number formatting ─────────────────────────────────────────
 function zeroPad(n, len = 2) { return String(n).padStart(len, '0'); }
 

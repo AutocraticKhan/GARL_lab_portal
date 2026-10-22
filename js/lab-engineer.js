@@ -401,6 +401,7 @@ function openSubmissionPanel(submissionId) {
 
   const lab = getLab(sub.lab_id);
   const firstSample = sortedSamples[0];
+  const addrInfo = splitAddressNote(firstSample?.customer_address);
   const test = firstSample ? getTest(firstSample.test_id) : null;
 
   let sampleRange = '—';
@@ -539,6 +540,8 @@ function openSubmissionPanel(submissionId) {
         '<div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">' + escHtml(sub.customer_name || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">' + escHtml(firstSample?.customer_contact || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(firstSample?.cnic || '—') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">' + escHtml(addrInfo.address || '—') + '</span></div>' +
+        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Note</span><span class="detail-value">' + escHtml(addrInfo.note || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">' + escHtml(firstSample?.sample_location || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
         '<div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">' + escHtml(test?.test_name || sub.test_name || '—') + (test ? ' <code style="font-size:0.75rem;color:var(--clr-accent)">' + test.test_code + '</code>' : '') + '</span></div>' +
