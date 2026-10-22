@@ -12,6 +12,62 @@ let activeReportType = null; // current report type: 'pnac' or 'qscert'
 let activeFullSubmissionId = null; // full submission ID e.g. "26-07-AAS-1041"
 let activeReopenSampleId = null; // sample loaded in the reopen/reanalyse modal
 
+// UI-only preference: samples excluded from the printed spectroscopy datasheet.
+// Shape: { "<fullSubmissionId>": ["smp-abc123", ...] } — scoped per submission
+// so hiding samples in one datasheet never affects another submission.
+const HIDDEN_SAMPLES_STORAGE_KEY = 'garl_hidden_spectro_samples';
+let activeSpectroFullId = null; // full submission ID of the open datasheet
+let activeSpectroPages  = null; // live (non-print) pages container
+let activeSpectroFooter = null; // live footer element holding the hidden count
+
+// Same feature for the PNAC/QSCert report form. Reports are scoped per
+// submission AND report type, so hiding in PNAC never affects QSCert.
+let activeReportHiddenKey = null; // "<fullSubmissionId>::<reportType>"
+let activeReportPages     = null; // live (non-print) report container
+let activeReportFooter    = null; // live footer element holding the hidden count
+
+function loadHiddenSampleMap() {
+  try {
+    return JSON.parse(localStorage.getItem(HIDDEN_SAMPLES_STORAGE_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function getHiddenSamplesFor(fullSubmissionId) {
+  if (!fullSubmissionId) return [];
+  const map = loadHiddenSampleMap();
+  return Array.isArray(map[fullSubmissionId]) ? map[fullSubmissionId] : [];
+}
+
+function setHiddenSamplesFor(fullSubmissionId, ids) {
+  if (!fullSubmissionId) return;
+  const map = loadHiddenSampleMap();
+  const clean = [...new Set(ids || [])];
+  if (clean.length > 0) {
+    map[fullSubmissionId] = clean;
+  } else {
+    delete map[fullSubmissionId];
+  }
+  try {
+    localStorage.setItem(HIDDEN_SAMPLES_STORAGE_KEY, JSON.stringify(map));
+  } catch (e) { /* storage unavailable — hide state just won't persist */ }
+}
+
+/**
+ * Escape a value for use inside a quoted HTML attribute.
+ * NB: escHtml() in utils.js is a no-op in this repo (its entities were decoded),
+ * so attribute values must be escaped here rather than relying on it.
+ */
+function escAttr(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Max element columns per printed report page (A4 portrait width limit).
 // Reports with more elements are split across multiple .report-page divs;
 // the print CSS already applies page-break-after: always to each .report-page.
@@ -992,16 +1048,24 @@ function buildSpectroVitals() {
 
 /**
  * Create a data table for spectro page (using innerHTML for clean tabular structure)
+ *
+ * @param {Array}  sortedSamples    samples in display order
+ * @param {Array}  elementsChunk    element symbols shown on this page
+ * @param {Array}  hiddenIds        sample.id values flagged "hide during print"
+ * @param {string} fullSubmissionId scope for the persisted hide state
  */
-function buildSpectroTable(sortedSamples, elementsChunk) {
+function buildSpectroTable(sortedSamples, elementsChunk, hiddenIds = [], fullSubmissionId = '') {
   const tableWrap = document.createElement('div');
+  const hiddenSet = new Set(hiddenIds || []);
 
   const table = document.createElement('table');
+  table.dataset.submissionId = fullSubmissionId;
   table.style.cssText = 'width:100%;border-collapse:collapse;border:2px solid #1e293b;font-size:11px;margin-bottom:24px;';
 
   // Build header row HTML
   let headerHtml =
     '<tr style="background:#f1f5f9;border-bottom:2px solid #1e293b;font-weight:700;color:#0f172a;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;">' +
+    '<th class="no-print spectro-hide-cell" style="border-right:1px solid #94a3b8;font-size:7px;line-height:1.2;text-transform:none;" title="Hide this sample during print">Hide</th>' +
     '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:1%;">No.</th>' +
     '<th style="border-right:1px solid #94a3b8;padding:8px 6px;text-align:left;white-space:nowrap;width:1%;">Sample ID</th>' +
     '<th style="border-right:1px solid #94a3b8;padding:8px 4px;text-align:center;white-space:nowrap;width:20px;font-size:7px;line-height:1.2;text-transform:none;">Wt.<br>(g)</th>';
@@ -1022,9 +1086,19 @@ function buildSpectroTable(sortedSamples, elementsChunk) {
   sortedSamples.forEach((sample, idx) => {
     const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
     const sampleElements = (sample.selectedElements || []).map(el => normalizeElementSymbol(el));
-    bodyHtml += '<tr style="border-bottom:1px solid #cbd5e1;height:10.5mm;">' +
-      '<td style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">' + (idx + 1) + '</td>' +
-      '<td style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">' + escHtml(sampleIdLabel) + '</td>' +
+    const sampleKey = sample.id || sample.sampleId || '';
+    const isHidden = sampleKey !== '' && hiddenSet.has(sampleKey);
+    bodyHtml += '<tr class="spectro-sample-row' + (isHidden ? ' is-hidden-sample' : '') + '"' +
+        ' data-sample-id="' + escAttr(sampleKey) + '"' +
+        ' style="border-bottom:1px solid #cbd5e1;height:10.5mm;">' +
+      '<td class="no-print spectro-hide-cell" style="border-right:1px solid #94a3b8;">' +
+        '<input type="checkbox" class="hide-print-toggle"' + (isHidden ? ' checked' : '') +
+          ' title="Hide during print"' +
+          ' aria-label="Hide sample ' + escAttr(sampleIdLabel) + ' during print"' +
+          ' onchange="toggleHidePrintSample(this)" />' +
+      '</td>' +
+      '<td class="spectro-row-no" style="border-right:1px solid #94a3b8;text-align:center;font-weight:700;color:#94a3b8;font-family:monospace;font-size:11px;white-space:nowrap;">' + (idx + 1) + '</td>' +
+      '<td class="spectro-sample-id" style="border-right:1px solid #94a3b8;padding:2px 6px;font-family:monospace;font-size:11px;font-weight:500;color:#0f172a;white-space:nowrap;">' + escAttr(sampleIdLabel) + '</td>' +
       '<td style="border-right:1px solid #94a3b8;text-align:center;padding:2px;font-size:10px;font-family:monospace;border-bottom:1px dashed #94a3b8;">&nbsp;</td>' +
       elementsChunk.map(el => {
         const hasEl = sampleElements.includes(el);
@@ -1037,6 +1111,144 @@ function buildSpectroTable(sortedSamples, elementsChunk) {
   table.innerHTML = '<thead>' + headerHtml + '</thead><tbody>' + bodyHtml + '</tbody>';
   tableWrap.appendChild(table);
   return tableWrap;
+}
+
+/**
+ * Footer: "N of M samples hidden from print" + a restore action.
+ * Carries `no-print`, so it never reaches the printed sheet.
+ *
+ * @param {string}   scopeKey   storage scope (submission ID, or submission::type)
+ * @param {Array}    hiddenIds  currently hidden sample ids
+ * @param {number}   totalCount number of unique samples in the document
+ * @param {Function} syncFn     callback used to refresh the live document
+ */
+function buildHiddenSamplesFooter(scopeKey, hiddenIds, totalCount, syncFn) {
+  const footer = document.createElement('div');
+  footer.className = 'hidden-samples-footer no-print';
+
+  const hiddenCount = (hiddenIds || []).length;
+
+  const countEl = document.createElement('span');
+  countEl.className = 'hidden-samples-count';
+  countEl.textContent = hiddenCount + ' of ' + totalCount +
+    ' sample' + (totalCount !== 1 ? 's' : '') + ' hidden from print';
+
+  const showAllBtn = document.createElement('button');
+  showAllBtn.type = 'button';
+  showAllBtn.textContent = 'Show all samples';
+  showAllBtn.disabled = hiddenCount === 0;
+  showAllBtn.addEventListener('click', function() {
+    if (!scopeKey) return;
+    setHiddenSamplesFor(scopeKey, []);
+    (typeof syncFn === 'function' ? syncFn : syncHiddenSampleRows)();
+  });
+
+  const hint = document.createElement('span');
+  hint.style.cssText = 'margin-left:auto;font-size:9px;color:#94a3b8;';
+  hint.textContent = 'Tick "Hide" to exclude a sample from print only — nothing is deleted.';
+
+  footer.appendChild(countEl);
+  footer.appendChild(showAllBtn);
+  footer.appendChild(hint);
+  return footer;
+}
+
+/**
+ * Apply the persisted hide state to every sample row inside `container`.
+ * Works for both the datasheet and the report table because both row types
+ * carry a `data-sample-id`.
+ * @returns {{total:number, hidden:number}} counts over UNIQUE sample keys
+ */
+function applyHiddenRows(container, scopeKey) {
+  if (!container) return { total: 0, hidden: 0 };
+
+  const hidden = new Set(getHiddenSamplesFor(scopeKey));
+  const sampleKeys = new Set();
+  const hiddenKeys = new Set();
+
+  container.querySelectorAll('tr[data-sample-id]').forEach(function(tr) {
+    const key = tr.dataset.sampleId;
+    if (!key) return;
+    sampleKeys.add(key);
+    const isHidden = hidden.has(key);
+    if (isHidden) hiddenKeys.add(key);
+    tr.classList.toggle('is-hidden-sample', isHidden);
+    const chk = tr.querySelector('input.hide-print-toggle');
+    if (chk) chk.checked = isHidden;
+  });
+
+  return { total: sampleKeys.size, hidden: hiddenKeys.size };
+}
+
+function updateHiddenFooter(footer, counts) {
+  if (!footer) return;
+
+  const countEl = footer.querySelector('.hidden-samples-count');
+  if (countEl) {
+    countEl.textContent = counts.hidden + ' of ' + counts.total +
+      ' sample' + (counts.total !== 1 ? 's' : '') + ' hidden from print';
+  }
+  const showAllBtn = footer.querySelector('button');
+  if (showAllBtn) showAllBtn.disabled = counts.hidden === 0;
+}
+
+/** Refresh the open spectroscopy datasheet (no re-render → typed vitals survive). */
+function syncHiddenSampleRows() {
+  updateHiddenFooter(activeSpectroFooter, applyHiddenRows(activeSpectroPages, activeSpectroFullId));
+}
+
+/** Refresh the open PNAC/QSCert report form (no re-render → typed results survive). */
+function syncHiddenReportRows() {
+  updateHiddenFooter(activeReportFooter, applyHiddenRows(activeReportPages, activeReportHiddenKey));
+}
+
+/**
+ * Toggle one sample's "hide during print" flag (row checkbox `onchange`).
+ * Shared by the datasheet and the PNAC/QSCert report: the owning table carries
+ * `data-submission-id`, which doubles as the storage scope key.
+ * @param {HTMLInputElement} chk
+ */
+function toggleHidePrintSample(chk) {
+  const row = chk.closest('tr[data-sample-id]');
+  const table = chk.closest('table');
+  const scopeKey = table ? table.dataset.submissionId : '';
+
+  if (!row || !scopeKey) {
+    chk.checked = false;
+    return;
+  }
+
+  const sampleKey = row.dataset.sampleId;
+  if (!sampleKey) {
+    chk.checked = false;
+    return;
+  }
+
+  const ids = new Set(getHiddenSamplesFor(scopeKey));
+
+  if (chk.checked) {
+    if (!ids.has(sampleKey)) {
+      // Never allow every sample to be excluded — the printed sheet would be empty.
+      // Every page carries all samples, so count unique keys in this table.
+      const sampleKeys = new Set();
+      table.querySelectorAll('tr[data-sample-id]').forEach(function(tr) {
+        if (tr.dataset.sampleId) sampleKeys.add(tr.dataset.sampleId);
+      });
+      if (ids.size + 1 >= sampleKeys.size) {
+        chk.checked = false;
+        showToast('At least one sample must remain in the document.', 'warning');
+        return;
+      }
+      ids.add(sampleKey);
+    }
+  } else {
+    ids.delete(sampleKey);
+  }
+
+  setHiddenSamplesFor(scopeKey, [...ids]);
+
+  if (activeSpectroFullId === scopeKey) syncHiddenSampleRows();
+  if (activeReportHiddenKey === scopeKey) syncHiddenReportRows();
 }
 
 /**
@@ -1079,6 +1291,15 @@ function openSpectroscopyForm(submissionId) {
   const submissions = getSubmissionsForLab(engSession.lab_id);
   const sub = submissions.find(s => s.submissionId === submissionId);
   if (!sub) { showToast('Submission not found', 'error'); return; }
+
+  // Datasheet scope — NOT activeFullSubmissionId, which is only set by the
+  // PNAC/QSCert report form and may still point at another submission.
+  const fullSubmissionId = getFullSubmissionId(sub);
+  activeSpectroFullId = fullSubmissionId;
+
+  // Samples previously excluded from print for THIS submission (stale IDs pruned)
+  const savedHiddenIds = getHiddenSamplesFor(fullSubmissionId)
+    .filter(id => sub.samples.some(s => s.id === id));
 
   const sortedSamples = [...sub.samples].sort((a, b) => {
     const aSeq = (a.sampleId || '').split('-').pop() || '';
@@ -1146,13 +1367,19 @@ function openSpectroscopyForm(submissionId) {
     pageDiv.appendChild(buildSpectroVitals());
 
     // Data Table
-    pageDiv.appendChild(buildSpectroTable(sortedSamples, elementsChunk));
+    pageDiv.appendChild(buildSpectroTable(sortedSamples, elementsChunk, savedHiddenIds, fullSubmissionId));
 
     // Remarks + Signatures
     pageDiv.appendChild(buildSpectroSignatures());
 
     pagesContainer.appendChild(pageDiv);
   });
+
+  // Hidden-from-print summary + restore action (once, outside the page loop).
+  // Keep the live references so toggling never has to re-render the datasheet.
+  activeSpectroPages = pagesContainer;
+  activeSpectroFooter = buildHiddenSamplesFooter(fullSubmissionId, savedHiddenIds, sortedSamples.length, syncHiddenSampleRows);
+  pagesContainer.appendChild(activeSpectroFooter);
 
   // Hidden container for printing
   const printSourceEl = document.createElement('div');
@@ -1170,6 +1397,11 @@ function openSpectroscopyForm(submissionId) {
 
 // ── BLANK SPECTROSCOPY DATASHEET ───────────────────────────────
 function openBlankSpectroscopyForm() {
+  // Blank sheet is not tied to a submission: drop the hide-from-print scope.
+  activeSpectroFullId = null;
+  activeSpectroPages = null;
+  activeSpectroFooter = null;
+
   document.getElementById('blank-sheet-inputs').style.display = 'flex';
   document.getElementById('btn-blank-sheet').style.display = 'none';
   document.getElementById('spectroscopy-body').innerHTML = '';
@@ -1342,6 +1574,11 @@ function generateBlankSpectroscopy() {
  * @param {object|null} csvData - { elementHeaders: string[], values: string[][] }
  */
 function generateTable(sampleCount, elemCount, idPrefix, csvData) {
+  // Blank sheet is not tied to a submission: drop the hide-from-print scope.
+  activeSpectroFullId = null;
+  activeSpectroPages = null;
+  activeSpectroFooter = null;
+
   // Validate CSV data if present
   if (csvData) {
     const csvElemCount = csvData.elementHeaders.length;
@@ -1464,6 +1701,28 @@ function printSpectroscopy() {
   if (!pagesContainer) { showToast('No datasheet content found.', 'warning'); return; }
 
   const clone = pagesContainer.cloneNode(true);
+
+  // ── Apply "hide during print" flags ──────────────────────────
+  // Read from storage (not from the form-open snapshot) so the printout always
+  // matches the last checkbox change. Renumber "No." so the sheet has no gaps.
+  const hiddenForPrint = new Set(getHiddenSamplesFor(activeSpectroFullId));
+  if (hiddenForPrint.size > 0) {
+    clone.querySelectorAll('tr.spectro-sample-row').forEach(tr => {
+      if (hiddenForPrint.has(tr.dataset.sampleId)) tr.remove();
+    });
+    // Renumber per TABLE: a multi-page datasheet has one table per page and
+    // every page must restart at 1.
+    clone.querySelectorAll('table').forEach(function(tbl) {
+      const bodyRows = tbl.querySelectorAll('tr.spectro-sample-row');
+      bodyRows.forEach(function(tr, idx) {
+        const noCell = tr.querySelector('.spectro-row-no');
+        if (noCell) noCell.textContent = String(idx + 1);
+      });
+    });
+  }
+
+  // The Hide column and the footer are screen-only controls — never printed.
+  clone.querySelectorAll('.no-print').forEach(el => el.remove());
 
   // Find which instrument is selected from the live DOM
   const selectedInst = ['aas', 'mpaes', 'icpms'].find(inst => {
@@ -1601,6 +1860,12 @@ function openReportForm(submissionId, reportType) {
   activeReportType = reportType;
   activeFullSubmissionId = getFullSubmissionId(sub);
 
+  // Hide-during-print scope for THIS report type (PNAC and QSCert are separate
+  // documents, so hiding a sample in one must not affect the other).
+  activeReportHiddenKey = activeFullSubmissionId + '::' + reportType;
+  const savedHiddenIds = getHiddenSamplesFor(activeReportHiddenKey)
+    .filter(id => sortedSamples.some(s => (s.id || s.sampleId) === id));
+
   // Build the report HTML
   const reportDiv = document.createElement('div');
   reportDiv.style.cssText = 'padding:16px 0;';
@@ -1677,7 +1942,7 @@ function openReportForm(submissionId, reportType) {
     metaTable.innerHTML =
       '<tbody>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:28%;">Report No:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;font-weight:700;color:#065f46;width:24%;">' + escHtml(reportNo) + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:24%;">Report issue Date:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;width:24%;">' + escHtml(today) + '</td></tr>' +
-        '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(sub.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + sub.sampleCount + '</td></tr>' +
+        '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(sub.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td class="report-sample-count" style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + sub.sampleCount + '</td></tr>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Location of Sample (Given by customer)</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sample_location || 'NA') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample receiving Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + formatDate(sub.created_at) + '</td></tr>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sampleType || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(today) + '</td></tr>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-method-input" value="EPA 3052" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-temp-input" value="25.2 °C & 52 %" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td></tr>' +
@@ -1702,6 +1967,8 @@ function openReportForm(submissionId, reportType) {
     // Test Results Table with editable input fields
     const resultTable = document.createElement('table');
     resultTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:32px;';
+    // Scope key read by toggleHidePrintSample() when a row checkbox changes
+    resultTable.dataset.submissionId = activeReportHiddenKey;
 
     const elemColWidth = chunkElements.length > 0 ? Math.floor(92 / chunkElements.length) + '%' : '50%';
 
@@ -1712,6 +1979,7 @@ function openReportForm(submissionId, reportType) {
     // Build header row
     let resultHeaderHtml =
       '<thead><tr style="background:#f9fafb;">' +
+      '<th class="no-print report-hide-cell" style="border:1px solid #000;padding:2px;text-align:center;font-weight:700;font-size:7px;line-height:1.2;" title="Hide this sample during print">Hide</th>' +
       '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;width:6%;">S. No.</th>' +
       '<th style="border:1px solid #000;padding:4px 8px;text-align:center;font-weight:700;font-size:13.5px;white-space:nowrap;min-width:160px;">Sample ID</th>';
 
@@ -1734,16 +2002,37 @@ function openReportForm(submissionId, reportType) {
     sortedSamples.forEach((sample, idx) => {
       const sampleIdLabel = sample.sampleId || sample.sampleNumber || sample.sampleName || '—';
       const sampleElements = (sample.selectedElements || []).map(el => normalizeElementSymbol(el));
+      const sampleKey = sample.id || sample.sampleId || '';
+      const isHidden = sampleKey !== '' && savedHiddenIds.includes(sampleKey);
+
       const tr = document.createElement('tr');
+      tr.className = 'report-sample-row' + (isHidden ? ' is-hidden-sample' : '');
+      tr.dataset.sampleId = sampleKey;
+
+      // Hide-during-print toggle (screen only)
+      const tdHide = document.createElement('td');
+      tdHide.className = 'no-print report-hide-cell';
+      tdHide.style.cssText = 'border:1px solid #000;padding:2px;text-align:center;';
+      const hideChk = document.createElement('input');
+      hideChk.type = 'checkbox';
+      hideChk.className = 'hide-print-toggle';
+      hideChk.checked = isHidden;
+      hideChk.title = 'Hide during print';
+      hideChk.setAttribute('aria-label', 'Hide sample ' + sampleIdLabel + ' during print');
+      hideChk.addEventListener('change', function() { toggleHidePrintSample(this); });
+      tdHide.appendChild(hideChk);
+      tr.appendChild(tdHide);
 
       // S.No
       const tdNo = document.createElement('td');
+      tdNo.className = 'report-row-no';
       tdNo.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;';
       tdNo.textContent = (idx + 1) + '.';
       tr.appendChild(tdNo);
 
       // Sample ID
       const tdId = document.createElement('td');
+      tdId.className = 'report-sample-id';
       tdId.style.cssText = 'border:1px solid #000;padding:4px 8px;text-align:center;font-size:13.5px;white-space:nowrap;';
       tdId.textContent = sampleIdLabel;
       tr.appendChild(tdId);
@@ -1828,6 +2117,11 @@ function openReportForm(submissionId, reportType) {
 
     reportDiv.appendChild(pageDiv);
   });
+
+  // Hide-during-print summary (screen only — stripped before printing)
+  activeReportPages = reportDiv;
+  activeReportFooter = buildHiddenSamplesFooter(activeReportHiddenKey, savedHiddenIds, sortedSamples.length, syncHiddenReportRows);
+  reportDiv.appendChild(activeReportFooter);
 
   // Hidden container for printing
   const printSourceEl = document.createElement('div');
@@ -2076,6 +2370,38 @@ function printReport() {
     cloneTemp.setAttribute('value', liveTemp.value);
     cloneTemp.readOnly = true;
   }
+
+  // ── Apply "hide during print" flags ──────────────────────────
+  // Read from storage (not from the form-open snapshot) so the printout always
+  // matches the last checkbox change.
+  const hiddenForPrint = new Set(getHiddenSamplesFor(activeReportHiddenKey));
+  if (hiddenForPrint.size > 0) {
+    clone.querySelectorAll('tr.report-sample-row').forEach(function(tr) {
+      if (hiddenForPrint.has(tr.dataset.sampleId)) tr.remove();
+    });
+  }
+
+  // Renumber "S. No." per TABLE (every page carries all samples, so each page
+  // must restart at 1) and keep the printed "No. of Sample(s)" consistent with
+  // the rows that are actually shown.
+  let printedSampleCount = 0;
+  clone.querySelectorAll('table').forEach(function(tbl) {
+    const bodyRows = tbl.querySelectorAll('tr.report-sample-row');
+    if (bodyRows.length === 0) return;
+    bodyRows.forEach(function(tr, idx) {
+      const noCell = tr.querySelector('.report-row-no');
+      if (noCell) noCell.textContent = (idx + 1) + '.';
+    });
+    printedSampleCount = Math.max(printedSampleCount, bodyRows.length);
+  });
+  if (hiddenForPrint.size > 0 && printedSampleCount > 0) {
+    clone.querySelectorAll('.report-sample-count').forEach(function(td) {
+      td.textContent = String(printedSampleCount);
+    });
+  }
+
+  // The Hide column and the footer are screen-only controls — never printed.
+  clone.querySelectorAll('.no-print').forEach(function(el) { el.remove(); });
 
   // Sync element header text (unit may have changed via the Unit dropdown after
   // the report was built) — matched by data-element so chunked pages stay in sync
