@@ -125,6 +125,11 @@ async function supabaseFindOne(table, column, value) {
 }
 
 // ── Connection health check ───────────────────────────────────
+// Login-independent probe: hits an endpoint that only requires the
+// publishable API key — no table rows, no RLS, no user session.
+// NOTE: the PostgREST root (/rest/v1/) answers 401 "Secret API key
+// required" on this project, so we probe the GoTrue health endpoint
+// instead, which returns 200 with just the publishable key.
 async function checkSupabaseConnection() {
   // Ensure client is initialized
   if (!supabaseClient) {
@@ -139,33 +144,28 @@ async function checkSupabaseConnection() {
   }
 
   try {
-    // Perform a lightweight query to verify connectivity
+    // Probe the auth API itself — works before login, exposes no data
     const start = performance.now();
-    const { data, error, count } = await supabaseClient
-      .from('system_state')
-      .select('key', { count: 'exact', head: true })
-      .limit(1);
+    const res = await fetch(SUPABASE_URL + '/auth/v1/health', {
+      headers: { apikey: SUPABASE_ANON_KEY }
+    });
     const latency = Math.round(performance.now() - start);
 
-    if (error) {
-      // Try fallback: check if any table exists by trying 'users'
-      const fallbackCheck = await supabaseClient
-        .from('users')
-        .select('id', { count: 'exact', head: true })
-        .limit(1);
-
-      if (fallbackCheck.error) {
-        return {
-          connected: false,
-          message: `Query failed after ${latency}ms`,
-          error: {
-            message: fallbackCheck.error.message,
-            details: fallbackCheck.error.details || null,
-            hint: fallbackCheck.error.hint || null,
-            code: fallbackCheck.error.code || null
-          }
-        };
-      }
+    if (!res.ok) {
+      // Surface the gateway's error body when present (e.g.
+      // "Invalid API key") so the UI shows more than a bare HTTP code.
+      let body = null;
+      try { body = await res.json(); } catch (_) { /* non-JSON body */ }
+      return {
+        connected: false,
+        message: `Query failed after ${latency}ms`,
+        error: {
+          message: (body && body.message) || 'HTTP ' + res.status,
+          details: (body && body.details) || null,
+          hint: (body && body.hint) || null,
+          code: (body && body.code) || null
+        }
+      };
     }
 
     return {
