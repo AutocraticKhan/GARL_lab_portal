@@ -196,10 +196,13 @@ CREATE POLICY "Allow public all saved_reports" ON saved_reports FOR ALL USING (t
 -- Run the INSERT statements below to add initial data.
 -- ============================================================
 
--- Initial admin user (password: asdfQWER!1234)
--- IMPORTANT: Change this password after first login!
+-- Initial admin user.
+-- SECURITY: no default password is shipped in this file. After running this
+-- migration, set the admin password yourself (via the Admin dashboard or an
+-- UPDATE users SET password = '<strong-password>' WHERE id = 'usr-001';).
+-- Never commit real passwords to this repository — it is deployed publicly.
 INSERT INTO users (id, username, password, role, lab_id, full_name, created_by, active)
-VALUES ('usr-001', 'admin', 'asdfQWER!1234', 'admin', '', 'Dr. Admin User', 'system', true)
+VALUES ('usr-001', 'admin', 'SET_PASSWORD_AFTER_INSTALL', 'admin', '', 'Dr. Admin User', 'system', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Labs
