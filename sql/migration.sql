@@ -324,3 +324,8 @@ ALTER TABLE samples ADD COLUMN IF NOT EXISTS return_count   INTEGER DEFAULT 0;
 ALTER TABLE samples ADD COLUMN IF NOT EXISTS archive_reason TEXT DEFAULT '';
 ALTER TABLE samples ADD COLUMN IF NOT EXISTS archived_by    TEXT DEFAULT '';
 ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS is_stale BOOLEAN DEFAULT false;
+-- ============================================================
+-- Auth-managed users (Supabase Auth) — links each users row to
+-- its GoTrue account. Standalone version: sql/migration_auth_users.sql
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_uid TEXT DEFAULT '';

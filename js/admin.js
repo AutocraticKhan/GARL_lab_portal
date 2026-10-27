@@ -160,7 +160,7 @@ function renderUsers() {
     const lab = u.lab_id ? getLab(u.lab_id) : null;
     return '<tr>' +
       '<td><strong>' + escHtml(u.full_name) + '</strong></td>' +
-      '<td class="muted">' + escHtml(u.username) + '</td>' +
+      '<td class="muted">' + escHtml(u.username) + (u.auth_uid ? ' <span class="badge badge-info" style="font-size:0.62rem;text-transform:none;">Auth</span>' : '') + '</td>' +
       '<td>' + roleBadge(u.role) + '</td>' +
       '<td class="muted">' + (lab ? escHtml(lab.lab_name) : '—') + '</td>' +
       '<td>' + (u.active ? '<span class="badge badge-completed">Active</span>' : '<span class="badge badge-inactive">Inactive</span>') + '</td>' +
@@ -195,16 +195,57 @@ async function handleCreateUser(e) {
 
   try {
     if (id) {
-      const patch = { username, role, full_name: fullName, lab_id: labId };
-      if (password) patch.password = password;
-      await updateUser(id, patch);
-      showToast('User updated successfully.', 'success');
+      const target = getUser(id);
+      if (target && target.auth_uid) {
+        // Auth-managed account: credentials/profile live in Supabase Auth.
+        // Function runs FIRST - if it fails, nothing changes (login keeps working).
+        const usernameLower = username.toLowerCase();
+        await supabaseUpdateAuthUser({
+          auth_uid: target.auth_uid,
+          username: usernameLower,
+          role,
+          full_name: fullName,
+          lab_id: labId,
+          password: password || undefined,
+        });
+        // Profile row stays the source of truth while it exists - never
+        // store a plaintext password for auth-managed rows.
+        await updateUser(id, { username: usernameLower, role, full_name: fullName, lab_id: labId });
+        showToast('User updated successfully.', 'success');
+      } else {
+        // Legacy account (transition period) - unchanged behaviour.
+        const patch = { username, role, full_name: fullName, lab_id: labId };
+        if (password) patch.password = password;
+        await updateUser(id, patch);
+        showToast('User updated successfully.', 'success');
+      }
     } else {
       if (!password) { showToast('Password is required for new users.', 'error'); submitBtn.disabled = false; submitBtn.innerHTML = 'Save User'; return; }
-      const existing = DB.users.find(u => u.username === username);
+      const usernameLower = username.toLowerCase();
+      const existing = DB.users.find(u => u.username === usernameLower || u.username === username);
       if (existing) { showToast('Username already exists.', 'error'); submitBtn.disabled = false; submitBtn.innerHTML = 'Save User'; return; }
-      await createUser({ username, password, role, full_name: fullName, lab_id: labId });
-      showToast('User created successfully.', 'success');
+
+      // Provision credentials in Supabase Auth FIRST - on failure nothing
+      // is created and no plaintext password is ever stored.
+      const provisioned = await supabaseCreateAuthUser({
+        username: usernameLower,
+        password,
+        role,
+        full_name: fullName,
+        lab_id: labId,
+      });
+      if (!provisioned || !provisioned.uid) {
+        throw new Error('User provisioning returned no account id.');
+      }
+      await createUser({
+        username: usernameLower,
+        password: 'AUTH#no-login#' + generateId('pw'), // dummy: blocks the legacy login path
+        role,
+        full_name: fullName,
+        lab_id: labId,
+        auth_uid: provisioned.uid,
+      });
+      showToast('User created successfully (Auth-managed).', 'success');
     }
     closeModal('modal-user');
     renderUsers();

@@ -85,7 +85,10 @@ function requireAuth(allowedRoles) {
   return session;
 }
 
-// ── Render user info into sidebar ─────────────────────────────
+// ── Render user info into sidebar ────────────────────────────────────
+// Shows a session-origin badge next to the role:
+//   [Auth]        signed in via Supabase Auth (blue)
+//   [Plain-text]  signed in via the legacy plaintext path (red)
 function renderSidebarUser() {
   const session = currentUser();
   if (!session) return;
@@ -93,8 +96,78 @@ function renderSidebarUser() {
   const roleEl   = document.getElementById('sidebar-user-role');
   const avatarEl = document.getElementById('sidebar-user-avatar');
   if (nameEl)   nameEl.textContent   = session.full_name;
-  if (roleEl)   roleEl.textContent   = session.role.replace('_', ' ');
   if (avatarEl) avatarEl.textContent = initials(session.full_name);
+
+  const origin = session.via === 'supabase_auth' ? 'auth'
+               : session.via === 'legacy'        ? 'legacy'
+               : null;
+
+  if (roleEl) {
+    roleEl.textContent = session.role.replace('_', ' ');
+    if (origin) paintSessionOriginBadge(roleEl, origin);
+  }
+
+  if (!origin && roleEl) {
+    // Session predates the via flag — resolve once, asynchronously,
+    // then persist it so every later render is instant.
+    resolveSessionOrigin().then(resolved => {
+      if (!roleEl.isConnected) return;
+      paintSessionOriginBadge(roleEl, resolved);
+    });
+  }
+}
+
+function paintSessionOriginBadge(roleEl, origin) {
+  let badge = document.getElementById('session-origin-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'session-origin-badge';
+    badge.style.marginLeft = '6px';
+    badge.style.fontSize = '0.62rem';
+    badge.style.fontWeight = '600';
+    badge.style.textTransform = 'none';
+    badge.style.verticalAlign = 'middle';
+  }
+  if (origin === 'auth') {
+    badge.className = 'badge badge-info';
+    badge.textContent = 'Auth';
+    badge.title = 'Signed in via Supabase Auth (hashed password)';
+  } else if (origin === 'legacy') {
+    badge.className = 'badge badge-admin';
+    badge.textContent = 'Plain-text';
+    badge.title = 'Signed in via the legacy plain-text password';
+  } else {
+    badge.className = 'badge badge-inactive';
+    badge.textContent = 'Unknown — sign out & in';
+    badge.title = 'Could not determine the login type of this session';
+  }
+  if (badge.parentNode !== roleEl) roleEl.appendChild(badge);
+}
+
+async function resolveSessionOrigin() {
+  try {
+    if (typeof initSupabase === 'function' && typeof supabaseClient !== 'undefined' && !supabaseClient) {
+      initSupabase();
+    }
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && supabaseClient.auth &&
+        typeof supabaseClient.auth.getSession === 'function') {
+      const result = await Promise.race([
+        supabaseClient.auth.getSession(),
+        new Promise(resolve => setTimeout(() => resolve({ data: null }), 2500)),
+      ]);
+      const authed = !!(result && result.data && result.data.session);
+      // Persist the resolved flag into garl_session (one-time for old sessions).
+      try {
+        const fresh = currentUser();
+        if (fresh && !fresh.via) {
+          fresh.via = authed ? 'supabase_auth' : 'legacy';
+          localStorage.setItem('garl_session', JSON.stringify(fresh));
+        }
+      } catch (_) { /* storage may be unavailable on file:// */ }
+      return authed ? 'auth' : 'legacy';
+    }
+  } catch (_) { /* fall through */ }
+  return 'unknown';
 }
 
 // ── Wire logout buttons ───────────────────────────────────────

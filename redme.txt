@@ -85,3 +85,66 @@ CAVEATS:
   • Logout now also calls Supabase Auth signOut() (best-effort, 2.5s cap).
   • Email domain convention lives in one place: AUTH_EMAIL_DOMAIN in
     js/supabase.js (default '@garl.local').
+
+════════════════════════════════════════════════════════════════
+CREATE / UPDATE USERS FROM THE ADMIN DASHBOARD (Edge Function)
+════════════════════════════════════════════════════════════════
+
+The admin dashboard's Create User / Edit User buttons can now provision
+accounts directly in Supabase Auth — no manual per-user dashboard work.
+It runs through an Edge Function so the service-role key stays secret.
+
+DEPLOY (order matters):
+  1. SQL Editor — run sql/migration_auth_users.sql
+     (adds users.auth_uid; WITHOUT it, creating a user fails)
+  2. Settings → API — copy the service_role secret, then
+     Edge Functions → Secrets → add SUPABASE_SERVICE_ROLE_KEY=<key>
+     (CLI: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...)
+  3. Deploy supabase/functions/create-auth-user/index.ts as a function
+     named exactly "create-auth-user":
+     • Dashboard: Edge Functions → Create function → paste file → Deploy, or
+     • CLI: supabase functions deploy create-auth-user
+  4. Hard-refresh the admin dashboard so the updated admin.js loads.
+
+BEHAVIOUR:
+  • Create User → provisions the GoTrue account FIRST (email
+    <username>@garl.local, auto-confirmed, role/lab in user_metadata),
+    then writes the users row with auth_uid + a random dummy password
+    (plaintext passwords are never stored again). If the Edge Function
+    fails, NOTHING is created.
+  • Edit User on an "Auth"-badged row → updates the Auth account (email
+    follows a username change; optional password reset) + the profile row.
+  • Edit User on a legacy row → unchanged plaintext behaviour (only
+    during transition).
+  • Deactivate/Activate → unchanged (profile row gates Auth logins).
+  • Users tab shows an "Auth" badge next to auth-managed usernames so
+    you can track migration progress.
+
+LIMITATIONS:
+  • Only an Auth-migrated ADMIN can provision users — the Edge Function
+    verifies a real GoTrue session; legacy localStorage logins are
+    forgeable, so they are rejected with a clear message.
+  • Username rules: 3–40 chars, lowercase letters/digits/._-
+  • Password min 6 chars (8+ recommended).
+  • Deploy order matters (SQL → secret → function → refresh), see above.
+
+TIP — SETTING USER METADATA AFTER CREATION:
+  The Authentication → Users → user page may show a read-only raw JSON
+  (that is the auth.users DB record — column names like raw_user_meta_data;
+  it is NOT the metadata editor). The reliable way is the SQL Editor:
+
+    UPDATE auth.users
+    SET raw_user_meta_data = raw_user_meta_data || '{
+      "username": "recep1",
+      "role": "receptionist",
+      "full_name": "Reception One",
+      "lab_id": "",
+      "active": true
+    }'::jsonb
+    WHERE email = 'recep1@garl.local';
+
+    -- verify:
+    SELECT email, raw_user_meta_data FROM auth.users WHERE email = 'recep1@garl.local';
+
+  (|| merges, so existing keys like email_verified are preserved. Takes
+   effect on the next sign-in / Edge Function call — no user action needed.)
