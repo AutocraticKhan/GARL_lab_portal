@@ -1944,10 +1944,10 @@ function openReportForm(submissionId, reportType) {
     metaTable.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:24px;';
     metaTable.innerHTML =
       '<tbody>' +
-        '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:28%;">Report No:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;font-weight:700;color:#065f46;width:24%;">' + escHtml(reportNo) + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:24%;">Report issue Date:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;width:24%;">' + escHtml(today) + '</td></tr>' +
+        '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:28%;">Report No:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;font-weight:700;color:#065f46;width:24%;">' + escHtml(reportNo) + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;width:24%;">Report issue Date:</td><td class="report-issue-date" style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;width:24%;">' + escHtml(today) + '</td></tr>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Name & Address of Customer:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(sub.customer_name || '—') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">No. of Sample(s):</td><td class="report-sample-count" style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + sub.sampleCount + '</td></tr>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Location of Sample (Given by customer)</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sample_location || 'NA') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample receiving Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + formatDate(sub.created_at) + '</td></tr>' +
-        '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sampleType || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(today) + '</td></tr>' +
+        '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Description of Sample:</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(firstSample?.sampleType || 'Powder') + '</td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Sample analysis Date</td><td class="report-analysis-date" style="border:1px solid #000;padding:4px 8px;font-size:13.5px;text-align:center;">' + escHtml(today) + '</td></tr>' +
         '<tr><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Method used /Specs:</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-method-input" value="EPA 3052" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td><td style="border:1px solid #000;padding:4px 8px;font-size:13.5px;font-weight:700;">Temperature & Humidity</td><td style="border:1px solid #000;padding:2px 4px;font-size:13.5px;text-align:center;"><input type="text" class="report-temp-input" value="25.2 °C & 52 %" style="width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;" /></td></tr>' +
       '</tbody>';
     pageDiv.appendChild(metaTable);
@@ -2183,6 +2183,21 @@ function loadSavedReportIntoForm(fullSubmissionId, reportType) {
     });
   }
 
+  // Restore the original generation date from the saved report (Report issue
+  // Date / Sample analysis Date). The meta-table repeats on every page and is
+  // mirrored in the hidden print-source clone, so update every copy — we want
+  // the date the report was generated/saved on, not today's date.
+  if (saved.report_issue_date) {
+    document.querySelectorAll('#report-body .report-issue-date, #report-print-source .report-issue-date').forEach(function(td) {
+      td.textContent = saved.report_issue_date;
+    });
+  }
+  if (saved.sample_analysis_date) {
+    document.querySelectorAll('#report-body .report-analysis-date, #report-print-source .report-analysis-date').forEach(function(td) {
+      td.textContent = saved.sample_analysis_date;
+    });
+  }
+
   // Restore result input values from saved data_points
   if (saved.data_points && Array.isArray(saved.data_points)) {
     saved.data_points.forEach(function(dp) {
@@ -2255,18 +2270,25 @@ async function saveReportDataToSupabase() {
   const test = firstSample ? getTest(firstSample.test_id) : null;
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+  // Keep the original generation date of an already-saved report — re-saving
+  // (e.g. after editing results) must not change the Report issue Date /
+  // Sample analysis Date captured when the report was first issued.
+  const existingSaved = getSavedReport(activeFullSubmissionId, activeReportType);
+  const issueDate = (existingSaved && existingSaved.report_issue_date) || today;
+  const analysisDate = (existingSaved && existingSaved.sample_analysis_date) || today;
+
   // Build the full report data object
   const reportData = {
     submission_id: activeFullSubmissionId,
     report_type: activeReportType,
     report_number: activeReportNo || '',
-    report_issue_date: today,
+    report_issue_date: issueDate,
     customer_name: sub ? (sub.customer_name || '') : '',
     sample_count: sub ? sub.sampleCount : 0,
     sample_location: firstSample ? (firstSample.sample_location || '') : '',
     sample_receiving_date: sub ? formatDate(sub.created_at) : '',
     sample_description: firstSample ? (firstSample.sampleType || 'Powder') : '',
-    sample_analysis_date: today,
+    sample_analysis_date: analysisDate,
     method_used: methodInput ? methodInput.value : '',
     temperature_humidity: tempInput ? tempInput.value : '',
     unit: currentUnit,
