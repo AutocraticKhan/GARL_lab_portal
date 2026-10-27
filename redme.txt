@@ -29,3 +29,59 @@ REQUIRED SQL before use — run these against Supabase (idempotent):
 
 
 https://autocratickhan.github.io/GARL_lab_portal/index.html
+
+════════════════════════════════════════════════════════════════
+SUPABASE AUTH — DUAL LOGIN & GRADUAL MIGRATION (added)
+════════════════════════════════════════════════════════════════
+
+Login now tries TWO paths, in order (js/supabase.js):
+  1. Supabase Auth (Authentication → Users) — hashed passwords, recommended.
+  2. Legacy `users` table (plaintext password) — existing accounts, UNCHANGED.
+Existing users are unaffected until you migrate them.
+
+CREATE THE NEW ADMIN ACCOUNT (Supabase Dashboard):
+  1. Authentication → Users → "Add user"
+  2. Email:    admin@garl.local   (convention: <username>@garl.local)
+  3. Password: choose a strong password
+  4. Enable "Auto Confirm User"
+  5. Paste into "User metadata":
+       {"username":"admin","role":"admin","full_name":"Dr. Admin User","lab_id":"", "active":true}
+     (If the dialog has no metadata field, create the user first, open it,
+      then edit "User Metadata".)
+  6. Sign in at the portal typing either `admin` or `admin@garl.local`.
+     Same username convention for any future auth user (any email works too
+     as long as you sign in with the full email address).
+
+HOW THE AUTH ADMIN KEEPS PARITY WITH THE CURRENT ADMIN:
+  • If metadata.username matches an existing users-table row, that row stays
+    the source of truth (same id / role / full_name / active), so the admin
+    dashboard behaves exactly like today.
+  • If the row is deleted later, metadata alone carries the profile — the
+    session shape {id, username, role, lab_id, full_name} never changes.
+  • While BOTH an auth account and a legacy row exist with the same
+    username, BOTH passwords may work — scramble the legacy password once
+    the auth login is verified (see below).
+
+MIGRATE OTHER USERS GRADUALLY:
+  1. Add the user in Authentication → Users with email <username>@garl.local
+     and metadata: {"username":"...","role":"admin|receptionist|lab_engineer",
+     "full_name":"...","lab_id":"...","active":true}
+  2. Have them sign in via the portal (auth path) and verify their dashboard.
+  3. Kill the plaintext credential, e.g. in SQL Editor:
+       UPDATE users SET password = 'REMOVED_' || id WHERE username = '<name>';
+     (Better security than deleting: the row keeps them listed in the admin
+      Users tab and keeps role/active manageable. If you DELETE the row
+      instead, make sure the auth metadata is complete first — auth users
+      cannot be listed from the client, so they will no longer appear in
+      the Users tab.)
+  4. Repeat until every account is migrated; only Supabase Auth remains.
+
+CAVEATS:
+  • Email provider must be enabled in Supabase; use "Auto Confirm User" to
+    avoid confirmation emails. Unconfirmed accounts get a clear login error.
+  • Tables have no RLS (the client uses the publishable key), so attaching
+    the authed JWT to queries does not change data access — behaviour is
+    identical before and after migration.
+  • Logout now also calls Supabase Auth signOut() (best-effort, 2.5s cap).
+  • Email domain convention lives in one place: AUTH_EMAIL_DOMAIN in
+    js/supabase.js (default '@garl.local').

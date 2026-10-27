@@ -22,8 +22,27 @@ async function login(username, password) {
 }
 
 // ── Logout ────────────────────────────────────────────────────
-function logout() {
-  console.log('[AUTH] Logging out — clearing session only');
+async function logout() {
+  console.log('[AUTH] Logging out — clearing local session');
+
+  // Best-effort Supabase Auth sign-out (no-op for legacy accounts that
+  // never created a GoTrue session). Capped wait so a slow network can
+  // never block the redirect.
+  try {
+    if (typeof supabaseClient !== 'undefined' && !supabaseClient && typeof initSupabase === 'function') {
+      initSupabase();
+    }
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && supabaseClient.auth) {
+      const signOutDone = supabaseClient.auth.signOut().catch(() => {});
+      await Promise.race([
+        signOutDone,
+        new Promise(resolve => setTimeout(resolve, 2500)),
+      ]);
+    }
+  } catch (err) {
+    console.warn('[AUTH] Supabase sign-out skipped:', err && err.message);
+  }
+
   localStorage.removeItem('garl_session');
   window.location.href = '../index.html';
 }

@@ -210,12 +210,105 @@ async function checkSupabaseConnection() {
 }
 
 // ── User authentication via Supabase ──────────────────────────
+// Two login paths, tried in order:
+//   1. Supabase Auth (GoTrue) — accounts created in the Supabase dashboard
+//      under Authentication → Users (secure, hashed passwords). Auth users
+//      follow the email convention `<username>@AUTH_EMAIL_DOMAIN`, so the
+//      login form keeps accepting either the plain username or the full
+//      email address.
+//   2. Legacy `users` table check (plaintext password) — the existing
+//      arrangement, kept unchanged so every current account keeps working
+//      while users are migrated to Supabase Auth one by one.
+const AUTH_EMAIL_DOMAIN = '@garl.local';
+
+function _authEmailCandidates(username) {
+  const raw = String(username || '').trim().toLowerCase();
+  if (!raw) return [];
+  return raw.includes('@') ? [raw] : [raw + AUTH_EMAIL_DOMAIN];
+}
+
+function _authProfileError(message) {
+  const err = new Error(message);
+  err.supabaseAuth = true; // rethrown as-is by supabaseLogin()
+  return err;
+}
+
+async function trySupabaseAuthLogin(username, password) {
+  if (!supabaseClient || !supabaseClient.auth ||
+      typeof supabaseClient.auth.signInWithPassword !== 'function') {
+    return null; // Auth API unavailable — fall through to the legacy path
+  }
+
+  const candidates = _authEmailCandidates(username);
+  for (const email of candidates) {
+    let data = null;
+    let error = null;
+    try {
+      ({ data, error } = await supabaseClient.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      // Network/runtime failure talking to GoTrue — let the legacy path try.
+      console.warn('[SUPABASE] Auth sign-in attempt failed:', err && err.message);
+      return null;
+    }
+
+    if (error || !data || !data.user) {
+      if (error && error.code === 'email_not_confirmed') {
+        throw _authProfileError('Please confirm your email address before signing in.');
+      }
+      // Invalid credentials (or unknown user) — try next candidate, then legacy path.
+      console.log('[SUPABASE] Auth path did not match for', email, '→', (error && error.message) || 'no user');
+      continue;
+    }
+
+    // ── Signed in via Supabase Auth — build the standard session ──
+    const authUser = data.user;
+    const meta = authUser.user_metadata || {};
+
+    // Link to the profile row while it still exists, so id / role /
+    // full_name / active behave EXACTLY like the current admin account.
+    // Once the legacy row is deleted, the metadata above becomes the
+    // source of truth for the profile.
+    const profileUsername = String(meta.username || email.split('@')[0] || '').toLowerCase().trim();
+    let row = null;
+    if (profileUsername) {
+      try { row = await supabaseFindOne('users', 'username', profileUsername); }
+      catch (_) { row = null; }
+    }
+
+    const role = (row && row.role) || meta.role;
+    if (!role) {
+      throw _authProfileError('Your account has no role yet. Ask an administrator to provision it.');
+    }
+
+    const isActive = row
+      ? (row.active === true || row.active === 'true')
+      : (meta.active !== false && meta.active !== 'false');
+    if (!isActive) {
+      throw _authProfileError('Account is disabled. Contact administrator.');
+    }
+
+    return {
+      id:        (row && row.id)        || authUser.id,
+      username:  (row && row.username)  || meta.username || profileUsername,
+      role:      role,
+      lab_id:    (row ? (row.lab_id || null) : (meta.lab_id || null)),
+      full_name: (row && row.full_name) || meta.full_name || profileUsername,
+    };
+  }
+  return null;
+}
+
 async function supabaseLogin(username, password) {
   if (!supabaseClient) {
     throw new Error('Database not connected. Please try again later.');
   }
 
   try {
+    // Path 1 — Supabase Auth (GoTrue): matches migrated accounts first.
+    const authSession = await trySupabaseAuthLogin(username, password);
+    if (authSession) return authSession;
+
+    // Path 2 — legacy users-table check (current arrangement, unchanged).
     const user = await supabaseFindOne('users', 'username', username.toLowerCase().trim());
     if (!user) {
       throw new Error('Invalid username or password.');
@@ -240,7 +333,9 @@ async function supabaseLogin(username, password) {
       full_name: user.full_name,
     };
   } catch (err) {
-    if (err.message === 'Invalid username or password.' || err.message === 'Account is disabled. Contact administrator.') {
+    if (err.supabaseAuth ||
+        err.message === 'Invalid username or password.' ||
+        err.message === 'Account is disabled. Contact administrator.') {
       throw err;
     }
     // Network or DB error
