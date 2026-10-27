@@ -5,9 +5,31 @@
 'use strict';
 
 // ── Supabase Configuration ───────────────────────────────────
-// Replace these with your actual Supabase project credentials
+// Project URL — not secret (it is visible in every network request).
 const SUPABASE_URL = 'https://dtpbxpegapvatzxdjnjq.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_fC1Wm3YwDs-nQtFq55MePw_-8RQDShK';
+
+// ── Obfuscated publishable (anon) key ────────────────────────
+// The key is stored XOR-encrypted (base64) and decoded synchronously
+// once at load, so it is never readable in plain text in this source
+// and every existing consumer (createClient, health check, …) keeps
+// working unchanged.
+//
+// To re-encode after rotating the key in Supabase → Settings → API:
+//   node tools/generate_key_blob.js "<NEW_KEY>"
+const _KEY_B64 = 'QgY5Fk1RW1gRW1hSXlZuVSdVNlVQbEYiQkkIN0x1RgRXflxgRWwcCzY1JWsLfg==';
+const _KEY_PASS_FRAGMENTS = ['1dff8371', 'b3902313', 'dda8c51f'];
+
+function _decodeSupabaseKey() {
+  const pass = _KEY_PASS_FRAGMENTS.join('');
+  const bin = atob(_KEY_B64);
+  let out = '';
+  for (let i = 0; i < bin.length; i++) {
+    out += String.fromCharCode(bin.charCodeAt(i) ^ (pass.charCodeAt(i % pass.length) & 0xff));
+  }
+  return out;
+}
+
+const SUPABASE_ANON_KEY = _decodeSupabaseKey();
 
 // ── Supabase client (loaded from CDN in index.html) ──────────
 let supabaseClient = null;
