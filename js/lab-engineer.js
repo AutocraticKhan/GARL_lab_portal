@@ -2518,7 +2518,7 @@ function printReport() {
 const MU_DEFAULTS = { rbar: 0.95, sR: 4.0, n: 10, uCert: 4.0, k: 2 };
 let muParams = Object.assign({}, MU_DEFAULTS);
 const MU_ROWS_PER_PAGE = 14;    // body rows per printed page
-const MU_LAST_PAGE_ROWS = 10;   // rows allowed on the page carrying the terms
+const MU_LAST_PAGE_ROWS = 10;   // rows allowed on the page carrying the footer
 
 // Live handles for the open MU panel: raw concentration per row plus
 // direct cell/input references, so an RSD edit recalculates only that
@@ -2594,8 +2594,8 @@ function muReportMetaValue(metaTable, label) {
 }
 
 // Split MU rows into page chunks: body pages hold MU_ROWS_PER_PAGE rows
-// and the final page carries the disclaimer / signatures, so it is capped
-// at MU_LAST_PAGE_ROWS (an extra terms-only page is added when needed).
+// and the final page carries the calculation basis / signatures, so it is
+// capped at MU_LAST_PAGE_ROWS (an extra footer-only page is added when needed).
 function muChunkRows(allRows) {
   const n = allRows.length;
   if (n <= MU_LAST_PAGE_ROWS) return [allRows.slice()];
@@ -3078,24 +3078,42 @@ function openMUReport() {
       pageDiv.appendChild(noteDiv);
     }
 
-    // Disclaimer / Terms, "End of Report" and signatures — LAST page only
+    // Basis of Calculation of MU, "End of Report" and signatures — LAST page only
     if (isLastPage) {
-      const disclaimerDiv = document.createElement('div');
-      disclaimerDiv.style.cssText = 'margin-bottom:32px;';
-      disclaimerDiv.innerHTML =
-        '<h5 style="font-weight:700;font-size:13.5px;margin-bottom:12px;padding-left:16px;">Disclaimer / Terms of Test Report</h5>' +
+      // Re-derive the numeric values so the printed section documents
+      // exactly what muReportCompute used for every row of this report.
+      const sRFrac = muParams.sR / 100;                                  // s_R as a fraction
+      const seR = sRFrac / Math.sqrt(muParams.n);                        // standard error of the recovery
+      const seRPct = seR * 100;                                          // se_R in %
+      const srOverRn = sRFrac / (muParams.rbar * Math.sqrt(muParams.n)); // s_R/(R̄·√n) as a fraction
+      const uCrmPct = muParams.uCert / 2;                                // u_cert = U_cert / 2 (k_cert = 2; uCert already in %)
+      const uBiasPct = muProbe.uBias * 100;                              // u_bias in %
+      const liStyle = 'position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;';
+      const muLi = function(html) {
+        return '<li style="' + liStyle + '">• ' + html + '</li>';
+      };
+
+      const basisDiv = document.createElement('div');
+      basisDiv.style.cssText = 'margin-bottom:32px;';
+      basisDiv.innerHTML =
+        '<h5 style="font-weight:700;font-size:13.5px;margin-bottom:12px;padding-left:16px;">Basis of Calculation of Measurement Uncertainty</h5>' +
         '<ul style="list-style:none;padding:0 16px;margin:0;">' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 This report is based solely on the specific sample(s) submitted by the customer. It must not be reproduced in part without prior written consent.</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Sampling was not carried out by GARL. Therefore, the laboratory does not accept responsibility for whether the submitted sample(s) accurately represent any larger batch, stock, or full production lot.</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 The customer is fully responsible for the ethical and appropriate use of the test results. The laboratory shall not be held liable for any claims or consequences arising from the use or interpretation of the data by the customer or third parties.</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 The information in this report may not be used for product promotion, commercial advertising, or publicity purposes.</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 After the report is issued, the sample(s) will be retained for a period of 1 month, unless an alternative arrangement has been agreed upon.</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Statement of conformity /compliance (where applicable): NA</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Remarks/Comments (where requested) = NA</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Analysis Not required = NR</li>' +
-          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 BDL = Below Detection Limit</li>' +
+          muLi('Every result is reported as the corrected value with its expanded uncertainty, <strong>C<sub>corr</sub> ± U</strong> (in ' + escHtml(reportUnit) + '), where U is the expanded uncertainty at a 95 % confidence level: <strong>U = k · u<sub>c,rel</sub> · C<sub>corr</sub></strong>, with the coverage factor k = ' + muParams.k + '.') +
+          muLi('Input quantities: mean CRM recovery R̄ = ' + muParams.rbar + ' (' + (muParams.rbar * 100).toFixed(1) + ' %), repeatability of the CRM recovery s_R = ' + muParams.sR.toFixed(2) + ' % over n = ' + muParams.n + ' replicate(s), certified expanded uncertainty of the CRM U_cert = ' + muParams.uCert.toFixed(2) + ' % (k_cert = 2), and the Sample RSD (%) entered per row in the table above.') +
+          muLi('Standard error of the recovery: se_R = s_R / √n = ' + muParams.sR.toFixed(2) + ' % / √' + muParams.n + ' = ' + seRPct.toFixed(2) + ' %.') +
+          muLi('Trueness (bias) t-test: t = |1 − R̄| / se_R = |100 − ' + (muParams.rbar * 100).toFixed(1) + '| % / ' + seRPct.toFixed(2) + ' % = ' + muProbe.tStat.toFixed(2) + ', with degrees of freedom df = n − 1 = ' + muProbe.df + ' and t_crit = ' + muProbe.tCrit.toFixed(2) + ' at 95 % confidence. Because t is ' + (muProbe.isSignificant ? 'greater than' : 'not greater than') + ' t_crit, the recovery bias is ' + (muProbe.isSignificant ? 'statistically significant' : 'not statistically significant') + '.') +
+          muLi('Uncertainty of the bias: u_bias = ' + uBiasPct.toFixed(2) + ' %, where u_cert = U_cert / 2 = ' + uCrmPct.toFixed(2) + ' % and s_R/(R̄·√n) = ' + (srOverRn * 100).toFixed(2) + ' %, combined as ' +
+            (muProbe.isSignificant
+              ? 'u_bias = √[(s_R/(R̄·√n))² + u_cert²] (the bias is removed by the correction below).'
+              : 'u_bias = √[(1 − R̄)² + (s_R/(R̄·√n))² + u_cert²].') ) +
+          muLi('Bias correction of the instrument reading C: ' +
+            (muProbe.isSignificant
+              ? 'the bias is significant, so C<sub>corr</sub> = C / R̄ = C / ' + muParams.rbar + '.'
+              : 'the bias is not significant, so no correction is applied and C<sub>corr</sub> = C.') ) +
+          muLi('Combined relative uncertainty of each row: <strong>u<sub>c,rel</sub> = √(RSD² + u<sub>bias</sub>²)</strong> — that row’s Sample RSD (%) combined with u_bias = ' + uBiasPct.toFixed(2) + ' %.') +
+          muLi('Expanded uncertainty of each row: <strong>U = k · u<sub>c,rel</sub> · C<sub>corr</sub></strong>; each result is printed as C<sub>corr</sub> ± U, rounded to 2 decimals (3 decimals when U < 0.095).') +
         '</ul>';
-      pageDiv.appendChild(disclaimerDiv);
+      pageDiv.appendChild(basisDiv);
 
       const endDiv = document.createElement('div');
       endDiv.style.cssText = 'text-align:center;font-weight:700;font-size:14px;margin:32px 0;';
