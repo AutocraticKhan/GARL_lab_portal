@@ -193,6 +193,28 @@ function wireEngEvents() {
     if (e.target === document.getElementById('mu-report-overlay')) closePanel('mu-report-overlay');
   });
 
+  // ── Uncertainty parameters popup (⚙) ──
+  const closeMuParamsBtn = document.getElementById('close-mu-params-modal');
+  if (closeMuParamsBtn) closeMuParamsBtn.addEventListener('click', () => closeModal('modal-mu-params'));
+  const cancelMuParamsBtn = document.getElementById('cancel-mu-params-modal');
+  if (cancelMuParamsBtn) cancelMuParamsBtn.addEventListener('click', () => closeModal('modal-mu-params'));
+  const resetMuParamsBtn = document.getElementById('reset-mu-params-modal');
+  if (resetMuParamsBtn) resetMuParamsBtn.addEventListener('click', resetMUParamsToDefaults);
+  const applyMuParamsBtn = document.getElementById('apply-mu-params-modal');
+  if (applyMuParamsBtn) applyMuParamsBtn.addEventListener('click', applyMUParams);
+
+  const muParamsOverlay = document.getElementById('modal-mu-params');
+  if (muParamsOverlay) {
+    muParamsOverlay.addEventListener('click', (e) => {
+      if (e.target === muParamsOverlay) closeModal('modal-mu-params');
+    });
+  }
+
+  ['mup-rbar', 'mup-sr', 'mup-n', 'mup-ucert', 'mup-k'].forEach(function(id) {
+    const inp = document.getElementById(id);
+    if (inp) inp.addEventListener('input', updateMUParamsPreview);
+  });
+
   // Spectroscopy modal close
   document.getElementById('close-spectroscopy-panel').addEventListener('click', () => closePanel('spectroscopy-overlay'));
   document.getElementById('spectroscopy-overlay').addEventListener('click', (e) => {
@@ -2489,11 +2511,12 @@ function printReport() {
 // as the RSD changes. All existing report functions above are
 // left untouched.
 // ══════════════════════════════════════════════════════════════════
-const MU_RBAR = 0.95;           // Mean CRM recovery (R-bar)
-const MU_SR_PCT = 4.0;          // (%) CRM recovery RSD (s_R)
-const MU_N_CRM = 10;            // CRM replicates (n)
-const MU_UCERT_PCT = 4.0;       // (%) CRM expanded uncertainty (U_cert)
-const MU_K = 2;                 // Coverage factor (k)
+// Editable engine values — the lab engineer can change all five from the
+// ⚙ Parameters popup (openMUParamsModal). MU_DEFAULTS keeps the reference
+// values so 'Restore Defaults' can put them back; every open / re-render
+// of the MU report reads the current muParams.
+const MU_DEFAULTS = { rbar: 0.95, sR: 4.0, n: 10, uCert: 4.0, k: 2 };
+let muParams = Object.assign({}, MU_DEFAULTS);
 const MU_ROWS_PER_PAGE = 14;    // body rows per printed page
 const MU_LAST_PAGE_ROWS = 10;   // rows allowed on the page carrying the terms
 
@@ -2517,12 +2540,13 @@ function muReportTCrit(df) {
 // ISO/IEC 17025 measurement uncertainty for a single concentration:
 // CRM bias t-test -> bias correction -> combined relative uncertainty
 // -> expanded uncertainty U = k * u_c,rel * C_corr.
-function muReportCompute(rawConc, rsdPct) {
-  const Rbar = MU_RBAR;
-  const sR = MU_SR_PCT / 100;
-  const n = Math.max(2, MU_N_CRM);
-  const Ucert = MU_UCERT_PCT / 100;
-  const k = MU_K;
+function muReportCompute(rawConc, rsdPct, overrides) {
+  const p = overrides || muParams;
+  const Rbar = parseFloat(p.rbar);
+  const sR = (parseFloat(p.sR) || 0) / 100;
+  const n = Math.max(2, Math.round(parseFloat(p.n) || 2));
+  const Ucert = (parseFloat(p.uCert) || 0) / 100;
+  const k = parseFloat(p.k) || 1;
   const rsdFrac = (parseFloat(rsdPct) || 0) / 100;
 
   const seR = sR / Math.sqrt(n);
@@ -2619,36 +2643,143 @@ function updateMUReportRow(idx) {
   cell.tdFull.textContent = res.fullDisplay + ' ' + row.unit;
 }
 
-// Batch fill: apply the header RSD box to every row (reference behaviour).
+// Batch fill: give every row a RANDOM Sample RSD (%) drawn uniformly from
+// the Min–Max range in the header (a single value fills all rows alike).
 function applyMUDefaultRSD() {
-  const box = document.getElementById('mu-default-rsd');
-  if (!box || String(box.value).trim() === '') {
-    showToast('Enter an RSD (%) in the header box first.', 'warning');
+  const minBox = document.getElementById('mu-rsd-min');
+  const maxBox = document.getElementById('mu-rsd-max');
+  const minRaw = minBox ? String(minBox.value).trim() : '';
+  const maxRaw = maxBox ? String(maxBox.value).trim() : '';
+
+  if (minRaw === '' && maxRaw === '') {
+    showToast('Enter a Min (and optionally Max) RSD (%) in the header box first.', 'warning');
     return;
   }
-  const val = parseFloat(box.value);
-  if (!isFinite(val) || val < 0) {
-    showToast('Please enter a valid RSD (%).', 'warning');
+  if (!activeMUCells.length) {
+    showToast('Open the MU report first.', 'warning');
     return;
   }
+
+  let lo = parseFloat(minRaw === '' ? maxRaw : minRaw);
+  let hi = parseFloat(maxRaw === '' ? minRaw : maxRaw);
+  if (!isFinite(lo) || lo < 0 || !isFinite(hi) || hi < 0) {
+    showToast('Please enter valid RSD (%) values (0 or more).', 'warning');
+    return;
+  }
+  if (hi < lo) {
+    const tmp = lo; lo = hi; hi = tmp;
+    if (minBox) minBox.value = String(lo);
+    if (maxBox) maxBox.value = String(hi);
+    showToast('Max was smaller than Min — the range was swapped.', 'info');
+  }
+
+  let filled = 0;
   activeMUCells.forEach(function(cell, idx) {
-    if (cell.input) cell.input.value = String(val);
+    if (!cell.input) return;
+    const val = lo === hi ? lo : Math.round((lo + Math.random() * (hi - lo)) * 100) / 100;
+    cell.input.value = String(val);
     updateMUReportRow(idx);
+    filled++;
   });
-  showToast('RSD ' + val + ' % applied to all rows.', 'success');
+  showToast(filled + ' row(s) filled with a random RSD between ' + lo + ' % and ' + hi + ' %.', 'success');
+}
+
+// ── ⚙ Uncertainty parameters popup (editable Mean recovery, s_R, n, U_cert, k) ──
+// The five engine values are read into / out of muParams; the derived
+// quantities (u_bias, t, t_crit, df, C_corr) are recomputed live.
+function muFillParamsInputs(p) {
+  const set = function(id, v) { const el = document.getElementById(id); if (el) el.value = String(v); };
+  set('mup-rbar', p.rbar);
+  set('mup-sr', p.sR);
+  set('mup-n', p.n);
+  set('mup-ucert', p.uCert);
+  set('mup-k', p.k);
+}
+
+// Read + validate the popup fields. Returns a params object or null.
+// 'silent' suppresses the toasts (used by the live preview).
+function muReadParamsInputs(silent) {
+  const get = function(id) { const el = document.getElementById(id); return el ? String(el.value).trim() : ''; };
+  const bad = function(msg) { if (!silent) showToast(msg, 'warning'); return null; };
+  const rbar = parseFloat(get('mup-rbar'));
+  const sR = parseFloat(get('mup-sr'));
+  const n = parseFloat(get('mup-n'));
+  const uCert = parseFloat(get('mup-ucert'));
+  const k = parseFloat(get('mup-k'));
+  if (!isFinite(rbar) || rbar <= 0) return bad('Mean recovery R\u0304 must be greater than 0.');
+  if (!isFinite(sR) || sR < 0) return bad('s_R (%) must be 0 or more.');
+  if (!isFinite(n) || n < 2) return bad('n must be at least 2 (df = n \u2212 1).');
+  if (!isFinite(uCert) || uCert < 0) return bad('U_cert (%) must be 0 or more.');
+  if (!isFinite(k) || k <= 0) return bad('k must be greater than 0.');
+  return { rbar: rbar, sR: sR, n: Math.round(n), uCert: uCert, k: k };
+}
+
+// Live preview of the derived quantities while the popup is open.
+function updateMUParamsPreview() {
+  const box = document.getElementById('mup-preview');
+  if (!box) return;
+  const cand = muReadParamsInputs(true);
+  if (!cand) {
+    box.textContent = 'Enter all five values (n \u2265 2) to preview the derived quantities\u2026';
+    return;
+  }
+  const res = muReportCompute(1, 0, cand);
+  box.innerHTML =
+    '<strong style=\'color:#065f46;\'>Derived from these values:</strong> ' +
+    'u_bias = ' + (res.uBias * 100).toFixed(2) + ' % \u00b7 t = ' + res.tStat.toFixed(2) +
+    ' vs t_crit = ' + res.tCrit.toFixed(2) + ' (df = ' + res.df + ') \u2192 ' +
+    (res.isSignificant ? 'bias significant, C_corr = C / R\u0304' : 'bias not significant, C_corr = C');
+}
+
+function openMUParamsModal() {
+  muFillParamsInputs(muParams);
+  updateMUParamsPreview();
+  openModal('modal-mu-params');
+}
+
+function resetMUParamsToDefaults() {
+  muFillParamsInputs(MU_DEFAULTS);
+  updateMUParamsPreview();
+}
+
+// Apply the popup values: validate -> store -> re-render the open report.
+// Sample RSD values already entered are preserved across the re-render.
+function applyMUParams() {
+  const cand = muReadParamsInputs(false);
+  if (!cand) return;
+  muParams = cand;
+
+  const muBtn = document.getElementById('btn-mu-report');
+  if (muBtn) muBtn.title = 'Open Measurement Uncertainty (MU) report - k = ' + muParams.k;
+
+  closeModal('modal-mu-params');
+
+  const body = document.getElementById('mu-report-body');
+  const hasOpenReport = body && body.querySelector('.report-page');
+  if (hasOpenReport) {
+    if (openMUReport() === false) {
+      body.innerHTML = '';
+      closePanel('mu-report-overlay');
+      showToast('Parameters saved. Reopen the MU report from the report form to see them.', 'info');
+    } else {
+      showToast('Uncertainty parameters updated — report recalculated.', 'success');
+    }
+  } else {
+    showToast('Uncertainty parameters updated.', 'success');
+  }
 }
 
 // ── Open the Measurement Uncertainty report (sliding side panel) ──
 function openMUReport() {
   const body = document.getElementById('mu-report-body');
-  if (!body) return;
+  if (!body) return false;
 
   // ── 1. Same data as the live report ─────────────────────────────
   const livePages = Array.from(document.querySelectorAll('#report-body .report-page'))
     .filter(function(p) { return !p.closest('#report-print-source'); });
   if (!livePages.length) {
     showToast('No report to open. Please open the report form first.', 'warning');
-    return;
+    return false;
   }
   const metaTable = livePages[0].querySelector('table');
 
@@ -2729,6 +2860,16 @@ function openMUReport() {
   });
 
   // ── 3. Build the report pages into the sliding panel ─────────────
+  // Capture any Sample RSD (%) already typed so a re-render (parameter
+  // change, reopen) keeps them. Keyed by sample + element.
+  const priorRSD = {};
+  activeMURows.forEach(function(r, i) {
+    const c = activeMUCells[i];
+    if (!c || !c.input) return;
+    const v = String(c.input.value === undefined || c.input.value === null ? '' : c.input.value).trim();
+    if (v !== '') priorRSD[(r.sampleKey || '') + '\u0001' + (r.element || '')] = v;
+  });
+
   activeMURows = [];
   activeMUCells = [];
 
@@ -2814,12 +2955,14 @@ function openMUReport() {
     paramDiv.style.cssText = 'font-size:11.5px;color:#374151;margin:-4px 0 8px 16px;line-height:1.5;';
     paramDiv.innerHTML =
       '<strong style="color:#065f46;">Uncertainty parameters:</strong> ' +
-      'Mean recovery R\u0304 = ' + MU_RBAR + ' \u00b7 s_R = ' + MU_SR_PCT.toFixed(2) + ' % \u00b7 n = ' + MU_N_CRM +
-      ' \u00b7 U_cert = ' + MU_UCERT_PCT.toFixed(2) + ' % \u00b7 k = ' + MU_K +
+      'Mean recovery R\u0304 = ' + muParams.rbar + ' \u00b7 s_R = ' + muParams.sR.toFixed(2) + ' % \u00b7 n = ' + muParams.n +
+      ' \u00b7 U_cert = ' + muParams.uCert.toFixed(2) + ' % \u00b7 k = ' + muParams.k +
       ' \u00b7 u_bias = ' + (muProbe.uBias * 100).toFixed(2) + ' %' +
       ' \u00b7 t = ' + muProbe.tStat.toFixed(2) + ' vs t_crit = ' + muProbe.tCrit.toFixed(2) + ' (df = ' + muProbe.df + ') \u2192 ' +
       (muProbe.isSignificant ? 'bias significant, C_corr = C / R\u0304' : 'bias not significant, C_corr = C') +
-      ' \u00b7 Sample RSD: entered per row (\u2014 until filled)';
+      ' \u00b7 Sample RSD: entered per row (\u2014 until filled)' +
+      ' <button type="button" class="no-print" onclick="openMUParamsModal()" title="Edit the uncertainty parameters"' +
+      ' style="font-family:inherit;font-size:10.5px;font-weight:700;padding:1px 8px;margin-left:6px;vertical-align:middle;cursor:pointer;border:1px solid #065f46;border-radius:4px;background:#ecfdf5;color:#065f46;">\u2699 Edit</button>';
     pageDiv.appendChild(paramDiv);
 
     if (totalPages > 1) {
@@ -2841,7 +2984,7 @@ function openMUReport() {
         (showElementCol ? '<th style="' + thStyle + 'width:9%;">Element</th>' : '') +
         '<th style="' + thStyle + 'background:#f0f9ff;">Instrument Reading<br/>C (' + escHtml(reportUnit) + ')</th>' +
         '<th style="' + thStyle + 'background:#fefce8;">Sample RSD<br/>(%)</th>' +
-        '<th style="' + thStyle + 'background:#e6f4ea;color:#065f46;">Measurement Uncertainty<br/>(MU, k = ' + MU_K + ')</th>' +
+        '<th style="' + thStyle + 'background:#e6f4ea;color:#065f46;">Measurement Uncertainty<br/>(MU, k = ' + muParams.k + ')</th>' +
         '<th style="' + thStyle + 'width:17%;">Corrected Result<br/>[C \u00b1 U ' + escHtml(reportUnit) + ']</th>' +
         '</tr></thead>';
 
@@ -2854,7 +2997,7 @@ function openMUReport() {
 
       chunkRows.forEach(function(row) {
         const rowIdx = activeMURows.length;
-        activeMURows.push({ rawValue: row.rawValue, unit: reportUnit, sampleKey: row.sampleKey });
+        activeMURows.push({ rawValue: row.rawValue, unit: reportUnit, sampleKey: row.sampleKey, element: row.element });
 
         const tr = document.createElement('tr');
         tr.className = 'report-sample-row mu-sample-row';
@@ -2897,6 +3040,8 @@ function openMUReport() {
         rsdInput.setAttribute('data-row', String(rowIdx));
         rsdInput.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;font-weight:700;';
         rsdInput.addEventListener('input', function() { updateMUReportRow(rowIdx); });
+        const priorKey = (row.sampleKey || '') + '\u0001' + row.element;
+        if (priorRSD[priorKey] !== undefined) rsdInput.value = priorRSD[priorKey];
         tdRsd.appendChild(rsdInput);
         tr.appendChild(tdRsd);
 
@@ -2913,6 +3058,7 @@ function openMUReport() {
         tr.appendChild(tdFull);
 
         activeMUCells.push({ input: rsdInput, tdMu: tdMu, tdFull: tdFull });
+        if (rsdInput.value !== '') updateMUReportRow(rowIdx);
 
         tbody.appendChild(tr);
       });
@@ -2924,8 +3070,10 @@ function openMUReport() {
       const noteDiv = document.createElement('div');
       noteDiv.style.cssText = 'font-size:11.5px;color:#475569;font-style:italic;margin-bottom:24px;';
       noteDiv.innerHTML =
-        '* Measurement uncertainty is calculated per result from its concentration and the sample RSD (%) combined with the CRM bias uncertainty at 95% confidence (k = ' + MU_K + '): u<sub>c,rel</sub> = \u221a(RSD\u00b2 + u<sub>bias</sub>\u00b2) and U = k \u00b7 u<sub>c,rel</sub> \u00b7 C<sub>corr</sub>. ' +
-        'Bias correction applied (t = ' + muProbe.tStat.toFixed(2) + ' &gt; t<sub>crit</sub> = ' + muProbe.tCrit.toFixed(2) + ' \u2192 significant), so C<sub>corr</sub> = C / R\u0304. ' +
+        '* Measurement uncertainty is calculated per result from its concentration and the sample RSD (%) combined with the CRM bias uncertainty at 95% confidence (k = ' + muParams.k + '): u<sub>c,rel</sub> = \u221a(RSD\u00b2 + u<sub>bias</sub>\u00b2) and U = k \u00b7 u<sub>c,rel</sub> \u00b7 C<sub>corr</sub>. ' +
+        (muProbe.isSignificant
+          ? 'Bias correction applied (t = ' + muProbe.tStat.toFixed(2) + ' > t<sub>crit</sub> = ' + muProbe.tCrit.toFixed(2) + ' \u2192 significant), so C<sub>corr</sub> = C / R\u0304. '
+          : 'Bias not significant (t = ' + muProbe.tStat.toFixed(2) + ' \u2264 t<sub>crit</sub> = ' + muProbe.tCrit.toFixed(2) + '), so C<sub>corr</sub> = C. ') +
         'Enter the Sample RSD (%) in each row (shown as \u2014 until filled) \u2014 the MU and corrected result update live as it changes.';
       pageDiv.appendChild(noteDiv);
     }
@@ -2975,6 +3123,7 @@ function openMUReport() {
   body.innerHTML = '';
   body.appendChild(reportDiv);
   openPanel('mu-report-overlay');
+  return true;
 }
 
 
@@ -2985,6 +3134,9 @@ function printMUReport() {
   if (!reportDiv) { showToast('No MU report to print. Please open the MU report first.', 'warning'); return; }
 
   const clone = reportDiv.cloneNode(true);
+
+  // Screen-only controls (the ⚙ Edit parameters button) never print
+  clone.querySelectorAll('.no-print').forEach(function(el) { el.remove(); });
 
   // RSD inputs do not serialise their value property — bake the LIVE
   // value into the clone as plain text ("—" when still empty).

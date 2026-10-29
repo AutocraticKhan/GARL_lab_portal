@@ -257,6 +257,58 @@
   </div>
 </div>
 
+
+<!-- MODAL: MU UNCERTAINTY PARAMETERS (editable engine values) -->
+<div class="modal-backdrop" id="modal-mu-params">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title" style="color:var(--clr-primary);">&#9881; Uncertainty Parameters</h2>
+      <button class="modal-close" id="close-mu-params-modal">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:var(--sp-6);">
+      <p style="font-size:0.8rem;color:var(--txt-secondary);margin-bottom:var(--sp-4);">
+        These five values drive the CRM bias t-test, the bias correction and the expanded uncertainty printed on every page of the MU report.
+        <em>u_bias, t, t_crit, df and C_corr are derived from them.</em>
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" for="mup-rbar">Mean recovery R&#772;</label>
+          <input class="form-control" type="number" step="any" min="0" id="mup-rbar" placeholder="0.95" />
+          <p style="font-size:0.7rem;color:var(--txt-muted);margin-top:4px;">CRM mean recovery - 0.95 = 95 %</p>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" for="mup-sr">s_R (%)</label>
+          <input class="form-control" type="number" step="any" min="0" id="mup-sr" placeholder="4.00" />
+          <p style="font-size:0.7rem;color:var(--txt-muted);margin-top:4px;">CRM recovery RSD (between replicates)</p>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" for="mup-n">n (CRM replicates)</label>
+          <input class="form-control" type="number" step="1" min="2" id="mup-n" placeholder="10" />
+          <p style="font-size:0.7rem;color:var(--txt-muted);margin-top:4px;">Sets df = n &minus; 1 and therefore t_crit</p>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" for="mup-ucert">U_cert (%)</label>
+          <input class="form-control" type="number" step="any" min="0" id="mup-ucert" placeholder="4.00" />
+          <p style="font-size:0.7rem;color:var(--txt-muted);margin-top:4px;">CRM expanded uncertainty (k_cert = 2)</p>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" for="mup-k">k (coverage factor)</label>
+          <input class="form-control" type="number" step="any" min="0" id="mup-k" placeholder="2" />
+          <p style="font-size:0.7rem;color:var(--txt-muted);margin-top:4px;">U = k &middot; u<sub>c,rel</sub> &middot; C_corr</p>
+        </div>
+      </div>
+      <div id="mup-preview" style="margin-top:var(--sp-4);padding:var(--sp-3);background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.3);border-radius:var(--r-md);font-size:0.78rem;line-height:1.6;color:var(--txt-main);"></div>
+      <p style="font-size:0.72rem;color:var(--txt-muted);margin-top:var(--sp-3);">
+        Sample RSD stays per row (or use the header Min&ndash;Max box to randomise it). Applying here recalculates every open MU row and the printed report.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="reset-mu-params-modal">Restore Defaults</button>
+      <button type="button" class="btn btn-ghost" id="cancel-mu-params-modal">Cancel</button>
+      <button type="button" class="btn btn-primary" id="apply-mu-params-modal">Apply</button>
+    </div>
+  </div>
+</div>
 <!-- ── REPORT GENERATION MODAL ────────────────────────────── -->
 <!-- ── REPORT GENERATION MODAL ────────────────────────────── -->
 <div class="side-panel-overlay" id="report-overlay">
@@ -304,12 +356,15 @@
   <div class="side-panel" style="max-width:900px;width:90%;">
     <div class="side-panel-header">
       <div class="side-panel-title" style="font-size:0.9rem;">Measurement Uncertainty Report<span id="mu-report-title" style="font-weight:400;font-size:0.82rem;color:var(--txt-secondary);"></span></div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div style="display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);padding:3px 8px;" title="Fill every row&#39;s Sample RSD (%) with this value">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        <div style="display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--clr-border);border-radius:var(--r-md);padding:3px 8px;" title="Fill every row&#39;s Sample RSD (%) with a random value between Min and Max">
           <span style="font-size:0.7rem;font-weight:600;color:var(--txt-muted);text-transform:uppercase;letter-spacing:0.03em;">RSD %</span>
-          <input type="number" step="any" min="0" id="mu-default-rsd" placeholder="—" style="width:56px;border:none;outline:none;font-size:0.8rem;font-weight:600;color:var(--clr-primary);background:transparent;padding:2px 0;" />
-          <button class="btn btn-ghost btn-sm" onclick="applyMUDefaultRSD()" style="font-size:0.68rem;padding:2px 7px;" title="Apply this RSD to every row">Apply to All</button>
+          <input type="number" step="any" min="0" id="mu-rsd-min" placeholder="Min" style="width:46px;border:none;outline:none;font-size:0.8rem;font-weight:600;color:var(--clr-primary);background:transparent;padding:2px 0;" />
+          <span style="font-size:0.75rem;color:var(--txt-muted);font-weight:700;">&ndash;</span>
+          <input type="number" step="any" min="0" id="mu-rsd-max" placeholder="Max" style="width:46px;border:none;outline:none;font-size:0.8rem;font-weight:600;color:var(--clr-primary);background:transparent;padding:2px 0;" />
+          <button class="btn btn-ghost btn-sm" onclick="applyMUDefaultRSD()" style="font-size:0.68rem;padding:2px 7px;" title="Apply a random RSD between Min and Max to every row">Apply to All</button>
         </div>
+        <button class="btn btn-ghost btn-sm" onclick="openMUParamsModal()" style="font-size:0.68rem;padding:2px 8px;border:1px solid var(--clr-border);" title="Edit the uncertainty parameters (Mean recovery, s_R, n, U_cert, k)">&#9881; Params</button>
         <button class="btn btn-primary btn-sm" onclick="printMUReport()" style="display:flex;align-items:center;gap:6px;">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 1.252a1.125 1.125 0 0 1-1.12 1.25H7.232a1.125 1.125 0 0 1-1.12-1.25L6.34 18m11.318 0a3 3 0 1 0 0-6H6.34a3 3 0 1 0 0 6m11.318 0H6.34m12-3V9.75A3.75 3.75 0 0 0 14.625 6h-5.25a3.75 3.75 0 0 0-3.75 3.75V15m11.25-3H4.875" />
