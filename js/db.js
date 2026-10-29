@@ -13,6 +13,7 @@ const DB = {
   events:  [],
   submissions: [],
   savedReports: [],
+  muReports: [],
   systemState: { nextSubmissionId: 1001, submissionYear: null },
   elements: [],
 };
@@ -189,6 +190,17 @@ async function initDB() {
   DB.events  = events  || [];
   DB.submissions = submissions || [];
   DB.savedReports = savedReports || [];
+
+  // Measurement Uncertainty report data lives in its own table. Loaded
+  // separately and tolerantly so a database that has not yet run
+  // sql/create_saved_mu_reports.sql still boots normally.
+  try {
+    const muReports = await supabaseFetch('saved_mu_reports');
+    DB.muReports = muReports || [];
+  } catch (muErr) {
+    DB.muReports = [];
+    console.warn('[DB] saved_mu_reports not loaded — run sql/create_saved_mu_reports.sql first:', muErr.message);
+  }
 
   // Load system state
   if (stateData && stateData.length > 0) {
@@ -793,16 +805,27 @@ async function restoreArchivedSamples(sampleIds, note) {
  */
 async function markSavedReportsStale(fullSubmissionId) {
   if (!fullSubmissionId) return 0;
+  const stamp = new Date().toISOString();
   const targets = DB.savedReports.filter(r => r.submission_id === fullSubmissionId && !r.is_stale);
   for (const r of targets) {
     try {
-      await supabaseUpdate('saved_reports', r.id, { is_stale: true, updated_at: new Date().toISOString() });
+      await supabaseUpdate('saved_reports', r.id, { is_stale: true, updated_at: stamp });
       r.is_stale = true;
     } catch (err) {
       console.warn('[DB] Could not flag saved report as stale:', err.message);
     }
   }
-  return targets.length;
+  // Same staleness flag for the saved Measurement Uncertainty report (if any).
+  const muTargets = (DB.muReports || []).filter(r => r.submission_id === fullSubmissionId && !r.is_stale);
+  for (const r of muTargets) {
+    try {
+      await supabaseUpdate('saved_mu_reports', r.id, { is_stale: true, updated_at: stamp });
+      r.is_stale = true;
+    } catch (err) {
+      console.warn('[DB] Could not flag saved MU report as stale:', err.message);
+    }
+  }
+  return targets.length + muTargets.length;
 }
 
 /* ── Workflow queries ────────────────────────────────────────── */
@@ -1200,6 +1223,72 @@ async function saveReportData(data) {
     DB.savedReports[idx] = { ...DB.savedReports[idx], ...record };
   } else {
     DB.savedReports.push({ ...record, created_at: now });
+  }
+
+  return record;
+}
+
+/**
+ * Find the saved Measurement Uncertainty (MU) report for a submission.
+ * @param {string} fullSubmissionId - e.g. "26-07-AAS-1041"
+ * @returns {object|null}
+ */
+function getSavedMUReport(fullSubmissionId) {
+  if (!fullSubmissionId || !Array.isArray(DB.muReports)) return null;
+  return DB.muReports.find(r => r.submission_id === fullSubmissionId) || null;
+}
+
+/**
+ * Save (upsert) the MU report's data to the saved_mu_reports table.
+ * Uses a deterministic ID so re-saving overwrites the same row.
+ * Run sql/create_saved_mu_reports.sql in Supabase before the first save.
+ * @param {object} data - full MU report data object
+ * @returns {Promise<object>} the saved MU report record
+ */
+async function saveMUReportData(data) {
+  const reportType = data.report_type || 'mu';
+  const id = 'srpt-' + data.submission_id + '-mu';
+  const now = new Date().toISOString();
+  const record = {
+    id,
+    submission_id: data.submission_id,
+    report_type: reportType,
+    report_number: data.report_number || '',
+    report_issue_date: data.report_issue_date || '',
+    customer_name: data.customer_name || '',
+    sample_count: data.sample_count || 0,
+    sample_location: data.sample_location || '',
+    sample_receiving_date: data.sample_receiving_date || '',
+    sample_description: data.sample_description || '',
+    sample_analysis_date: data.sample_analysis_date || '',
+    method_used: data.method_used || '',
+    temperature_humidity: data.temperature_humidity || '',
+    unit: data.unit || 'ppm',
+    lab_id: data.lab_id || '',
+    lab_name: data.lab_name || '',
+    lab_code: data.lab_code || '',
+    test_name: data.test_name || '',
+    test_code: data.test_code || '',
+    elements: data.elements || [],
+    sample_ids: data.sample_ids || [],
+    mu_params: data.mu_params || {},
+    mu_rows: data.mu_rows || [],
+    engineer_id: data.engineer_id || '',
+    engineer_name: data.engineer_name || '',
+    updated_at: now,
+  };
+
+  const ok = await supabaseUpsert('saved_mu_reports', record, 'submission_id,report_type');
+  if (!ok) throw new Error('Failed to save MU report data to database');
+
+  // Update local cache
+  const idx = DB.muReports.findIndex(
+    r => r.submission_id === data.submission_id && r.report_type === reportType
+  );
+  if (idx >= 0) {
+    DB.muReports[idx] = { ...DB.muReports[idx], ...record };
+  } else {
+    DB.muReports.push({ ...record, created_at: now });
   }
 
   return record;

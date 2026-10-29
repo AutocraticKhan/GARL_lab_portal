@@ -2870,6 +2870,20 @@ function openMUReport() {
     if (v !== '') priorRSD[(r.sampleKey || '') + '\u0001' + (r.element || '')] = v;
   });
 
+  // Fall back to the last SAVED RSDs (saved_mu_reports) for values that are
+  // not in memory yet, so reopening the MU report keeps earlier work.
+  try {
+    const savedMU = typeof getSavedMUReport === 'function' ? getSavedMUReport(activeFullSubmissionId) : null;
+    const savedRows = savedMU && Array.isArray(savedMU.mu_rows) ? savedMU.mu_rows : [];
+    savedRows.forEach(function(sr) {
+      if (!sr) return;
+      const sKey = (sr.sample_key || '') + '\u0001' + (sr.element || '');
+      if (priorRSD[sKey] === undefined && sr.rsd !== null && sr.rsd !== undefined && String(sr.rsd) !== '') {
+        priorRSD[sKey] = String(sr.rsd);
+      }
+    });
+  } catch (savedErr) { /* saved data is optional */ }
+
   activeMURows = [];
   activeMUCells = [];
 
@@ -2997,7 +3011,7 @@ function openMUReport() {
 
       chunkRows.forEach(function(row) {
         const rowIdx = activeMURows.length;
-        activeMURows.push({ rawValue: row.rawValue, unit: reportUnit, sampleKey: row.sampleKey, element: row.element });
+        activeMURows.push({ rawValue: row.rawValue, rawDisplay: row.rawDisplay, unit: reportUnit, sampleKey: row.sampleKey, element: row.element, label: row.label });
 
         const tr = document.createElement('tr');
         tr.className = 'report-sample-row mu-sample-row';
@@ -3144,6 +3158,135 @@ function openMUReport() {
   return true;
 }
 
+
+// ── Save the MU report data to Supabase (saved_mu_reports) ───
+// Same UX as saveReportDataToSupabase: reads the meta table the MU panel
+// rendered, the current parameters and every row's Sample RSD (%), then
+// upserts ONE row per submission (report_type = 'mu'). Run
+// sql/create_saved_mu_reports.sql in Supabase before the first save.
+async function saveMUReportDataToSupabase() {
+  if (!activeFullSubmissionId) {
+    showToast('No active report to save. Please open the report form first.', 'warning');
+    return;
+  }
+  const muBody = document.getElementById('mu-report-body');
+  const muDiv = muBody ? muBody.firstElementChild : null;
+  if (!muDiv || !activeMURows.length) {
+    showToast('No MU report to save. Please open the MU report first.', 'warning');
+    return;
+  }
+
+  // The FIRST table on the MU page is the customer/sample meta table — same
+  // labels as the test report, so muReportMetaValue reads it directly.
+  const metaTable = muDiv.querySelector('table');
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const clean = function(v) { v = (v || '').trim(); return v === '—' ? '' : v; };
+  const meta = {
+    reportNo: clean(muReportMetaValue(metaTable, 'Report No:')) || activeReportNo || '',
+    issueDate: clean(muReportMetaValue(metaTable, 'Report issue Date:')) || today,
+    customer: clean(muReportMetaValue(metaTable, 'Name & Address of Customer:')),
+    sampleCount: clean(muReportMetaValue(metaTable, 'No. of Sample(s):')) || '0',
+    location: clean(muReportMetaValue(metaTable, 'Location of Sample (Given by customer)')),
+    receivingDate: clean(muReportMetaValue(metaTable, 'Sample receiving Date')),
+    description: clean(muReportMetaValue(metaTable, 'Description of Sample:')),
+    analysisDate: clean(muReportMetaValue(metaTable, 'Sample analysis Date')) || today,
+    method: clean(muReportMetaValue(metaTable, 'Method used /Specs:')),
+    temp: clean(muReportMetaValue(metaTable, 'Temperature & Humidity')),
+  };
+
+  // Submission / lab / test metadata (same lookup as the test report save)
+  const submissions = getSubmissionsForLab(engSession.lab_id);
+  const sub = submissions.find(function(s) { return s.submissionId === activeSubmissionId; });
+  const lab = sub ? getLab(sub.lab_id) : null;
+  const firstSample = sub ? sub.samples[0] : null;
+  const test = firstSample ? getTest(firstSample.test_id) : null;
+
+  // One saved record per displayed row: the RSD and what it produced.
+  const muRows = [];
+  const elementsSet = new Set();
+  const sampleIds = [];
+  activeMURows.forEach(function(row, idx) {
+    const cell = activeMUCells[idx] || {};
+    const rsdRaw = cell.input
+      ? String(cell.input.value === undefined || cell.input.value === null ? '' : cell.input.value).trim()
+      : '';
+    const rsd = parseFloat(rsdRaw);
+    const canCompute = row.rawValue !== null && row.rawValue !== undefined &&
+      rsdRaw !== '' && isFinite(rsd) && rsd >= 0;
+
+    let ucRel = null, uValue = null, corrected = '';
+    if (canCompute) {
+      const res = muReportCompute(row.rawValue, rsd);
+      ucRel = res.ucRel;
+      uValue = res.U;
+      corrected = res.fullDisplay + ' ' + row.unit;
+    }
+
+    const label = row.label || '';
+    muRows.push({
+      no: muRows.length + 1,
+      sample_key: row.sampleKey || '',
+      sample_label: label,
+      element: row.element || 'Result',
+      value: row.rawDisplay || '',
+      value_num: row.rawValue,
+      rsd: rsdRaw === '' ? null : rsd,
+      uc_rel: ucRel,
+      u_value: uValue,
+      corrected_result: corrected,
+    });
+    if (label && sampleIds.indexOf(label) === -1) sampleIds.push(label);
+    if (row.element && row.element !== 'Result') elementsSet.add(row.element);
+  });
+
+  const unitSelect = document.getElementById('report-unit-select');
+  const muData = {
+    submission_id: activeFullSubmissionId,
+    report_type: 'mu',
+    report_number: meta.reportNo,
+    report_issue_date: meta.issueDate,
+    customer_name: meta.customer,
+    sample_count: parseInt(meta.sampleCount, 10) || 0,
+    sample_location: meta.location,
+    sample_receiving_date: meta.receivingDate,
+    sample_description: meta.description,
+    sample_analysis_date: meta.analysisDate,
+    method_used: meta.method,
+    temperature_humidity: meta.temp,
+    unit: unitSelect ? unitSelect.value : 'ppm',
+    lab_id: sub ? (sub.lab_id || '') : '',
+    lab_name: lab ? (lab.lab_name || '') : '',
+    lab_code: lab ? (lab.lab_code || '') : '',
+    test_name: test ? (test.test_name || '') : (sub ? sub.test_name : ''),
+    test_code: test ? (test.test_code || '') : '',
+    elements: Array.from(elementsSet),
+    sample_ids: sampleIds,
+    mu_params: { rbar: muParams.rbar, sR: muParams.sR, n: muParams.n, uCert: muParams.uCert, k: muParams.k },
+    mu_rows: muRows,
+    engineer_id: engSession ? engSession.id : '',
+    engineer_name: engSession ? engSession.full_name : '',
+  };
+
+  // Show saving state (same spinner as the test report Save button)
+  const saveBtn = document.getElementById('btn-save-mu-report');
+  const originalBtnHtml = saveBtn ? saveBtn.innerHTML : '';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Saving…';
+  }
+
+  try {
+    await saveMUReportData(muData);
+    showToast('MU report data saved successfully!', 'success');
+  } catch (err) {
+    showToast('Error saving MU report: ' + err.message, 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = originalBtnHtml;
+    }
+  }
+}
 
 // ── Print / Save the MU report (same A4 format as printReport) ───
 function printMUReport() {
