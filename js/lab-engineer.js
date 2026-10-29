@@ -187,6 +187,12 @@ function wireEngEvents() {
     if (e.target === document.getElementById('report-overlay')) closePanel('report-overlay');
   });
 
+  // MU report modal close
+  document.getElementById('close-mu-report-panel').addEventListener('click', () => closePanel('mu-report-overlay'));
+  document.getElementById('mu-report-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('mu-report-overlay')) closePanel('mu-report-overlay');
+  });
+
   // Spectroscopy modal close
   document.getElementById('close-spectroscopy-panel').addEventListener('click', () => closePanel('spectroscopy-overlay'));
   document.getElementById('spectroscopy-overlay').addEventListener('click', (e) => {
@@ -2459,6 +2465,581 @@ function printReport() {
       '.report-page:last-child { page-break-after: auto; }' +
       '.print-container { box-shadow: none !important; border: none !important; }' +
       'input { border: none !important; outline: none !important; background: transparent !important; }' +
+    '</style></head><body>' + serialized + '</body></html>';
+
+  const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+  if (!printWin) { showToast('Popup blocked! Please allow popups for this site to print.', 'error'); return; }
+  printWin.document.write(fullHtml);
+  printWin.document.close();
+  printWin.focus();
+
+  setTimeout(() => {
+    printWin.print();
+    printWin.onafterprint = () => printWin.close();
+  }, 500);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── MEASUREMENT UNCERTAINTY (MU) REPORT (NEW — additive only) ────
+// Slides in as a side panel (exactly like the test report) over the
+// details and shows the SAME report data (serial no, logos, meta
+// table, dates, results) with the ISO/IEC 17025 measurement
+// uncertainty columns added. Sample RSD starts as "—" and is
+// editable per row — the MU and corrected result recalculate live
+// as the RSD changes. All existing report functions above are
+// left untouched.
+// ══════════════════════════════════════════════════════════════════
+const MU_RBAR = 0.95;           // Mean CRM recovery (R-bar)
+const MU_SR_PCT = 4.0;          // (%) CRM recovery RSD (s_R)
+const MU_N_CRM = 10;            // CRM replicates (n)
+const MU_UCERT_PCT = 4.0;       // (%) CRM expanded uncertainty (U_cert)
+const MU_K = 2;                 // Coverage factor (k)
+const MU_ROWS_PER_PAGE = 14;    // body rows per printed page
+const MU_LAST_PAGE_ROWS = 10;   // rows allowed on the page carrying the terms
+
+// Live handles for the open MU panel: raw concentration per row plus
+// direct cell/input references, so an RSD edit recalculates only that
+// row without re-rendering the panel.
+let activeMURows = [];    // [{ rawValue: number|null, unit: string, sampleKey: string }]
+let activeMUCells = [];   // [{ input, tdMu, tdFull }] — index-aligned with activeMURows
+
+// Two-sided Student's t critical value at 95% confidence (alpha = 0.05)
+function muReportTCrit(df) {
+  const table = {
+    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+    6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+    11: 2.201, 12: 2.179, 15: 2.131, 20: 2.086, 30: 2.042
+  };
+  if (table[df]) return table[df];
+  return df > 30 ? 2.00 : 2.262;
+}
+
+// ISO/IEC 17025 measurement uncertainty for a single concentration:
+// CRM bias t-test -> bias correction -> combined relative uncertainty
+// -> expanded uncertainty U = k * u_c,rel * C_corr.
+function muReportCompute(rawConc, rsdPct) {
+  const Rbar = MU_RBAR;
+  const sR = MU_SR_PCT / 100;
+  const n = Math.max(2, MU_N_CRM);
+  const Ucert = MU_UCERT_PCT / 100;
+  const k = MU_K;
+  const rsdFrac = (parseFloat(rsdPct) || 0) / 100;
+
+  const seR = sR / Math.sqrt(n);
+  const tStat = seR > 0 ? Math.abs(1 - Rbar) / seR : 0;
+  const df = Math.max(1, n - 1);
+  const tCrit = muReportTCrit(df);
+  const isSignificant = tStat > tCrit;
+
+  const uCrm = Ucert / 2; // k_cert = 2
+  const uBias = isSignificant
+    ? Math.sqrt(Math.pow(sR / (Rbar * Math.sqrt(n)), 2) + Math.pow(uCrm, 2))
+    : Math.sqrt(Math.pow(1 - Rbar, 2) + Math.pow(sR / (Rbar * Math.sqrt(n)), 2) + Math.pow(uCrm, 2));
+
+  const rEff = isSignificant ? Rbar : 1.0;
+  const cCorr = rawConc / rEff;
+  const ucRel = Math.sqrt(Math.pow(rsdFrac, 2) + Math.pow(uBias, 2));
+  const U = k * ucRel * cCorr;
+  const decimals = U < 0.095 ? 3 : 2;
+
+  return {
+    tStat: tStat, tCrit: tCrit, df: df, isSignificant: isSignificant,
+    uBias: uBias, rEff: rEff, cCorr: cCorr, ucRel: ucRel, U: U, k: k,
+    decimals: decimals,
+    uDisplay: '\u00b1 ' + U.toFixed(decimals),
+    cDisplay: cCorr.toFixed(decimals),
+    fullDisplay: cCorr.toFixed(decimals) + ' \u00b1 ' + U.toFixed(decimals)
+  };
+}
+
+// Read one label -> value pair out of the live report's meta table.
+// Value cells may contain an <input> (method, temperature) — use its value.
+function muReportMetaValue(metaTable, label) {
+  if (!metaTable) return '';
+  for (let r = 0; r < metaTable.rows.length; r++) {
+    const cells = metaTable.rows[r].cells;
+    for (let c = 0; c < cells.length - 1; c++) {
+      if (cells[c].textContent.trim() === label) {
+        const inp = cells[c + 1].querySelector('input');
+        if (inp) return (inp.value || '').trim();
+        return cells[c + 1].textContent.trim();
+      }
+    }
+  }
+  return '';
+}
+
+// Split MU rows into page chunks: body pages hold MU_ROWS_PER_PAGE rows
+// and the final page carries the disclaimer / signatures, so it is capped
+// at MU_LAST_PAGE_ROWS (an extra terms-only page is added when needed).
+function muChunkRows(allRows) {
+  const n = allRows.length;
+  if (n <= MU_LAST_PAGE_ROWS) return [allRows.slice()];
+  const chunks = [];
+  let i = 0;
+  while (i < n) {
+    const remaining = n - i;
+    if (remaining <= MU_ROWS_PER_PAGE + MU_LAST_PAGE_ROWS) {
+      if (remaining <= MU_ROWS_PER_PAGE) {
+        chunks.push(allRows.slice(i));
+        chunks.push([]); // dedicated terms-only page
+      } else {
+        chunks.push(allRows.slice(i, i + MU_ROWS_PER_PAGE));
+        chunks.push(allRows.slice(i + MU_ROWS_PER_PAGE));
+      }
+      break;
+    }
+    chunks.push(allRows.slice(i, i + MU_ROWS_PER_PAGE));
+    i += MU_ROWS_PER_PAGE;
+  }
+  return chunks;
+}
+
+
+// ── Recalculate ONE row's MU cells from its (possibly empty) RSD input ──
+function updateMUReportRow(idx) {
+  const cell = activeMUCells[idx];
+  const row = activeMURows[idx];
+  if (!cell || !row) return;
+
+  const rsdRaw = cell.input ? String(cell.input.value === undefined || cell.input.value === null ? '' : cell.input.value).trim() : '';
+  const rsd = parseFloat(rsdRaw);
+  const canCompute = row.rawValue !== null && rsdRaw !== '' && isFinite(rsd) && rsd >= 0;
+
+  if (!canCompute) {
+    cell.tdMu.textContent = '\u2014';
+    cell.tdFull.textContent = '\u2014';
+    return;
+  }
+
+  const res = muReportCompute(row.rawValue, rsd);
+  cell.tdMu.innerHTML =
+    '<span style="font-size:14px;font-weight:700;">' + res.uDisplay + ' ' + escHtml(row.unit) + '</span>' +
+    '<br/><span style="font-size:10.5px;font-weight:400;color:#475569;font-style:italic;">u_c,rel = ' + (res.ucRel * 100).toFixed(2) + ' % (RSD = ' + rsd + ' %)</span>';
+  cell.tdFull.textContent = res.fullDisplay + ' ' + row.unit;
+}
+
+// Batch fill: apply the header RSD box to every row (reference behaviour).
+function applyMUDefaultRSD() {
+  const box = document.getElementById('mu-default-rsd');
+  if (!box || String(box.value).trim() === '') {
+    showToast('Enter an RSD (%) in the header box first.', 'warning');
+    return;
+  }
+  const val = parseFloat(box.value);
+  if (!isFinite(val) || val < 0) {
+    showToast('Please enter a valid RSD (%).', 'warning');
+    return;
+  }
+  activeMUCells.forEach(function(cell, idx) {
+    if (cell.input) cell.input.value = String(val);
+    updateMUReportRow(idx);
+  });
+  showToast('RSD ' + val + ' % applied to all rows.', 'success');
+}
+
+// ── Open the Measurement Uncertainty report (sliding side panel) ──
+function openMUReport() {
+  const body = document.getElementById('mu-report-body');
+  if (!body) return;
+
+  // ── 1. Same data as the live report ─────────────────────────────
+  const livePages = Array.from(document.querySelectorAll('#report-body .report-page'))
+    .filter(function(p) { return !p.closest('#report-print-source'); });
+  if (!livePages.length) {
+    showToast('No report to open. Please open the report form first.', 'warning');
+    return;
+  }
+  const metaTable = livePages[0].querySelector('table');
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const unitSelect = document.getElementById('report-unit-select');
+  const reportUnit = unitSelect ? unitSelect.value : 'ppm';
+
+  const meta = {
+    reportNo: muReportMetaValue(metaTable, 'Report No:') || activeReportNo || '\u2014',
+    issueDate: muReportMetaValue(metaTable, 'Report issue Date:') || today,
+    customer: muReportMetaValue(metaTable, 'Name & Address of Customer:') || '\u2014',
+    sampleCount: muReportMetaValue(metaTable, 'No. of Sample(s):') || '0',
+    location: muReportMetaValue(metaTable, 'Location of Sample (Given by customer)') || 'NA',
+    receivingDate: muReportMetaValue(metaTable, 'Sample receiving Date') || '\u2014',
+    description: muReportMetaValue(metaTable, 'Description of Sample:') || 'Powder',
+    analysisDate: muReportMetaValue(metaTable, 'Sample analysis Date') || today,
+    method: muReportMetaValue(metaTable, 'Method used /Specs:') || '',
+    temp: muReportMetaValue(metaTable, 'Temperature & Humidity') || ''
+  };
+
+  // Element order, taken from the live table headers (pages are chunked)
+  const elements = [];
+  document.querySelectorAll('#report-body th[data-element]').forEach(function(th) {
+    if (th.closest('#report-print-source')) return;
+    const el = th.getAttribute('data-element');
+    if (el && elements.indexOf(el) === -1) elements.push(el);
+  });
+
+  // Sample rows + result values — every sample is listed on screen (the
+  // report panel works the same way); "hide during print" is applied
+  // later, when the MU report is printed.
+  const samples = [];
+  const indexBySample = new Map();
+
+  document.querySelectorAll('#report-body tr.report-sample-row').forEach(function(tr) {
+    if (tr.closest('#report-print-source')) return;
+    const rowKey = tr.dataset.sampleId || '';
+    const idCell = tr.querySelector('.report-sample-id');
+    const label = idCell ? idCell.textContent.trim() : '\u2014';
+    const mapKey = rowKey + '\u0001' + label;
+    let entry = indexBySample.get(mapKey);
+    if (!entry) {
+      entry = { key: rowKey, label: label, values: {} };
+      indexBySample.set(mapKey, entry);
+      samples.push(entry);
+    }
+    tr.querySelectorAll('.report-result-input').forEach(function(input) {
+      const el = input.getAttribute('data-element') || 'result';
+      const val = (input.value || '').trim();
+      if (entry.values[el] === undefined || (entry.values[el] === '' && val !== '')) {
+        entry.values[el] = val;
+      }
+    });
+  });
+
+  // ── 2. Flatten into one row per result (reference layout) ────────
+  const elementCols = elements.length > 0 ? elements : ['result'];
+  const showElementCol = elements.length > 1;
+  const muProbe = muReportCompute(1, 0); // u_bias / t do not depend on RSD
+
+  const rows = [];
+  samples.forEach(function(sample) {
+    elementCols.forEach(function(el) {
+      const rawStr = sample.values[el] !== undefined ? String(sample.values[el]).trim() : '';
+      const rawNum = parseFloat(rawStr);
+      const hasValue = rawStr !== '' && isFinite(rawNum);
+      let elName = 'Result';
+      if (el !== 'result') elName = el.charAt(0).toUpperCase() + el.slice(1).toLowerCase();
+      rows.push({
+        no: rows.length + 1,
+        sampleKey: sample.key,
+        label: sample.label,
+        element: elName,
+        rawDisplay: hasValue ? rawStr : '\u2014',
+        rawValue: hasValue ? rawNum : null
+      });
+    });
+  });
+
+  // ── 3. Build the report pages into the sliding panel ─────────────
+  activeMURows = [];
+  activeMUCells = [];
+
+  const titleEl = document.getElementById('mu-report-title');
+  if (titleEl) titleEl.textContent = ' \u2014 ' + meta.reportNo;
+
+  const reportDiv = document.createElement('div');
+  reportDiv.style.cssText = 'padding:16px 0;';
+  const chunks = muChunkRows(rows);
+  const totalPages = chunks.length;
+
+  chunks.forEach(function(chunkRows, pageIdx) {
+    const pageNum = pageIdx + 1;
+    const isLastPage = pageIdx === totalPages - 1;
+
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'report-page print-container';
+    pageDiv.style.cssText = 'width:auto;min-height:297mm;background:#fff;padding:30px 35px;margin-bottom:20px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.08);font-family:Times New Roman,Times,serif;color:#000;';
+
+    // Top Right Serial Number (same as the test report)
+    const serialDiv = document.createElement('div');
+    serialDiv.style.cssText = 'text-align:right;font-size:12px;font-weight:700;color:#065f46;margin-bottom:8px;';
+    serialDiv.textContent = 'Test Report Sr. No ' + meta.reportNo;
+    pageDiv.appendChild(serialDiv);
+
+    // Header Section with Logos (identical to the test report)
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:12px;';
+
+    const leftLogo = document.createElement('div');
+    leftLogo.style.cssText = 'width:96px;height:96px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+    const logoImg = document.createElement('img');
+    logoImg.src = '../logo/logo.png';
+    logoImg.style.cssText = 'max-width:80px;max-height:80px;object-fit:contain;border-radius:4px;';
+    logoImg.alt = 'GARL Logo';
+    leftLogo.appendChild(logoImg);
+    headerDiv.appendChild(leftLogo);
+
+    const centerText = document.createElement('div');
+    centerText.style.cssText = 'text-align:center;flex:1;padding:0 8px;';
+    centerText.innerHTML =
+      '<h1 style="font-size:14px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:0;">GOVERNMENT OF PAKISTAN</h1>' +
+      '<h2 style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">MINISTRY OF ENERGY (PETROLEUM DIVISION)</h2>' +
+      '<h3 style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">GEOLOGICAL SURVEY OF PAKISTAN</h3>' +
+      '<h4 style="font-size:14px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">GEOSCIENCE ADVANCED RESEARCH LABORATORIES</h4>' +
+      '<p style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#065f46;text-transform:uppercase;margin:2px 0;">ISLAMABAD</p>';
+    headerDiv.appendChild(centerText);
+
+    const rightLogo = document.createElement('div');
+    rightLogo.style.cssText = 'width:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    const certImg = document.createElement('img');
+    certImg.src = activeReportType === 'qscert' ? '../logo/qscert.png' : '../logo/PNAC.png';
+    certImg.style.cssText = 'max-width:100px;max-height:80px;object-fit:contain;';
+    certImg.alt = activeReportType === 'qscert' ? 'QSCert Logo' : 'PNAC Logo';
+    rightLogo.appendChild(certImg);
+    headerDiv.appendChild(rightLogo);
+    pageDiv.appendChild(headerDiv);
+
+    // Customer & Sample Details Metadata Table — same rows & dates
+    const metaCell = 'border:1px solid #000;padding:4px 8px;font-size:13.5px;';
+    const metaLbl = metaCell + 'font-weight:700;';
+    const metaVal = metaCell + 'text-align:center;';
+    const metaEl = document.createElement('table');
+    metaEl.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:24px;';
+    metaEl.innerHTML =
+      '<tbody>' +
+        '<tr><td style="' + metaLbl + 'width:28%;">Report No:</td><td style="' + metaVal + 'font-weight:700;color:#065f46;width:24%;">' + escHtml(meta.reportNo) + '</td><td style="' + metaLbl + 'width:24%;">Report issue Date:</td><td style="' + metaVal + 'width:24%;">' + escHtml(meta.issueDate) + '</td></tr>' +
+        '<tr><td style="' + metaLbl + '">Name & Address of Customer:</td><td style="' + metaVal + '">' + escHtml(meta.customer) + '</td><td style="' + metaLbl + '">No. of Sample(s):</td><td class="report-sample-count" style="' + metaVal + '">' + escHtml(meta.sampleCount) + '</td></tr>' +
+        '<tr><td style="' + metaLbl + '">Location of Sample (Given by customer)</td><td style="' + metaVal + '">' + escHtml(meta.location) + '</td><td style="' + metaLbl + '">Sample receiving Date</td><td style="' + metaVal + '">' + escHtml(meta.receivingDate) + '</td></tr>' +
+        '<tr><td style="' + metaLbl + '">Description of Sample:</td><td style="' + metaVal + '">' + escHtml(meta.description) + '</td><td style="' + metaLbl + '">Sample analysis Date</td><td style="' + metaVal + '">' + escHtml(meta.analysisDate) + '</td></tr>' +
+        '<tr><td style="' + metaLbl + '">Method used /Specs:</td><td style="' + metaVal + '">' + escHtml(meta.method || '\u2014') + '</td><td style="' + metaLbl + '">Temperature & Humidity</td><td style="' + metaVal + '">' + escHtml(meta.temp || '\u2014') + '</td></tr>' +
+      '</tbody>';
+    pageDiv.appendChild(metaEl);
+
+    // Heading (continuation pages are labelled and numbered)
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-weight:700;font-size:15px;margin-bottom:8px;padding-left:16px;';
+    heading.textContent = pageNum === 1 ? 'Measurement Uncertainty Report:' : 'Measurement Uncertainty Report (Continued):';
+    pageDiv.appendChild(heading);
+
+    // Uncertainty parameters strip (reference engine constants)
+    const paramDiv = document.createElement('div');
+    paramDiv.style.cssText = 'font-size:11.5px;color:#374151;margin:-4px 0 8px 16px;line-height:1.5;';
+    paramDiv.innerHTML =
+      '<strong style="color:#065f46;">Uncertainty parameters:</strong> ' +
+      'Mean recovery R\u0304 = ' + MU_RBAR + ' \u00b7 s_R = ' + MU_SR_PCT.toFixed(2) + ' % \u00b7 n = ' + MU_N_CRM +
+      ' \u00b7 U_cert = ' + MU_UCERT_PCT.toFixed(2) + ' % \u00b7 k = ' + MU_K +
+      ' \u00b7 u_bias = ' + (muProbe.uBias * 100).toFixed(2) + ' %' +
+      ' \u00b7 t = ' + muProbe.tStat.toFixed(2) + ' vs t_crit = ' + muProbe.tCrit.toFixed(2) + ' (df = ' + muProbe.df + ') \u2192 ' +
+      (muProbe.isSignificant ? 'bias significant, C_corr = C / R\u0304' : 'bias not significant, C_corr = C') +
+      ' \u00b7 Sample RSD: entered per row (\u2014 until filled)';
+    pageDiv.appendChild(paramDiv);
+
+    if (totalPages > 1) {
+      const rangeDiv = document.createElement('div');
+      rangeDiv.style.cssText = 'font-size:12px;color:#374151;margin:-4px 0 8px 16px;';
+      const rangeStart = chunkRows.length ? chunkRows[0].no : 0;
+      const rangeEnd = chunkRows.length ? chunkRows[chunkRows.length - 1].no : 0;
+      rangeDiv.textContent = 'Results ' + rangeStart + '\u2013' + rangeEnd + ' of ' + rows.length + ' \u00b7 Page ' + pageNum + ' of ' + totalPages;
+      pageDiv.appendChild(rangeDiv);
+    }
+
+
+    // Test Results table with editable Sample RSD + live MU columns
+    if (chunkRows.length > 0) {
+      const thStyle = 'border:1px solid #000;padding:4px 6px;text-align:center;font-weight:700;font-size:13px;';
+      let headHtml = '<thead><tr style="background:#f9fafb;">' +
+        '<th style="' + thStyle + 'width:6%;">S. No.</th>' +
+        '<th style="' + thStyle + 'min-width:150px;">Sample ID</th>' +
+        (showElementCol ? '<th style="' + thStyle + 'width:9%;">Element</th>' : '') +
+        '<th style="' + thStyle + 'background:#f0f9ff;">Instrument Reading<br/>C (' + escHtml(reportUnit) + ')</th>' +
+        '<th style="' + thStyle + 'background:#fefce8;">Sample RSD<br/>(%)</th>' +
+        '<th style="' + thStyle + 'background:#e6f4ea;color:#065f46;">Measurement Uncertainty<br/>(MU, k = ' + MU_K + ')</th>' +
+        '<th style="' + thStyle + 'width:17%;">Corrected Result<br/>[C \u00b1 U ' + escHtml(reportUnit) + ']</th>' +
+        '</tr></thead>';
+
+      const table = document.createElement('table');
+      table.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:10px;';
+      table.innerHTML = headHtml;
+
+      const tbody = document.createElement('tbody');
+      const cellBase = 'border:1px solid #000;padding:4px 6px;text-align:center;font-size:13.5px;';
+
+      chunkRows.forEach(function(row) {
+        const rowIdx = activeMURows.length;
+        activeMURows.push({ rawValue: row.rawValue, unit: reportUnit, sampleKey: row.sampleKey });
+
+        const tr = document.createElement('tr');
+        tr.className = 'report-sample-row mu-sample-row';
+        tr.dataset.sampleId = row.sampleKey;
+
+        const tdNo = document.createElement('td');
+        tdNo.className = 'mu-row-no';
+        tdNo.style.cssText = cellBase;
+        tdNo.textContent = row.no + '.';
+        tr.appendChild(tdNo);
+
+        const tdId = document.createElement('td');
+        tdId.style.cssText = cellBase + 'white-space:nowrap;';
+        tdId.textContent = row.label;
+        tr.appendChild(tdId);
+
+        if (showElementCol) {
+          const tdEl = document.createElement('td');
+          tdEl.style.cssText = cellBase;
+          tdEl.textContent = row.element;
+          tr.appendChild(tdEl);
+        }
+
+        const tdRaw = document.createElement('td');
+        tdRaw.style.cssText = cellBase + 'background:#f0f9ff;font-weight:700;';
+        tdRaw.textContent = row.rawDisplay;
+        tr.appendChild(tdRaw);
+
+        // Editable Sample RSD — starts empty ("—" placeholder)
+        const tdRsd = document.createElement('td');
+        tdRsd.style.cssText = cellBase + 'background:#fefce8;padding:2px 4px;';
+        const rsdInput = document.createElement('input');
+        rsdInput.type = 'number';
+        rsdInput.step = 'any';
+        rsdInput.min = '0';
+        rsdInput.className = 'mu-rsd-input';
+        rsdInput.placeholder = '\u2014';
+        rsdInput.value = '';
+        rsdInput.title = 'Enter Sample RSD (%) — the MU updates live';
+        rsdInput.setAttribute('data-row', String(rowIdx));
+        rsdInput.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;font-weight:700;';
+        rsdInput.addEventListener('input', function() { updateMUReportRow(rowIdx); });
+        tdRsd.appendChild(rsdInput);
+        tr.appendChild(tdRsd);
+
+        // Measurement Uncertainty (k = 2) — "—" until an RSD is entered
+        const tdMu = document.createElement('td');
+        tdMu.style.cssText = cellBase + 'background:#e6f4ea;color:#065f46;';
+        tdMu.textContent = '\u2014';
+        tr.appendChild(tdMu);
+
+        // Corrected Result [C \u00b1 U] — "—" until an RSD is entered
+        const tdFull = document.createElement('td');
+        tdFull.style.cssText = cellBase + 'font-weight:700;';
+        tdFull.textContent = '\u2014';
+        tr.appendChild(tdFull);
+
+        activeMUCells.push({ input: rsdInput, tdMu: tdMu, tdFull: tdFull });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      pageDiv.appendChild(table);
+
+      // Footnote (reference wording, adapted for editable RSD)
+      const noteDiv = document.createElement('div');
+      noteDiv.style.cssText = 'font-size:11.5px;color:#475569;font-style:italic;margin-bottom:24px;';
+      noteDiv.innerHTML =
+        '* Measurement uncertainty is calculated per result from its concentration and the sample RSD (%) combined with the CRM bias uncertainty at 95% confidence (k = ' + MU_K + '): u<sub>c,rel</sub> = \u221a(RSD\u00b2 + u<sub>bias</sub>\u00b2) and U = k \u00b7 u<sub>c,rel</sub> \u00b7 C<sub>corr</sub>. ' +
+        'Bias correction applied (t = ' + muProbe.tStat.toFixed(2) + ' &gt; t<sub>crit</sub> = ' + muProbe.tCrit.toFixed(2) + ' \u2192 significant), so C<sub>corr</sub> = C / R\u0304. ' +
+        'Enter the Sample RSD (%) in each row (shown as \u2014 until filled) \u2014 the MU and corrected result update live as it changes.';
+      pageDiv.appendChild(noteDiv);
+    }
+
+    // Disclaimer / Terms, "End of Report" and signatures — LAST page only
+    if (isLastPage) {
+      const disclaimerDiv = document.createElement('div');
+      disclaimerDiv.style.cssText = 'margin-bottom:32px;';
+      disclaimerDiv.innerHTML =
+        '<h5 style="font-weight:700;font-size:13.5px;margin-bottom:12px;padding-left:16px;">Disclaimer / Terms of Test Report</h5>' +
+        '<ul style="list-style:none;padding:0 16px;margin:0;">' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 This report is based solely on the specific sample(s) submitted by the customer. It must not be reproduced in part without prior written consent.</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Sampling was not carried out by GARL. Therefore, the laboratory does not accept responsibility for whether the submitted sample(s) accurately represent any larger batch, stock, or full production lot.</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 The customer is fully responsible for the ethical and appropriate use of the test results. The laboratory shall not be held liable for any claims or consequences arising from the use or interpretation of the data by the customer or third parties.</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 The information in this report may not be used for product promotion, commercial advertising, or publicity purposes.</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 After the report is issued, the sample(s) will be retained for a period of 1 month, unless an alternative arrangement has been agreed upon.</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Statement of conformity /compliance (where applicable): NA</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Remarks/Comments (where requested) = NA</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 Analysis Not required = NR</li>' +
+          '<li style="position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;">\u2022 BDL = Below Detection Limit</li>' +
+        '</ul>';
+      pageDiv.appendChild(disclaimerDiv);
+
+      const endDiv = document.createElement('div');
+      endDiv.style.cssText = 'text-align:center;font-weight:700;font-size:14px;margin:32px 0;';
+      endDiv.textContent = 'End of Report';
+      pageDiv.appendChild(endDiv);
+
+      const sigDiv = document.createElement('div');
+      sigDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;margin-top:64px;padding:16px 16px 0;';
+      sigDiv.innerHTML =
+        '<div style="text-align:left;">' +
+          '<div style="font-weight:700;font-size:13.5px;">Quality Manager</div>' +
+          '<div style="font-size:12px;margin-top:2px;">(Verified <span style="text-decoration:underline;color:#1d4ed8;font-family:sans-serif;">by</span>)</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-weight:700;font-size:13.5px;">Technical Manager</div>' +
+          '<div style="font-size:12px;margin-top:2px;">(Issued by)</div>' +
+        '</div>';
+      pageDiv.appendChild(sigDiv);
+    }
+
+    reportDiv.appendChild(pageDiv);
+  });
+
+  // Fill the panel and slide it in exactly like the test report
+  body.innerHTML = '';
+  body.appendChild(reportDiv);
+  openPanel('mu-report-overlay');
+}
+
+
+// ── Print / Save the MU report (same A4 format as printReport) ───
+function printMUReport() {
+  const body = document.getElementById('mu-report-body');
+  const reportDiv = body ? body.firstElementChild : null;
+  if (!reportDiv) { showToast('No MU report to print. Please open the MU report first.', 'warning'); return; }
+
+  const clone = reportDiv.cloneNode(true);
+
+  // RSD inputs do not serialise their value property — bake the LIVE
+  // value into the clone as plain text ("—" when still empty).
+  clone.querySelectorAll('.mu-rsd-input').forEach(function(inp) {
+    const idx = parseInt(inp.getAttribute('data-row'), 10);
+    const cell = activeMUCells[idx];
+    const v = cell && cell.input ? String(cell.input.value === undefined || cell.input.value === null ? '' : cell.input.value).trim() : '';
+    const txt = document.createTextNode(v !== '' ? v : '\u2014');
+    if (inp.parentNode) inp.parentNode.replaceChild(txt, inp);
+  });
+
+  // ── Apply "hide during print" flags (same as printReport) ───────
+  const hiddenForPrint = new Set(getHiddenSamplesFor(activeReportHiddenKey));
+  if (hiddenForPrint.size > 0) {
+    clone.querySelectorAll('tr.mu-sample-row').forEach(function(tr) {
+      if (hiddenForPrint.has(tr.dataset.sampleId)) tr.remove();
+    });
+    clone.querySelectorAll('table').forEach(function(tbl) {
+      const bodyRows = tbl.querySelectorAll('tr.mu-sample-row');
+      bodyRows.forEach(function(tr, i) {
+        const noCell = tr.querySelector('.mu-row-no');
+        if (noCell) noCell.textContent = (i + 1) + '.';
+      });
+    });
+    // "No. of Sample(s)" counts distinct SAMPLES (rows are sample x element)
+    const remainingKeys = new Set();
+    let printedRowCount = 0;
+    clone.querySelectorAll('tr.mu-sample-row').forEach(function(tr) {
+      printedRowCount++;
+      if (tr.dataset.sampleId) remainingKeys.add(tr.dataset.sampleId);
+    });
+    const printedSampleCount = remainingKeys.size > 0 ? remainingKeys.size : printedRowCount;
+    if (printedSampleCount > 0) {
+      clone.querySelectorAll('.report-sample-count').forEach(function(td) {
+        td.textContent = String(printedSampleCount);
+      });
+    }
+  }
+
+  const serialized = clone.innerHTML;
+
+  const fullHtml =
+    '<!DOCTYPE html><html lang="en"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Measurement Uncertainty Report</title>' +
+    '<style>' +
+      '@import url(\'https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap\');' +
+      'body { font-family: \'Times New Roman\', Times, serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+      '@page { size: A4 portrait; margin: 0; }' +
+      '@media print { body { background: #fff !important; color: #000 !important; } .no-print { display: none !important; } .print-container { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 0 !important; width: 210mm !important; background: transparent !important; } .report-page { box-shadow: none !important; border: none !important; margin: 0 auto !important; padding: 12mm 15mm !important; page-break-after: always; page-break-inside: avoid; break-inside: avoid; } tr { page-break-inside: avoid; } }' +
+      '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+      'body { background: #fff; display: block; padding: 0; }' +
+      '.report-page { width: 210mm; min-height: 297mm; padding: 12mm 15mm !important; margin: 0 auto; background: #fff; border: none; box-shadow: none; page-break-after: always; page-break-inside: avoid; break-inside: avoid; }' +
+      '.report-page:last-child { page-break-after: auto; }' +
+      '.print-container { box-shadow: none !important; border: none !important; }' +
     '</style></head><body>' + serialized + '</body></html>';
 
   const printWin = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
