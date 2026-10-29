@@ -466,13 +466,18 @@ function openSubmissionPanel(submissionId) {
     const elements = s.selectedElements || [];
     const testForSample = s.test_id ? getTest(s.test_id) : null;
     const requiresElems = testForSample ? testForSample.requires_elements !== false : true;
-    const elementLabels = elements.length > 0
-      ? elements.map(el => {
-          const info = getElementInfo(el);
-          const sym = normalizeElementSymbol(el);
-          return info ? sym + ' (' + info.name + ')' : sym;
-        }).join(', ')
-      : (requiresElems ? '—' : 'No elements required');
+    // Analyte chips — symbol-only badges (e.g. Cu, Au, Mo) instead of "Cu (Copper)"
+    const elemChipsHtml =
+      '<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--txt-muted);">Target Analytes (ppm)</div>' +
+      (elements.length > 0
+        ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;">' +
+            elements.map(el =>
+              '<span class="font-mono-code" style="font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:6px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;">' +
+              escAttr(normalizeElementSymbol(el)) + '</span>'
+            ).join('') +
+          '</div>'
+        : '<div style="margin-top:4px;font-size:0.75rem;color:var(--txt-muted);">' +
+          (requiresElems ? '—' : 'No elements required') + '</div>');
     const isCompleted = s.status === 'completed';
     const isArchived  = isSampleArchived(s);
     const isReturned  = isSampleReturned(s);
@@ -514,9 +519,7 @@ function openSubmissionPanel(submissionId) {
               (isCompleted ? '<button class="btn btn-ghost btn-sm" title="Reopen this sample back to pending (free within ' + REOPEN_FREE_WINDOW_DAYS + ' days of completion)" onclick="openReopenModal(\'' + s.id + '\')" style="color:var(--clr-primary);">↺ Reopen</button>' : '') +
             '</div>' +
           '</div>' +
-          '<div style="font-size:0.75rem;color:var(--txt-secondary);">' +
-            '<span><strong>Elements (' + elements.length + '):</strong> ' + escHtml(elementLabels) + '</span>' +
-          '</div>' +
+          elemChipsHtml +
           (isCompleted ? (function() {
             const win = getReopenWindowInfo(s);
             const style = win.withinWindow
@@ -561,20 +564,42 @@ function openSubmissionPanel(submissionId) {
         (sub.hasArchived ? '<span style="font-size:0.72rem;background:rgba(100,116,139,0.12);color:#475569;padding:2px 10px;border-radius:12px;font-weight:600;">🗄️ ' + sub.archivedCount + ' archived</span>' : '') +
       '</div>' +
 
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);padding:var(--sp-4);background:var(--clr-bg-3);border-radius:var(--r-lg);border:1px solid var(--clr-border);">' +
-        '<div class="detail-row"><span class="detail-label">Submission ID</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;color:var(--clr-primary);">#' + escHtml(sub.submissionId) + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Number of Samples</span><span class="detail-value" style="font-size:1.05rem;font-weight:700;">' + sub.sampleCount + '</span></div>' +
-        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Sample ID Range</span><span class="detail-value" style="font-family:monospace;font-size:0.9rem;font-weight:600;">' + escHtml(sampleRange) + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Client Name</span><span class="detail-value">' + escHtml(sub.customer_name || '—') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Client Contact</span><span class="detail-value">' + escHtml(firstSample?.customer_contact || '—') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">CNIC</span><span class="detail-value">' + escHtml(firstSample?.cnic || '—') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Address</span><span class="detail-value">' + escHtml(addrInfo.address || '—') + '</span></div>' +
-        '<div class="detail-row" style="grid-column:1/-1;"><span class="detail-label">Note</span><span class="detail-value">' + escHtml(addrInfo.note || '—') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Sample Location</span><span class="detail-value">' + escHtml(firstSample?.sample_location || '—') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Lab</span><span class="detail-value">' + escHtml(lab?.lab_name || '—') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Test</span><span class="detail-value">' + escHtml(test?.test_name || sub.test_name || '—') + (test ? ' <code style="font-size:0.75rem;color:var(--clr-accent)">' + test.test_code + '</code>' : '') + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">Collected</span><span class="detail-value">' + formatDate(sub.created_at) + '</span></div>' +
-      '</div>' +
+      (function() {
+        const chip = function(txt) {
+          const safe = escAttr(txt);
+          return '<span title="' + safe + '" style="font-size:0.68rem;font-weight:700;padding:3px 9px;border-radius:999px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">' + safe + '</span>';
+        };
+        const kv = function(label, valHtml, opts) {
+          opts = opts || {};
+          return '<div style="min-width:0;' + (opts.full ? 'grid-column:1/-1;' : '') + '" title="' + escAttr(opts.title || '') + '">' +
+            '<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--txt-muted);">' + label + '</div>' +
+            '<div style="font-size:0.8rem;font-weight:600;color:var(--txt-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + valHtml + '</div>' +
+          '</div>';
+        };
+        const headChips =
+          chip(sub.sampleCount + ' Sample' + (sub.sampleCount === 1 ? '' : 's')) +
+          chip(lab?.lab_name || '—') +
+          chip((test?.test_name || sub.test_name || '—') + (test && test.test_code ? ' ' + test.test_code : '')) +
+          chip('Collected ' + formatDate(sub.created_at));
+        const kvItems =
+          kv('Sample ID Range', '<span style="font-family:monospace;font-size:0.78rem;">' + escAttr(sampleRange) + '</span>', { full: true, title: sampleRange }) +
+          kv('Client Name', escAttr(sub.customer_name || '—'), { title: sub.customer_name || '' }) +
+          kv('Client Contact', escAttr(firstSample?.customer_contact || '—'), { title: firstSample?.customer_contact || '' }) +
+          kv('CNIC', escAttr(firstSample?.cnic || '—'), { title: firstSample?.cnic || '' }) +
+          kv('Sample Location', escAttr(firstSample?.sample_location || '—'), { title: firstSample?.sample_location || '' }) +
+          kv('Address', escAttr(addrInfo.address || '—'), { full: true, title: addrInfo.address || '' }) +
+          kv('Note', escAttr(addrInfo.note || '—'), { full: true, title: addrInfo.note || '' });
+        return '<div style="margin-bottom:var(--sp-3);padding:var(--sp-3) var(--sp-4);background:linear-gradient(135deg,#f8fafc,#eef2ff);border-radius:var(--r-lg);border:1px solid var(--clr-border);">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-bottom:8px;margin-bottom:8px;border-bottom:1px dashed #cbd5e1;">' +
+            '<div style="display:flex;align-items:baseline;gap:8px;min-width:0;">' +
+              '<span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--txt-muted);">Submission ID</span>' +
+              '<span class="font-mono-code" style="font-size:1rem;font-weight:800;color:var(--clr-primary);">#' + escAttr(sub.submissionId) + '</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:5px;flex-wrap:wrap;">' + headChips + '</div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 14px;">' + kvItems + '</div>' +
+        '</div>';
+      })() +
 
       (test && test.requires_elements !== false ?
       (function() {
