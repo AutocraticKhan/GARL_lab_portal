@@ -3117,7 +3117,7 @@ function openMUReport() {
       pageDiv.appendChild(noteDiv);
     }
 
-    // Basis of Calculation of MU, "End of Report" and signatures — LAST page only
+    // Basis of Calculation of MU and "End of Report" — LAST page only
     if (isLastPage) {
       // Re-derive the numeric values so the printed section documents
       // exactly what muReportCompute used for every row of this report.
@@ -3127,50 +3127,109 @@ function openMUReport() {
       const srOverRn = sRFrac / (muParams.rbar * Math.sqrt(muParams.n)); // s_R/(R̄·√n) as a fraction
       const uCrmPct = muParams.uCert / 2;                                // u_cert = U_cert / 2 (k_cert = 2; uCert already in %)
       const uBiasPct = muProbe.uBias * 100;                              // u_bias in %
-      const liStyle = 'position:relative;padding-left:18px;margin-bottom:4px;font-size:12.5px;line-height:1.35;';
-      const muLi = function(html) {
-        return '<li style="' + liStyle + '">• ' + html + '</li>';
+
+      // ── Layout helpers for the basis-of-calculation section ──
+      const muH5Style = 'font-weight:700;font-size:13.5px;margin:0 0 10px;padding-left:16px;';
+      const muIntroStyle = 'padding:0 16px;margin:0 0 16px;font-size:12.5px;line-height:1.5;';
+      const muTblStyle = 'width:calc(100% - 32px);margin:0 16px 20px;border-collapse:collapse;font-size:12px;';
+      const muThStyle = 'text-align:left;font-weight:700;padding:4px 8px;background:#f1f5f9;border-bottom:1px solid #94a3b8;';
+      const muTdStyle = 'padding:4px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top;';
+      const muStepStyle = 'padding:0 16px;margin:0 0 14px;';
+      const muStepTitleStyle = 'font-weight:700;font-size:12.5px;margin:0 0 3px;';
+      const muLineStyle = 'font-size:12px;line-height:1.65;padding-left:14px;';
+      const muResultStyle = 'font-size:12px;line-height:1.65;padding-left:14px;font-weight:700;color:#065f46;';
+      const muNoteStyle = 'font-size:11.5px;line-height:1.45;padding-left:14px;color:#475569;font-style:italic;';
+
+      // Small builders so every step reads the same way:
+      // bold title, then "formula" / "result" / "note" lines with a fixed indent.
+      const muLine = function(text) { return { style: muLineStyle, text: text }; };
+      const muResult = function(text) { return { style: muResultStyle, text: text }; };
+      const muNote = function(text) { return { style: muNoteStyle, text: text }; };
+      const muStep = function(title, lines) {
+        return '<div style="' + muStepStyle + '">' +
+          '<div style="' + muStepTitleStyle + '">' + title + '</div>' +
+          lines.map(function(l) {
+            return '<div style="' + l.style + '">' + l.text + '</div>';
+          }).join('') +
+        '</div>';
       };
 
       const basisDiv = document.createElement('div');
       basisDiv.style.cssText = 'margin-bottom:32px;';
-      basisDiv.innerHTML =
-        '<h5 style="font-weight:700;font-size:13.5px;margin-bottom:12px;padding-left:16px;">Basis of Calculation of Measurement Uncertainty</h5>' +
-        '<ul style="list-style:none;padding:0 16px;margin:0;">' +
-          muLi('Every result is reported as the corrected value with its expanded uncertainty, <strong>C<sub>corr</sub> ± U</strong> (in ' + escHtml(reportUnit) + '), where U is the expanded uncertainty at a 95 % confidence level: <strong>U = k · u<sub>c,rel</sub> · C<sub>corr</sub></strong>, with the coverage factor k = ' + muParams.k + '.') +
-          muLi('Input quantities: mean CRM recovery R̄ = ' + muParams.rbar + ' (' + (muParams.rbar * 100).toFixed(1) + ' %), repeatability of the CRM recovery s_R = ' + muParams.sR.toFixed(2) + ' % over n = ' + muParams.n + ' replicate(s), certified expanded uncertainty of the CRM U_cert = ' + muParams.uCert.toFixed(2) + ' % (k_cert = 2), and the Sample RSD (%) entered per row in the table above.') +
-          muLi('Standard error of the recovery: se_R = s_R / √n = ' + muParams.sR.toFixed(2) + ' % / √' + muParams.n + ' = ' + seRPct.toFixed(2) + ' %.') +
-          muLi('Trueness (bias) t-test: t = |1 − R̄| / se_R = |100 − ' + (muParams.rbar * 100).toFixed(1) + '| % / ' + seRPct.toFixed(2) + ' % = ' + muProbe.tStat.toFixed(2) + ', with degrees of freedom df = n − 1 = ' + muProbe.df + ' and t_crit = ' + muProbe.tCrit.toFixed(2) + ' at 95 % confidence. Because t is ' + (muProbe.isSignificant ? 'greater than' : 'not greater than') + ' t_crit, the recovery bias is ' + (muProbe.isSignificant ? 'statistically significant' : 'not statistically significant') + '.') +
-          muLi('Uncertainty of the bias: u_bias = ' + uBiasPct.toFixed(2) + ' %, where u_cert = U_cert / 2 = ' + uCrmPct.toFixed(2) + ' % and s_R/(R̄·√n) = ' + (srOverRn * 100).toFixed(2) + ' %, combined as ' +
-            (muProbe.isSignificant
-              ? 'u_bias = √[(s_R/(R̄·√n))² + u_cert²] (the bias is removed by the correction below).'
-              : 'u_bias = √[(1 − R̄)² + (s_R/(R̄·√n))² + u_cert²].') ) +
-          muLi('Bias correction of the instrument reading C: ' +
-            (muProbe.isSignificant
-              ? 'the bias is significant, so C<sub>corr</sub> = C / R̄ = C / ' + muParams.rbar + '.'
-              : 'the bias is not significant, so no correction is applied and C<sub>corr</sub> = C.') ) +
-          muLi('Combined relative uncertainty of each row: <strong>u<sub>c,rel</sub> = √(RSD² + u<sub>bias</sub>²)</strong> — that row’s Sample RSD (%) combined with u_bias = ' + uBiasPct.toFixed(2) + ' %.') +
-          muLi('Expanded uncertainty of each row: <strong>U = k · u<sub>c,rel</sub> · C<sub>corr</sub></strong>; each result is printed as C<sub>corr</sub> ± U, rounded to 2 decimals (3 decimals when U < 0.095).') +
-        '</ul>';
+
+      const muTd = function(html) { return '<td style="' + muTdStyle + '">' + html + '</td>'; };
+      const muTh = function(html) { return '<th style="' + muThStyle + '">' + html + '</th>'; };
+
+      basisDiv.innerHTML = [
+        '<h5 style="' + muH5Style + '">Basis of Calculation of Measurement Uncertainty</h5>',
+
+        // What is reported
+        '<div style="' + muIntroStyle + '">Every result is reported as the corrected value with its expanded ' +
+          'uncertainty, <strong>C<sub>corr</sub> ± U</strong> (in ' + escHtml(reportUnit) + '), at a 95 % confidence ' +
+          'level (coverage factor k = ' + muParams.k + '), where <strong>U = k · u<sub>c,rel</sub> · C<sub>corr</sub></strong>.' +
+        '</div>',
+
+        // Input quantities
+        '<table style="' + muTblStyle + '">' +
+          '<thead><tr>' + muTh('Input quantity') + muTh('Symbol') + muTh('Value') + '</tr></thead>' +
+          '<tbody>' +
+            '<tr>' + muTd('Mean CRM recovery') + muTd('R̄') +
+              muTd(muParams.rbar + ' (' + (muParams.rbar * 100).toFixed(1) + ' %)') + '</tr>' +
+            '<tr>' + muTd('Repeatability of the CRM recovery') + muTd('s<sub>R</sub>') +
+              muTd(muParams.sR.toFixed(2) + ' % over n = ' + muParams.n + ' replicates') + '</tr>' +
+            '<tr>' + muTd('Certified expanded uncertainty of the CRM') + muTd('U<sub>cert</sub>') +
+              muTd(muParams.uCert.toFixed(2) + ' % (k<sub>cert</sub> = 2)') + '</tr>' +
+            '<tr>' + muTd('Sample RSD') + muTd('RSD') +
+              muTd('Entered per row in the table above') + '</tr>' +
+          '</tbody>' +
+        '</table>',
+
+        // Step 1
+        muStep('1. Standard error of the recovery',
+          [ muLine('se<sub>R</sub> = s<sub>R</sub> / √n = ' + muParams.sR.toFixed(2) + ' % / √' + muParams.n),
+            muResult('se<sub>R</sub> = ' + seRPct.toFixed(2) + ' %') ]),
+
+        // Step 2
+        muStep('2. Trueness (bias) — t-test',
+          [ muNote('Tests whether the recovery differs significantly from 100 %.'),
+            muLine('t = |1 − R̄| / se<sub>R</sub> = |100 − ' + (muParams.rbar * 100).toFixed(1) + ' %| / ' + seRPct.toFixed(2) + ' %'),
+            muResult('t = ' + muProbe.tStat.toFixed(2) + '   (df = ' + muProbe.df + ', t<sub>crit</sub> = ' + muProbe.tCrit.toFixed(2) + ' at 95 % confidence)'),
+            muNote('Since t ' + (muProbe.isSignificant ? '&gt;' : '≤') + ' t<sub>crit</sub>, the recovery bias is ' +
+              (muProbe.isSignificant ? '<strong>statistically significant</strong>.' : 'not statistically significant.')) ]),
+
+        // Step 3
+        muStep('3. Uncertainty of the bias (u<sub>bias</sub>)',
+          [ muLine('u<sub>cert</sub> = U<sub>cert</sub> / 2 = ' + uCrmPct.toFixed(2) + ' %'),
+            muLine('s<sub>R</sub> / (R̄·√n) = ' + (srOverRn * 100).toFixed(2) + ' %'),
+            muLine(muProbe.isSignificant
+              ? 'u<sub>bias</sub> = √[(s<sub>R</sub>/(R̄·√n))² + u<sub>cert</sub>²]'
+              : 'u<sub>bias</sub> = √[(1 − R̄)² + (s<sub>R</sub>/(R̄·√n))² + u<sub>cert</sub>²]'),
+            muResult('u<sub>bias</sub> = ' + uBiasPct.toFixed(2) + ' %'),
+            muNote(muProbe.isSignificant
+              ? 'The bias itself is not included here because it is removed by the correction in step 4.'
+              : 'The bias is not significant, so its full term (1 − R̄) is retained in u<sub>bias</sub>.') ]),
+
+        // Step 4
+        muStep('4. Bias correction',
+          [ muLine(muProbe.isSignificant
+              ? 'The bias is significant, so it is removed by correcting the instrument reading C: ' +
+                '<strong>C<sub>corr</sub> = C / R̄ = C / ' + muParams.rbar + '</strong>'
+              : 'The bias is not significant, so no correction is applied: <strong>C<sub>corr</sub> = C</strong>') ]),
+
+        // Step 5
+        muStep('5. Combined and expanded uncertainty (per row)',
+          [ muLine('u<sub>c,rel</sub> = √(RSD² + u<sub>bias</sub>²)'),
+            muNote('The Sample RSD of each row combined with the constant u<sub>bias</sub> = ' + uBiasPct.toFixed(2) + ' %.'),
+            muLine('U = k · u<sub>c,rel</sub> · C<sub>corr</sub>'),
+            muResult('Result printed as C<sub>corr</sub> ± U, rounded to 2 decimals (3 decimals when U &lt; 0.095).') ])
+      ].join('');
+
       pageDiv.appendChild(basisDiv);
 
       const endDiv = document.createElement('div');
       endDiv.style.cssText = 'text-align:center;font-weight:700;font-size:14px;margin:32px 0;';
       endDiv.textContent = 'End of Report';
       pageDiv.appendChild(endDiv);
-
-      const sigDiv = document.createElement('div');
-      sigDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-end;margin-top:64px;padding:16px 16px 0;';
-      sigDiv.innerHTML =
-        '<div style="text-align:left;">' +
-          '<div style="font-weight:700;font-size:13.5px;">Quality Manager</div>' +
-          '<div style="font-size:12px;margin-top:2px;">(Verified <span style="text-decoration:underline;color:#1d4ed8;font-family:sans-serif;">by</span>)</div>' +
-        '</div>' +
-        '<div style="text-align:right;">' +
-          '<div style="font-weight:700;font-size:13.5px;">Technical Manager</div>' +
-          '<div style="font-size:12px;margin-top:2px;">(Issued by)</div>' +
-        '</div>';
-      pageDiv.appendChild(sigDiv);
     }
 
     reportDiv.appendChild(pageDiv);
