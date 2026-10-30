@@ -1,10 +1,10 @@
 -- ============================================================
 -- STANDALONE SQL: Create saved_mu_reports table in Supabase
 -- Copy and paste this into Supabase SQL Editor and Run
--- (Run this BEFORE using the MU report's Save button.)
+-- (Run this BEFORE using the MU sheet's Save button.)
 -- ============================================================
 
--- One row per submission's Measurement Uncertainty (MU) report.
+-- One row per submission's Measurement Uncertainty (MU) sheet.
 -- Self-contained: the meta table, the parameters and every row's
 -- RSD / computed uncertainty are stored so the report can be rebuilt.
 CREATE TABLE IF NOT EXISTS saved_mu_reports (
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS saved_mu_reports (
   sample_ids JSONB DEFAULT '[]',        -- ["26-07-AAS-1041-001",...]
   mu_params JSONB DEFAULT '{}',         -- {rbar, sR, n, uCert, k}
   mu_rows JSONB DEFAULT '[]',           -- [{no, sample_key, sample_label, element,
-                                        --   value, value_num, rsd, uc_rel,
+                                        --   value, value_num, rsd, mass_g, uc_rel,
                                         --   u_value, corrected_result}, ...]
   engineer_id TEXT DEFAULT '',
   engineer_name TEXT DEFAULT '',
@@ -49,7 +49,9 @@ CREATE POLICY "Allow public all saved_mu_reports" ON saved_mu_reports FOR ALL US
 
 -- ============================================================
 -- That's it! The table is ready to use.
--- Open the MU report and press "Save" to store its data.
+-- Open the MU sheet and press "Save" to store its data.
+-- (Sample masses are also stored per row in mu_sample_masses —
+--  see sql/create_mu_sample_masses.sql.)
 -- ============================================================
 
 -- Optional: verify the table exists

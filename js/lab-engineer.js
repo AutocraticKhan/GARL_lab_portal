@@ -2618,6 +2618,16 @@ function muReportMetaValue(metaTable, label) {
   return '';
 }
 
+// Random "Mass of Sample Taken (g)" default for one sheet row: gold (Au)
+// is weighed as a ~10 g aliquot, every other element as a ~0.5 g aliquot.
+function muRandomMassG(elementName) {
+  const isAu = String(elementName || '').trim().toLowerCase() === 'au';
+  const min = isAu ? 10.0 : 0.5;
+  const max = isAu ? 10.2 : 0.515;
+  const v = min + Math.random() * (max - min);
+  return v.toFixed(4);
+}
+
 // Split MU rows into page chunks: body pages hold MU_ROWS_PER_PAGE rows
 // and the final page carries the calculation basis / signatures, so it is
 // capped at MU_LAST_PAGE_ROWS (an extra footer-only page is added when needed).
@@ -2681,7 +2691,7 @@ function applyMUDefaultRSD() {
     return;
   }
   if (!activeMUCells.length) {
-    showToast('Open the MU report first.', 'warning');
+    showToast('Open the MU sheet first.', 'warning');
     return;
   }
 
@@ -2775,7 +2785,7 @@ function applyMUParams() {
   muParams = cand;
 
   const muBtn = document.getElementById('btn-mu-report');
-  if (muBtn) muBtn.title = 'Open Measurement Uncertainty (MU) report - k = ' + muParams.k;
+  if (muBtn) muBtn.title = 'Open Measurement Uncertainty (MU) sheet - k = ' + muParams.k;
 
   closeModal('modal-mu-params');
 
@@ -2785,7 +2795,7 @@ function applyMUParams() {
     if (openMUReport() === false) {
       body.innerHTML = '';
       closePanel('mu-report-overlay');
-      showToast('Parameters saved. Reopen the MU report from the report form to see them.', 'info');
+      showToast('Parameters saved. Reopen the MU sheet from the report form to see them.', 'info');
     } else {
       showToast('Uncertainty parameters updated — report recalculated.', 'success');
     }
@@ -2862,7 +2872,6 @@ function openMUReport() {
 
   // ── 2. Flatten into one row per result (reference layout) ────────
   const elementCols = elements.length > 0 ? elements : ['result'];
-  const showElementCol = elements.length > 1;
   const muProbe = muReportCompute(1, 0); // u_bias / t do not depend on RSD
 
   const rows = [];
@@ -2895,8 +2904,32 @@ function openMUReport() {
     if (v !== '') priorRSD[(r.sampleKey || '') + '\u0001' + (r.element || '')] = v;
   });
 
+  // Same capture for the Mass of Sample Taken (g) inputs. Priority:
+  // live input > mu_sample_masses > saved mu_rows > fresh random default.
+  // Keys use the same 0x01 separator as the saved rows below.
+  const MU_KEY_SEP = String.fromCharCode(1);
+  const priorMass = {};
+  activeMURows.forEach(function(r, i) {
+    const c = activeMUCells[i];
+    if (!c || !c.massInput) return;
+    const v = String(c.massInput.value === undefined || c.massInput.value === null ? '' : c.massInput.value).trim();
+    if (v !== '') priorMass[(r.sampleKey || '') + MU_KEY_SEP + (r.element || '')] = v;
+  });
+
+  // Dedicated mu_sample_masses table - fills keys not already live.
+  try {
+    const savedMasses = typeof getSavedMUSampleMasses === 'function' ? getSavedMUSampleMasses(activeFullSubmissionId) : [];
+    (savedMasses || []).forEach(function(m) {
+      if (!m) return;
+      const mKey = (m.sample_key || '') + MU_KEY_SEP + (m.element || '');
+      if (priorMass[mKey] === undefined && m.mass_g !== null && m.mass_g !== undefined && String(m.mass_g) !== '') {
+        priorMass[mKey] = String(m.mass_g);
+      }
+    });
+  } catch (massErr) { /* dedicated mass table is optional */ }
+
   // Fall back to the last SAVED RSDs (saved_mu_reports) for values that are
-  // not in memory yet, so reopening the MU report keeps earlier work.
+  // not in memory yet, so reopening the MU sheet keeps earlier work.
   try {
     const savedMU = typeof getSavedMUReport === 'function' ? getSavedMUReport(activeFullSubmissionId) : null;
     const savedRows = savedMU && Array.isArray(savedMU.mu_rows) ? savedMU.mu_rows : [];
@@ -2905,6 +2938,10 @@ function openMUReport() {
       const sKey = (sr.sample_key || '') + '\u0001' + (sr.element || '');
       if (priorRSD[sKey] === undefined && sr.rsd !== null && sr.rsd !== undefined && String(sr.rsd) !== '') {
         priorRSD[sKey] = String(sr.rsd);
+      }
+      // Mass inside mu_rows is the last fallback before a fresh random value.
+      if (priorMass[sKey] === undefined && sr.mass_g !== null && sr.mass_g !== undefined && String(sr.mass_g) !== '') {
+        priorMass[sKey] = String(sr.mass_g);
       }
     });
   } catch (savedErr) { /* saved data is optional */ }
@@ -2986,7 +3023,7 @@ function openMUReport() {
     // Heading (continuation pages are labelled and numbered)
     const heading = document.createElement('div');
     heading.style.cssText = 'font-weight:700;font-size:15px;margin-bottom:8px;padding-left:16px;';
-    heading.textContent = pageNum === 1 ? 'Measurement Uncertainty Report:' : 'Measurement Uncertainty Report (Continued):';
+    heading.textContent = pageNum === 1 ? 'Measurement Uncertainty Sheet:' : 'Measurement Uncertainty Sheet (Continued):';
     pageDiv.appendChild(heading);
 
     // Uncertainty parameters strip (reference engine constants)
@@ -3016,23 +3053,24 @@ function openMUReport() {
 
     // Test Results table with editable Sample RSD + live MU columns
     if (chunkRows.length > 0) {
-      const thStyle = 'border:1px solid #000;padding:4px 6px;text-align:center;font-weight:700;font-size:13px;';
+      const thStyle = 'border:1px solid #000;padding:4px 6px;text-align:center;font-weight:700;font-size:13px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;';
       let headHtml = '<thead><tr style="background:#f9fafb;">' +
-        '<th style="' + thStyle + 'width:6%;">S. No.</th>' +
-        '<th style="' + thStyle + 'min-width:150px;">Sample ID</th>' +
-        (showElementCol ? '<th style="' + thStyle + 'width:9%;">Element</th>' : '') +
-        '<th style="' + thStyle + 'background:#f0f9ff;">Instrument Reading<br/>C (' + escHtml(reportUnit) + ')</th>' +
-        '<th style="' + thStyle + 'background:#fefce8;">Sample RSD<br/>(%)</th>' +
-        '<th style="' + thStyle + 'background:#e6f4ea;color:#065f46;">Measurement Uncertainty<br/>(MU, k = ' + muParams.k + ')</th>' +
-        '<th style="' + thStyle + 'width:17%;">Corrected Result<br/>[C \u00b1 U ' + escHtml(reportUnit) + ']</th>' +
+        '<th style="' + thStyle + 'width:5%;">S. No.</th>' +
+        '<th style="' + thStyle + 'width:15%;">Sample ID</th>' +
+        '<th style="' + thStyle + 'width:8%;">Element</th>' +
+        '<th style="' + thStyle + 'background:#fff7ed;width:10%;">Mass of Sample<br/>Taken (g)</th>' +
+        '<th style="' + thStyle + 'background:#f0f9ff;width:13%;">Instrument Reading<br/>C (' + escHtml(reportUnit) + ')</th>' +
+        '<th style="' + thStyle + 'background:#fefce8;width:9%;">Sample RSD<br/>(%)</th>' +
+        '<th style="' + thStyle + 'background:#e6f4ea;color:#065f46;width:22%;">Measurement Uncertainty<br/>(MU, k = ' + muParams.k + ')</th>' +
+        '<th style="' + thStyle + 'width:18%;">Corrected Result<br/>[C \u00b1 U ' + escHtml(reportUnit) + ']</th>' +
         '</tr></thead>';
 
       const table = document.createElement('table');
-      table.style.cssText = 'width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:10px;';
+      table.style.cssText = 'width:100%;table-layout:fixed;border-collapse:collapse;border:1px solid #000;margin-bottom:10px;';
       table.innerHTML = headHtml;
 
       const tbody = document.createElement('tbody');
-      const cellBase = 'border:1px solid #000;padding:4px 6px;text-align:center;font-size:13.5px;';
+      const cellBase = 'border:1px solid #000;padding:4px 6px;text-align:center;font-size:13.5px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;';
 
       chunkRows.forEach(function(row) {
         const rowIdx = activeMURows.length;
@@ -3048,17 +3086,36 @@ function openMUReport() {
         tdNo.textContent = row.no + '.';
         tr.appendChild(tdNo);
 
+        // Element — always shown, right after Sample ID
         const tdId = document.createElement('td');
-        tdId.style.cssText = cellBase + 'white-space:nowrap;';
+        tdId.style.cssText = cellBase + 'overflow-wrap:anywhere;';
         tdId.textContent = row.label;
         tr.appendChild(tdId);
 
-        if (showElementCol) {
-          const tdEl = document.createElement('td');
-          tdEl.style.cssText = cellBase;
-          tdEl.textContent = row.element;
-          tr.appendChild(tdEl);
-        }
+        const tdEl = document.createElement('td');
+        tdEl.style.cssText = cellBase;
+        tdEl.textContent = row.element;
+        tr.appendChild(tdEl);
+
+        // Editable Mass of Sample Taken (g) — random default: Au ~10 g,
+        // every other element ~0.5 g (kept across re-renders and saves)
+        const tdMass = document.createElement('td');
+        tdMass.style.cssText = cellBase + 'background:#fff7ed;padding:2px 4px;';
+        const massInput = document.createElement('input');
+        massInput.type = 'number';
+        massInput.step = '0.0001';
+        massInput.min = '0';
+        massInput.className = 'mu-mass-input';
+        massInput.placeholder = '—';
+        massInput.title = 'Mass of sample taken (g) — pre-filled with a random value; edit to note the actual weight';
+        massInput.setAttribute('data-row', String(rowIdx));
+        massInput.style.cssText = 'width:100%;border:none;outline:none;text-align:center;font-size:13.5px;font-family:Times New Roman,Times,serif;background:transparent;padding:2px 0;font-weight:700;';
+        const massPriorKey = (row.sampleKey || '') + MU_KEY_SEP + row.element;
+        massInput.value = (priorMass[massPriorKey] !== undefined && priorMass[massPriorKey] !== '')
+          ? priorMass[massPriorKey]
+          : muRandomMassG(row.element);
+        tdMass.appendChild(massInput);
+        tr.appendChild(tdMass);
 
         const tdRaw = document.createElement('td');
         tdRaw.style.cssText = cellBase + 'background:#f0f9ff;font-weight:700;';
@@ -3096,7 +3153,7 @@ function openMUReport() {
         tdFull.textContent = '\u2014';
         tr.appendChild(tdFull);
 
-        activeMUCells.push({ input: rsdInput, tdMu: tdMu, tdFull: tdFull });
+        activeMUCells.push({ input: rsdInput, massInput: massInput, tdMu: tdMu, tdFull: tdFull });
         if (rsdInput.value !== '') updateMUReportRow(rowIdx);
 
         tbody.appendChild(tr);
@@ -3256,7 +3313,7 @@ async function saveMUReportDataToSupabase() {
   const muBody = document.getElementById('mu-report-body');
   const muDiv = muBody ? muBody.firstElementChild : null;
   if (!muDiv || !activeMURows.length) {
-    showToast('No MU report to save. Please open the MU report first.', 'warning');
+    showToast('No MU sheet to save. Please open the MU sheet first.', 'warning');
     return;
   }
 
@@ -3287,6 +3344,7 @@ async function saveMUReportDataToSupabase() {
 
   // One saved record per displayed row: the RSD and what it produced.
   const muRows = [];
+  const muMassRecords = [];
   const elementsSet = new Set();
   const sampleIds = [];
   activeMURows.forEach(function(row, idx) {
@@ -3307,6 +3365,12 @@ async function saveMUReportDataToSupabase() {
     }
 
     const label = row.label || '';
+    const massRaw = cell.massInput
+      ? String(cell.massInput.value === undefined || cell.massInput.value === null ? '' : cell.massInput.value).trim()
+      : '';
+    const massNum = parseFloat(massRaw);
+    const massG = massRaw !== '' && isFinite(massNum) ? massNum : null;
+
     muRows.push({
       no: muRows.length + 1,
       sample_key: row.sampleKey || '',
@@ -3315,10 +3379,24 @@ async function saveMUReportDataToSupabase() {
       value: row.rawDisplay || '',
       value_num: row.rawValue,
       rsd: rsdRaw === '' ? null : rsd,
+      mass_g: massG,
       uc_rel: ucRel,
       u_value: uValue,
       corrected_result: corrected,
     });
+    if (massG !== null) {
+      muMassRecords.push({
+        id: activeFullSubmissionId + '::' + (row.sampleKey || '') + '::' + label + '::' + (row.element || 'Result'),
+        submission_id: activeFullSubmissionId,
+        sample_key: row.sampleKey || '',
+        sample_label: label,
+        element: row.element || 'Result',
+        mass_g: massG,
+        engineer_id: engSession ? engSession.id : '',
+        engineer_name: engSession ? engSession.full_name : '',
+        updated_at: new Date().toISOString(),
+      });
+    }
     if (label && sampleIds.indexOf(label) === -1) sampleIds.push(label);
     if (row.element && row.element !== 'Result') elementsSet.add(row.element);
   });
@@ -3361,9 +3439,15 @@ async function saveMUReportDataToSupabase() {
 
   try {
     await saveMUReportData(muData);
-    showToast('MU report data saved successfully!', 'success');
+    try {
+      await saveMUSampleMasses(muMassRecords);
+      showToast('MU sheet data saved successfully!', 'success');
+    } catch (massErr) {
+      console.warn('[MU] mu_sample_masses not saved — run sql/create_mu_sample_masses.sql first:', massErr.message);
+      showToast('MU sheet saved, but sample masses were not — run sql/create_mu_sample_masses.sql first.', 'warning');
+    }
   } catch (err) {
-    showToast('Error saving MU report: ' + err.message, 'error');
+    showToast('Error saving MU sheet: ' + err.message, 'error');
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
@@ -3376,7 +3460,7 @@ async function saveMUReportDataToSupabase() {
 function printMUReport() {
   const body = document.getElementById('mu-report-body');
   const reportDiv = body ? body.firstElementChild : null;
-  if (!reportDiv) { showToast('No MU report to print. Please open the MU report first.', 'warning'); return; }
+  if (!reportDiv) { showToast('No MU sheet to print. Please open the MU sheet first.', 'warning'); return; }
 
   const clone = reportDiv.cloneNode(true);
 
@@ -3390,6 +3474,16 @@ function printMUReport() {
     const cell = activeMUCells[idx];
     const v = cell && cell.input ? String(cell.input.value === undefined || cell.input.value === null ? '' : cell.input.value).trim() : '';
     const txt = document.createTextNode(v !== '' ? v : '\u2014');
+    if (inp.parentNode) inp.parentNode.replaceChild(txt, inp);
+  });
+
+  // Same bake for the Mass of Sample Taken (g) inputs — value properties
+  // are not serialised by innerHTML either.
+  clone.querySelectorAll('.mu-mass-input').forEach(function(inp) {
+    const idx = parseInt(inp.getAttribute('data-row'), 10);
+    const cell = activeMUCells[idx];
+    const v = cell && cell.massInput ? String(cell.massInput.value === undefined || cell.massInput.value === null ? '' : cell.massInput.value).trim() : '';
+    const txt = document.createTextNode(v !== '' ? v : '—');
     if (inp.parentNode) inp.parentNode.replaceChild(txt, inp);
   });
 
@@ -3426,7 +3520,7 @@ function printMUReport() {
   const fullHtml =
     '<!DOCTYPE html><html lang="en"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>Measurement Uncertainty Report</title>' +
+    '<title>Measurement Uncertainty Sheet</title>' +
     '<style>' +
       '@import url(\'https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap\');' +
       'body { font-family: \'Times New Roman\', Times, serif; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +

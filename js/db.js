@@ -14,6 +14,7 @@ const DB = {
   submissions: [],
   savedReports: [],
   muReports: [],
+  muSampleMasses: [],
   systemState: { nextSubmissionId: 1001, submissionYear: null },
   elements: [],
 };
@@ -200,6 +201,17 @@ async function initDB() {
   } catch (muErr) {
     DB.muReports = [];
     console.warn('[DB] saved_mu_reports not loaded — run sql/create_saved_mu_reports.sql first:', muErr.message);
+  }
+
+  // Per-row "Mass of Sample Taken (g)" values (mu_sample_masses). Loaded
+  // tolerantly like saved_mu_reports so a database that has not yet run
+  // sql/create_mu_sample_masses.sql still boots normally.
+  try {
+    const muMasses = await supabaseFetch('mu_sample_masses');
+    DB.muSampleMasses = muMasses || [];
+  } catch (massErr) {
+    DB.muSampleMasses = [];
+    console.warn('[DB] mu_sample_masses not loaded — run sql/create_mu_sample_masses.sql first:', massErr.message);
   }
 
   // Load system state
@@ -1239,6 +1251,16 @@ function getSavedMUReport(fullSubmissionId) {
 }
 
 /**
+ * Find the saved "Mass of Sample Taken (g)" rows for a submission.
+ * @param {string} fullSubmissionId - e.g. "26-07-AAS-1041"
+ * @returns {object[]} matching mu_sample_masses records
+ */
+function getSavedMUSampleMasses(fullSubmissionId) {
+  if (!fullSubmissionId || !Array.isArray(DB.muSampleMasses)) return [];
+  return DB.muSampleMasses.filter(r => r.submission_id === fullSubmissionId);
+}
+
+/**
  * Save (upsert) the MU report's data to the saved_mu_reports table.
  * Uses a deterministic ID so re-saving overwrites the same row.
  * Run sql/create_saved_mu_reports.sql in Supabase before the first save.
@@ -1279,7 +1301,7 @@ async function saveMUReportData(data) {
   };
 
   const ok = await supabaseUpsert('saved_mu_reports', record, 'submission_id,report_type');
-  if (!ok) throw new Error('Failed to save MU report data to database');
+  if (!ok) throw new Error('Failed to save MU sheet data to database');
 
   // Update local cache
   const idx = DB.muReports.findIndex(
@@ -1292,6 +1314,34 @@ async function saveMUReportData(data) {
   }
 
   return record;
+}
+
+/**
+ * Save (upsert) the MU sheet's "Mass of Sample Taken (g)" rows to the
+ * mu_sample_masses table. One row per sample x element; the id is
+ * deterministic so re-saving overwrites the same rows.
+ * Run sql/create_mu_sample_masses.sql in Supabase before the first save.
+ * @param {object[]} records - rows built by saveMUReportDataToSupabase
+ * @returns {Promise<boolean>} true when every row is stored
+ */
+async function saveMUSampleMasses(records) {
+  if (!Array.isArray(records) || records.length === 0) return true;
+  const ok = await supabaseUpsert('mu_sample_masses', records, 'id');
+  if (!ok) throw new Error('Failed to save MU sample masses to database');
+
+  // Update local cache
+  if (!Array.isArray(DB.muSampleMasses)) DB.muSampleMasses = [];
+  const stamp = new Date().toISOString();
+  records.forEach(rec => {
+    const i = DB.muSampleMasses.findIndex(r => r.id === rec.id);
+    if (i >= 0) {
+      DB.muSampleMasses[i] = { ...DB.muSampleMasses[i], ...rec };
+    } else {
+      DB.muSampleMasses.push({ ...rec, created_at: stamp });
+    }
+  });
+
+  return true;
 }
 
 // ── Reset function (clears database for development) ────────────
