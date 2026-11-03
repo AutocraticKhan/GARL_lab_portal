@@ -287,7 +287,7 @@ function renderAssignedSamples() {
   }
 
   if (!submissions.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending submissions' + (query ? ' matching your search' : '') + '</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎉</div><p>No pending submissions' + (query ? ' matching your search' : '') + '</p></div></td></tr>';
     return;
   }
 
@@ -514,7 +514,7 @@ function openSubmissionPanel(submissionId) {
               '<span style="margin-left:var(--sp-2);font-size:0.72rem;color:var(--txt-muted);">' + escHtml(s.sampleType || '—') + '</span>' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:8px;">' +
-              statusCell +
+              statusCell + buildSampleProgressToggle(s) +
               (canReturn ? '<button class="btn btn-ghost btn-sm" title="Send this sample back to reception" onclick="openReturnModal(\'' + sub.submissionId + '\', \'' + s.id + '\')" style="color:#b45309;">↩ Return</button>' : '') +
               (isCompleted ? '<button class="btn btn-ghost btn-sm" title="Reopen this sample back to pending (free within ' + REOPEN_FREE_WINDOW_DAYS + ' days of completion)" onclick="openReopenModal(\'' + s.id + '\')" style="color:var(--clr-primary);">↺ Reopen</button>' : '') +
             '</div>' +
@@ -559,6 +559,7 @@ function openSubmissionPanel(submissionId) {
       '<div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);flex-wrap:wrap;">' +
         statusBadge(sub.statusSummary) +
         '<span style="font-size:0.78rem;color:var(--txt-muted);">' + statusSummaryStr + '</span>' +
+        '<button class="btn btn-sm btn-ghost" onclick="toggleAllSamplesProgress(\'' + sub.submissionId + '\')" style="margin-left:auto;">Toggle All Received/In Progress</button>' +
         (allDone ? '<span style="font-size:0.72rem;background:rgba(16,185,129,0.1);color:#059669;padding:2px 10px;border-radius:12px;font-weight:600;">All Complete ✓</span>' : '') +
         (sub.hasReturned ? '<span style="font-size:0.72rem;background:rgba(245,158,11,0.12);color:#b45309;padding:2px 10px;border-radius:12px;font-weight:600;">↩ ' + sub.returnedCount + ' with reception</span>' : '') +
         (sub.hasArchived ? '<span style="font-size:0.72rem;background:rgba(100,116,139,0.12);color:#475569;padding:2px 10px;border-radius:12px;font-weight:600;">🗄️ ' + sub.archivedCount + ' archived</span>' : '') +
@@ -3576,4 +3577,53 @@ function toggleInstrument(instrument) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', initLabEngineer);
+document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSampleProgressToggle(sample) {
+  const isProgress = sample.status === 'in_progress';
+  const canToggle = sample.status === 'received' || sample.status === 'in_progress';
+  if (!canToggle) return '';
+  return '<label class="toggle" title="Toggle Received <-> In Progress" style="margin-left:8px;">' +
+    '<input type="checkbox" ' + (isProgress ? 'checked' : '') +
+    ' onchange="toggleSampleProgress(\'' + sample.id + '\', this.checked)" />' +
+    '<span class="toggle-slider"></span></label>';
+}
+
+async function toggleSampleProgress(sampleId, toProgress) {
+  try {
+    if (toProgress) {
+      await setSampleStatus(sampleId, 'in_progress', 'Marked in progress by ' + engSession.full_name);
+    } else {
+      await updateSample(sampleId, { status: 'received' });
+      await logEvent(sampleId, 'received', 'Reverted to received by ' + engSession.full_name);
+    }
+    renderLabStats();
+    renderAssignedSamples();
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
+  } catch (err) {
+    showToast('Error updating status: ' + err.message, 'error');
+  }
+}
+
+
+async function toggleAllSamplesProgress(submissionId) {
+  const sub = getSubmissionsForLab(engSession.lab_id).find(s => s.submissionId === submissionId);
+  if (!sub) return;
+  const received = sub.samples.filter(s => s.status === 'received');
+  const inProgress = sub.samples.filter(s => s.status === 'in_progress');
+  const toProgress = received.length > 0;
+  const targets = toProgress ? received : inProgress;
+  try {
+    for (const s of targets) {
+      if (toProgress) {
+        await setSampleStatus(s.id, 'in_progress', 'Marked in progress by ' + engSession.full_name);
+      } else {
+        await updateSample(s.id, { status: 'received' });
+        await logEvent(s.id, 'received', 'Reverted to received by ' + engSession.full_name);
+      }
+    }
+    renderLabStats();
+    renderAssignedSamples();
+    if (activeSubmissionId === submissionId) openSubmissionPanel(submissionId);
+  } catch (err) {
+    showToast('Error updating status: ' + err.message, 'error');
+  }
+}
