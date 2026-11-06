@@ -109,12 +109,19 @@ async function switchEngTab(tabId) {
       console.warn('[LAB] Could not refresh samples, using cached data:', err.message);
     }
   }
-  // The progress report also needs fresh analyst claims (who toggled what).
+  // The progress report also needs fresh analyst claims (who toggled what)
+  // and the latest user rows, so analysts deactivated in the admin panel
+  // disappear from the report immediately — not only after a full reload.
   if (tabId === 'eng-tab-progress') {
-    try {
-      await Promise.all([refreshTable('samples'), refreshSampleAnalysts()]);
-    } catch (err) {
-      console.warn('[LAB] Could not refresh data for the progress report:', err.message);
+    const results = await Promise.allSettled([
+      refreshTable('samples'),
+      refreshSampleAnalysts(),
+      refreshTable('users'),
+    ]);
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length) {
+      console.warn('[LAB] Could not refresh data for the progress report:',
+        failed.map(r => (r.reason && r.reason.message) || r.reason).join('; '));
     }
   }
 
@@ -3883,8 +3890,8 @@ function renderAnalystProgress() {
   if (note) {
     if (untracked > 0) {
       note.style.display = 'block';
-      note.textContent = 'ℹ️ ' + untracked + ' sample(s) in this range were completed before analyst tracking existed ' +
-        '(or were never claimed) and are shown as "Untracked".';
+      note.textContent = 'ℹ️ ' + untracked + ' sample(s) in this range were completed before analyst tracking existed, ' +
+        'were never claimed, or belong to a deactivated analyst — they are shown as "Untracked".';
     } else {
       note.style.display = 'none';
     }

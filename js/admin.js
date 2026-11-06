@@ -273,9 +273,23 @@ function editUser(id) {
 }
 
 async function handleToggleUser(id) {
-  await toggleUserActive(id);
-  renderUsers();
-  showToast('User status updated.', 'info');
+  try {
+    // Re-read the rows first: DB.users can be stale (another admin tab,
+    // a previously failed toggle), and the flip is computed from the
+    // cached value — toggling against stale data silently re-activates
+    // a user that is already deactivated. Fall back to the cache offline.
+    try { await refreshTable('users'); } catch (_) { /* offline: keep cache */ }
+    if (!DB.users.find(u => u.id === id)) {
+      showToast('User not found — it may have been deleted.', 'error');
+      renderUsers();
+      return;
+    }
+    await toggleUserActive(id);
+    renderUsers();
+    showToast('User status updated.', 'info');
+  } catch (err) {
+    showToast('Error updating user status: ' + err.message, 'error');
+  }
 }
 
 // ── LAB MANAGEMENT ───────────────────────────────────────────
