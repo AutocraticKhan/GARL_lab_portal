@@ -1,5 +1,27 @@
 ilovepakistansba
 
+══════════════════════════════════════════════════════════════════
+SAMPLE ANALYST TRACKING ON THE TOGGLE (added)
+══════════════════════════════════════════════════════════════════
+
+The lab engineer's toggle (per-sample AND the submission-level
+"Toggle All" button) now also records WHO toggled the sample, in the
+sample_analysts table — one row per sample, filled automatically from
+the logged-in user (no separate name input is asked).
+
+Permission rules:
+  • First claim wins: whoever first toggles a sample to In Progress
+    becomes its analyst; other users cannot reverse it.
+  • Other users can only toggle samples that have never been claimed.
+  • A user can toggle their OWN samples back to Received (and claim
+    them again later); the analyst name stays recorded either way.
+  • A sample claimed by someone else shows the analyst's name (🔬)
+    instead of a toggle.
+
+REQUIRED SQL before use (idempotent): sql/create_sample_analysts.sql
+Until it is run the toggles keep working exactly as before (the app
+logs a console warning and skips analyst tracking).
+
 ════════════════════════════════════════════════════════════════
 RETURN & ARCHIVE WORKFLOW (added)
 ════════════════════════════════════════════════════════════════

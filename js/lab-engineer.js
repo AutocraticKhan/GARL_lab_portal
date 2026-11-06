@@ -109,11 +109,20 @@ async function switchEngTab(tabId) {
       console.warn('[LAB] Could not refresh samples, using cached data:', err.message);
     }
   }
+  // The progress report also needs fresh analyst claims (who toggled what).
+  if (tabId === 'eng-tab-progress') {
+    try {
+      await Promise.all([refreshTable('samples'), refreshSampleAnalysts()]);
+    } catch (err) {
+      console.warn('[LAB] Could not refresh data for the progress report:', err.message);
+    }
+  }
 
   renderLabStats();
   if (tabId === 'eng-tab-assigned')  renderAssignedSamples();
   if (tabId === 'eng-tab-returned')  renderReturnedSubmissions();
   if (tabId === 'eng-tab-completed') renderCompletedReports();
+  if (tabId === 'eng-tab-progress')  renderAnalystProgress();
 }
 
 // ── Wire events ───────────────────────────────────────────────
@@ -232,6 +241,20 @@ function wireEngEvents() {
 
   // Assigned samples search
   document.getElementById('assigned-search').addEventListener('input', debounce(renderAssignedSamples, 250));
+
+  // ── Analyst progress report filters ──
+  ['progress-from', 'progress-to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', renderAnalystProgress);
+  });
+  const metricSel = document.getElementById('progress-metric');
+  if (metricSel) metricSel.addEventListener('change', renderAnalystProgress);
+  const progressResetBtn = document.getElementById('progress-reset');
+  if (progressResetBtn) progressResetBtn.addEventListener('click', () => {
+    applyProgressDefaultRange();
+    renderAnalystProgress();
+  });
+  applyProgressDefaultRange();
 }
 
 // ── Lab stats row ─────────────────────────────────────────────
@@ -3581,7 +3604,30 @@ document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSam
   const isProgress = sample.status === 'in_progress';
   const canToggle = sample.status === 'received' || sample.status === 'in_progress';
   if (!canToggle) return '';
-  return '<label class="toggle" title="Toggle Received <-> In Progress" style="margin-left:8px;">' +
+  const analyst = getSampleAnalyst(sample.id);
+  const myId = engSession ? engSession.id : null;
+  const mine = !analyst || analyst.analyst_id === myId;
+
+  // Claimed by another analyst: no toggle for this user — show WHO owns
+  // the sample instead (with the toggle timestamp) so the missing control
+  // is self-explanatory.
+  if (!mine) {
+    const toggledTxt = analyst.toggled_at
+      ? ' · toggled In Progress on ' + formatDateTime(analyst.toggled_at)
+      : '';
+    return '<span title="Toggled by ' + escAttr(analyst.analyst_name) + toggledTxt +
+      ' — only they can reverse this sample" ' +
+      'style="font-size:0.7rem;color:#7c3aed;font-weight:700;white-space:nowrap;cursor:help;">' +
+      '🔬 ' + escHtml(analyst.analyst_name) + '</span>';
+  }
+
+  const title = analyst
+    ? (isProgress
+        ? 'In Progress — claimed by you (' + analyst.analyst_name + '). Toggle to return to Received.'
+        : 'You claimed this sample earlier (' + analyst.analyst_name + '). Toggle to claim it again.')
+    : 'Toggle Received <-> In Progress — records you (' +
+      (engSession ? engSession.full_name : '') + ') as the analyst for this sample';
+  return '<label class="toggle" title="' + escAttr(title) + '" style="margin-left:8px;">' +
     '<input type="checkbox" ' + (isProgress ? 'checked' : '') +
     ' onchange="toggleSampleProgress(\'' + sample.id + '\', this.checked)" />' +
     '<span class="toggle-slider"></span></label>';
@@ -3589,9 +3635,16 @@ document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSam
 
 async function toggleSampleProgress(sampleId, toProgress) {
   try {
+    const sample = getSample(sampleId);
+    if (!sample) throw new Error('Sample not found. Refresh and try again.');
     if (toProgress) {
+      // Claim first: throws when another analyst already owns the sample,
+      // so the status never changes without an analyst row behind it.
+      await claimSampleAnalyst(sample, engSession);
       await setSampleStatus(sampleId, 'in_progress', 'Marked in progress by ' + engSession.full_name);
     } else {
+      // Release first: throws when the sample was toggled by someone else.
+      await releaseSampleAnalyst(sample, engSession);
       await updateSample(sampleId, { status: 'received' });
       await logEvent(sampleId, 'received', 'Reverted to received by ' + engSession.full_name);
     }
@@ -3600,6 +3653,9 @@ async function toggleSampleProgress(sampleId, toProgress) {
     if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
   } catch (err) {
     showToast('Error updating status: ' + err.message, 'error');
+    // Re-render so a rejected toggle snaps back to the true state.
+    renderAssignedSamples();
+    if (activeSubmissionId) openSubmissionPanel(activeSubmissionId);
   }
 }
 
@@ -3611,19 +3667,315 @@ async function toggleAllSamplesProgress(submissionId) {
   const inProgress = sub.samples.filter(s => s.status === 'in_progress');
   const toProgress = received.length > 0;
   const targets = toProgress ? received : inProgress;
-  try {
-    for (const s of targets) {
+  if (!targets.length) return; // nothing in either state to toggle
+
+  // Permission pass — only samples nobody has claimed yet, or that the
+  // current user claimed themselves. Refresh ONCE for the whole batch so
+  // claims made by other users since page load are respected.
+  await refreshSampleAnalysts();
+  const eligible = targets.filter(s => {
+    const a = getSampleAnalyst(s.id);
+    return !a || a.analyst_id === engSession.id;
+  });
+  const blocked = targets.length - eligible.length;
+  if (!eligible.length) {
+    showToast(toProgress
+      ? 'Every Received sample in this submission has already been claimed by another analyst.'
+      : 'The In Progress samples in this submission were toggled by another analyst — you cannot reverse them.',
+      'warning');
+    return;
+  }
+
+  let done = 0, failed = 0;
+  for (const s of eligible) {
+    try {
       if (toProgress) {
+        await claimSampleAnalyst(s, engSession, false);
         await setSampleStatus(s.id, 'in_progress', 'Marked in progress by ' + engSession.full_name);
       } else {
+        await releaseSampleAnalyst(s, engSession, false);
         await updateSample(s.id, { status: 'received' });
         await logEvent(s.id, 'received', 'Reverted to received by ' + engSession.full_name);
       }
+      done++;
+    } catch (err) {
+      failed++;
+      console.warn('[LAB] Toggle-all failed for sample ' + s.id + ':', err.message);
     }
-    renderLabStats();
-    renderAssignedSamples();
-    if (activeSubmissionId === submissionId) openSubmissionPanel(submissionId);
-  } catch (err) {
-    showToast('Error updating status: ' + err.message, 'error');
   }
+
+  const parts = [];
+  if (done) parts.push(done + ' sample(s) ' +
+    (toProgress ? 'marked In Progress as ' + engSession.full_name : 'reverted to Received'));
+  if (blocked) parts.push(blocked + ' sample(s) skipped — claimed by another analyst');
+  if (failed) parts.push(failed + ' sample(s) failed (possibly just claimed by someone else)');
+  showToast(parts.join(' · '), failed ? 'error' : (blocked ? 'warning' : 'success'));
+
+  renderLabStats();
+  renderAssignedSamples();
+  if (activeSubmissionId === submissionId) openSubmissionPanel(submissionId);
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   ANALYST PROGRESS REPORT (4th tab)
+   Bar chart:  samples completed per analyst within the date range
+   Line chart: fixed 12-month window ending the current month,
+               one line per analyst; metric = Completed (completed_at)
+               or Started (sample_analysts.created_at — the date the
+               analyst first toggled the sample In Progress).
+   ════════════════════════════════════════════════════════════ */
+const PROG_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const ANALYST_PALETTE = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#0d9488'];
+const UNTRACKED_COLOR = '#94a3b8';
+let progressCharts = { bar: null, trend: null };
+
+function analystColor(index) {
+  return ANALYST_PALETTE[index % ANALYST_PALETTE.length];
+}
+
+/** YYYY-MM-DD in the LOCAL timezone (toISOString would shift by TZ). */
+function localDateString(d) {
+  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return z.toISOString().slice(0, 10);
+}
+
+/** Default filter range: first day of this month last year → today. */
+function progressDefaultRange() {
+  const now = new Date();
+  return {
+    from: localDateString(new Date(now.getFullYear() - 1, now.getMonth(), 1)),
+    to: localDateString(now),
+  };
+}
+
+function applyProgressDefaultRange() {
+  const r = progressDefaultRange();
+  const fromEl = document.getElementById('progress-from');
+  const toEl   = document.getElementById('progress-to');
+  if (fromEl) { fromEl.value = r.from; fromEl.max = r.to; }
+  if (toEl)   { toEl.value = r.to;   toEl.max = r.to; }
+}
+
+/** Active lab engineers of the current user's lab, sorted by name. */
+function getLabAnalysts() {
+  return (DB.users || [])
+    .filter(u => u.role === 'lab_engineer' && u.active !== false && u.lab_id === engSession.lab_id)
+    .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+}
+
+/** The fixed window: `count` months ending in the current month. */
+function buildProgressMonths(count = 12) {
+  const now = new Date();
+  const months = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'),
+      label: PROG_MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(2),
+    });
+  }
+  return months;
+}
+
+/** Chart.js colours taken from the portal's CSS variables. */
+function progressChartTheme() {
+  const css = getComputedStyle(document.documentElement);
+  return {
+    text: (css.getPropertyValue('--txt-muted') || '#64748b').trim() || '#64748b',
+    grid: (css.getPropertyValue('--border-color') || '#e2e8f0').trim() || '#e2e8f0',
+  };
+}
+
+function destroyProgressCharts() {
+  ['bar', 'trend'].forEach(k => {
+    if (progressCharts[k]) {
+      progressCharts[k].destroy();
+      progressCharts[k] = null;
+    }
+  });
+}
+
+/** Create a chart with portal-themed defaults (legend, ticks, grid). */
+function makeProgressChart(key, canvasId, cfg) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+  const theme = progressChartTheme();
+  cfg.options = Object.assign({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: theme.text, boxWidth: 12, usePointStyle: true } } },
+  }, cfg.options || {});
+  cfg.options.scales = cfg.options.scales || {};
+  Object.keys(cfg.options.scales).forEach(sk => {
+    const sc = cfg.options.scales[sk];
+    sc.ticks = Object.assign({ color: theme.text }, sc.ticks || {});
+    if (sc.grid !== false) sc.grid = Object.assign({ color: theme.grid }, sc.grid || {});
+  });
+  progressCharts[key] = new Chart(canvas, cfg);
+}
+
+function renderAnalystProgress() {
+  const fromEl   = document.getElementById('progress-from');
+  const toEl     = document.getElementById('progress-to');
+  const metricEl = document.getElementById('progress-metric');
+  if (!fromEl || !toEl) return;
+
+  // Chart.js may be blocked/offline — degrade with a clear message.
+  if (typeof Chart === 'undefined') {
+    document.querySelectorAll('.progress-chart-box').forEach(box => {
+      box.innerHTML = '<p style="font-size:0.8rem;color:var(--txt-muted);text-align:center;margin-top:120px;">' +
+        '⚠️ Chart library failed to load — check the internet connection and reload.</p>';
+    });
+    return;
+  }
+
+  // Keep the range sane (swap the dates when crossed, like the reference UI)
+  let from = fromEl.value, to = toEl.value;
+  if (from && to && from > to) {
+    const tmp = from; from = to; to = tmp;
+    fromEl.value = from; toEl.value = to;
+  }
+
+  const analysts   = getLabAnalysts();
+  const analystIdx = new Map(analysts.map((a, i) => [a.id, i]));
+  const labSamples = getSamplesForLab(engSession.lab_id);
+  const completed  = labSamples.filter(s => s.status === 'completed' && s.completed_at);
+
+  // Attribution: the analyst row decides WHO did the sample; anything
+  // claimed before tracking existed (or never claimed) is "untracked".
+  const attribute = s => {
+    const row = getSampleAnalyst(s.id);
+    return row && analystIdx.has(row.analyst_id) ? row.analyst_id : 'untracked';
+  };
+
+  // ── KPIs + bar data (date-filtered by completed_at) ──
+  const inRange = completed.filter(s => {
+    const d = String(s.completed_at).slice(0, 10);
+    return (!from || d >= from) && (!to || d <= to);
+  });
+  const counts = {};
+  inRange.forEach(s => { const k = attribute(s); counts[k] = (counts[k] || 0) + 1; });
+  const untracked = counts['untracked'] || 0;
+  const total = inRange.length;
+  const activeCount = analysts.filter(a => (counts[a.id] || 0) > 0).length;
+
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText('kpi-completed', total);
+  setText('kpi-active-analysts', activeCount + '/' + analysts.length);
+  const top = analysts.length
+    ? analysts.reduce((best, a) => (counts[a.id] || 0) > (counts[best.id] || 0) ? a : best, analysts[0])
+    : null;
+  if (top && (counts[top.id] || 0) > 0) {
+    setText('kpi-top-analyst', top.full_name || top.username);
+    setText('kpi-top-analyst-sub', counts[top.id] + ' sample(s) completed');
+  } else {
+    setText('kpi-top-analyst', '—');
+    setText('kpi-top-analyst-sub', '0 samples');
+  }
+  setText('kpi-inprogress-now', labSamples.filter(s => s.status === 'in_progress').length);
+
+  const p1 = document.getElementById('progress-p1');
+  if (p1) p1.textContent = 'Samples completed between ' + (from || 'the beginning') +
+    ' and ' + (to || 'today') + ' · ' + total + ' total.';
+
+  const note = document.getElementById('progress-untracked-note');
+  if (note) {
+    if (untracked > 0) {
+      note.style.display = 'block';
+      note.textContent = 'ℹ️ ' + untracked + ' sample(s) in this range were completed before analyst tracking existed ' +
+        '(or were never claimed) and are shown as "Untracked".';
+    } else {
+      note.style.display = 'none';
+    }
+  }
+
+  destroyProgressCharts();
+
+  // ── Chart 1: samples analysed per analyst (bar) ──
+  const barLabels = analysts.map(a => a.full_name || a.username).concat(untracked ? ['Untracked'] : []);
+  const barData   = analysts.map(a => counts[a.id] || 0).concat(untracked ? [untracked] : []);
+  const barColors = analysts.map((a, i) => analystColor(i)).concat(untracked ? [UNTRACKED_COLOR] : []);
+  makeProgressChart('bar', 'chart-analysts', {
+    type: 'bar',
+    data: {
+      labels: barLabels,
+      datasets: [{
+        label: 'Samples analysed',
+        data: barData,
+        backgroundColor: barColors,
+        borderRadius: 6,
+        maxBarThickness: 56,
+      }],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => c.raw + ' sample(s)' + (total ? ' (' + Math.round(c.raw / total * 100) + '%)' : ''),
+          },
+        },
+      },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+
+  // ── Chart 2: 12-month trend, one line per analyst ──
+  const metric = metricEl ? metricEl.value : 'completed';
+  const months = buildProgressMonths(12);
+
+  const bump = (bucket, id, key) => {
+    if (!bucket[id]) bucket[id] = {};
+    bucket[id][key] = (bucket[id][key] || 0) + 1;
+  };
+  const completedByMonth = {};
+  completed.forEach(s => bump(completedByMonth, attribute(s), String(s.completed_at).slice(0, 7)));
+  const startedByMonth = {};
+  (DB.sampleAnalysts || []).forEach(a => {
+    // created_at = first claim = when analysis STARTED (toggled_at would
+    // move on every release/re-claim and distort the monthly history).
+    if (analystIdx.has(a.analyst_id) && a.created_at) {
+      bump(startedByMonth, a.analyst_id, String(a.created_at).slice(0, 7));
+    }
+  });
+  const src = metric === 'started' ? startedByMonth : completedByMonth;
+
+  const datasets = analysts.map((a, i) => ({
+    label: a.full_name || a.username,
+    borderColor: analystColor(i),
+    backgroundColor: analystColor(i),
+    tension: 0.3,
+    pointRadius: 3,
+    data: months.map(m => (src[a.id] && src[a.id][m.key]) || 0),
+  }));
+  if (metric === 'completed') {
+    const ut = months.map(m => (completedByMonth['untracked'] && completedByMonth['untracked'][m.key]) || 0);
+    if (ut.some(n => n > 0)) {
+      datasets.push({
+        label: 'Untracked',
+        borderColor: UNTRACKED_COLOR,
+        backgroundColor: UNTRACKED_COLOR,
+        borderDash: [6, 4],
+        tension: 0.3,
+        pointRadius: 3,
+        data: ut,
+      });
+    }
+  }
+
+  const p2 = document.getElementById('progress-p2');
+  if (p2) p2.textContent = (metric === 'started' ? 'Samples started (toggled In Progress)' : 'Samples completed') +
+    ' per month, ' + months[0].label + ' to ' + months[months.length - 1].label +
+    ' — the current month is month-to-date.';
+
+  makeProgressChart('trend', 'chart-trend', {
+    type: 'line',
+    data: { labels: months.map(m => m.label), datasets },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom' }, tooltip: { itemSort: (a, b) => b.raw - a.raw } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
 }

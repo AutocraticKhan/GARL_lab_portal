@@ -590,6 +590,11 @@
         </span>
         <span class="nav-badge" id="nav-badge-completed"></span>
       </button>
+      <button class="nav-item" id="side-nav-progress" onclick="switchEngTab('eng-tab-progress');setNavActive(this)">
+        <span class="nav-item-left">
+          <span class="nav-icon">📊</span> Analyst Progress
+        </span>
+      </button>
 
       <!-- Decorative instrument telemetry card (visual only) -->
       <div class="telemetry-card">
@@ -699,6 +704,7 @@
         <button class="tab-btn active" data-tab="eng-tab-assigned">🧫 Assigned Samples</button>
         <button class="tab-btn" data-tab="eng-tab-returned">↩ Returned to Reception</button>
         <button class="tab-btn" data-tab="eng-tab-completed">📄 Completed Reports</button>
+        <button class="tab-btn" data-tab="eng-tab-progress">📊 Analyst Progress</button>
       </div>
 
       <!-- ── TAB: ASSIGNED ───────────────────────────────────── -->
@@ -764,6 +770,105 @@
             <tbody id="completed-tbody"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- ── TAB: ANALYST PROGRESS REPORT ────────────────────── -->
+      <div id="eng-tab-progress" class="tab-panel">
+        <!-- Date range filter -->
+        <div class="table-wrap" style="margin-bottom:var(--sp-4);">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">📊 Individual Analyst Progress Report</span>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:0.72rem;color:var(--txt-muted);">
+                Start date
+                <input type="date" id="progress-from" class="form-control" style="padding:5px 8px;font-size:0.8rem;" />
+              </label>
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:0.72rem;color:var(--txt-muted);">
+                End date
+                <input type="date" id="progress-to" class="form-control" style="padding:5px 8px;font-size:0.8rem;" />
+              </label>
+              <button class="btn btn-ghost btn-sm" id="progress-reset" type="button">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI row -->
+        <div class="stats-grid" style="margin-bottom:var(--sp-4);">
+          <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#6366f1,#4f46e5);">
+            <div class="stat-card-top">
+              <div class="stat-icon">✅</div>
+              <span class="stat-pill" style="color:#4338ca;background:#eef2ff;border:1px solid #c7d2fe;">In range</span>
+            </div>
+            <div class="stat-value" id="kpi-completed">0</div>
+            <div class="stat-label">
+              <span>Samples Completed</span>
+              <span class="stat-sub" style="color:var(--txt-muted);">Selected date range</span>
+            </div>
+          </div>
+          <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#2563eb,#1d4ed8);">
+            <div class="stat-card-top">
+              <div class="stat-icon">👥</div>
+              <span class="stat-pill" style="color:#1d4ed8;background:#dbeafe;border:1px solid #bfdbfe;">Team</span>
+            </div>
+            <div class="stat-value" id="kpi-active-analysts">0</div>
+            <div class="stat-label">
+              <span>Active Analysts</span>
+              <span class="stat-sub" style="color:var(--txt-muted);">With ≥1 sample in range</span>
+            </div>
+          </div>
+          <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#f59e0b,#d97706);">
+            <div class="stat-card-top">
+              <div class="stat-icon">🏆</div>
+              <span class="stat-pill" style="color:#b45309;background:#fef3c7;border:1px solid #fde68a;">Top</span>
+            </div>
+            <div class="stat-value" id="kpi-top-analyst" style="font-size:1.3rem;">—</div>
+            <div class="stat-label">
+              <span>Top Analyst</span>
+              <span class="stat-sub" id="kpi-top-analyst-sub" style="color:var(--txt-muted);">0 samples</span>
+            </div>
+          </div>
+          <div class="stat-card" style="--stat-accent:linear-gradient(135deg,#a855f7,#7c3aed);">
+            <div class="stat-card-top">
+              <div class="stat-icon">⚗️</div>
+              <span class="stat-pill" style="color:#6d28d9;background:#ede9fe;border:1px solid #ddd6fe;">Live</span>
+            </div>
+            <div class="stat-value" id="kpi-inprogress-now">0</div>
+            <div class="stat-label">
+              <span>In Progress Now</span>
+              <span class="stat-sub" style="color:var(--txt-muted);">Across the whole lab</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;">
+          <div class="card">
+            <h2 style="font-size:0.9rem;margin:0;">Samples analysed per analyst</h2>
+            <p id="progress-p1" style="margin:2px 0 10px;color:var(--txt-muted);font-size:0.75rem;"></p>
+            <div class="progress-chart-box"><canvas id="chart-analysts"></canvas></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <div>
+                <h2 style="font-size:0.9rem;margin:0;">Progress over the last 12 months</h2>
+                <p id="progress-p2" style="margin:2px 0 10px;color:var(--txt-muted);font-size:0.75rem;"></p>
+              </div>
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:0.72rem;color:var(--txt-muted);flex-shrink:0;">
+                Metric
+                <select id="progress-metric" class="form-control" style="padding:4px 8px;font-size:0.78rem;">
+                  <option value="completed">Completed</option>
+                  <option value="started">Started (toggle date)</option>
+                </select>
+              </label>
+            </div>
+            <div class="progress-chart-box"><canvas id="chart-trend"></canvas></div>
+          </div>
+        </div>
+
+        <div id="progress-untracked-note" style="display:none;margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-4);background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.25);border-radius:var(--r-md);font-size:0.75rem;color:var(--txt-muted);"></div>
+        <p style="font-size:0.78rem;color:var(--txt-muted);margin-top:var(--sp-3);padding-left:4px;">
+          💡 The line chart always shows the fixed 12-month window ending in the current month (the current month is month-to-date). The bar chart and KPIs follow the selected date range. "Started" counts each sample in the month its analyst first toggled it In Progress.
+        </p>
       </div>
 
     </div><!-- /page-body -->
@@ -1219,6 +1324,7 @@
   <script src="../js/supabase.js"></script>
   <script src="../js/db.js"></script>
   <script src="../js/auth.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="../js/lab-engineer.js"></script>
 <script>
 /* UI-only helpers (no behavior changes):
@@ -1233,7 +1339,8 @@ function setNavActive(el) {
   const navMap = {
     'eng-tab-assigned': 'side-nav-assigned',
     'eng-tab-returned': 'side-nav-returned',
-    'eng-tab-completed': 'side-nav-completed'
+    'eng-tab-completed': 'side-nav-completed',
+    'eng-tab-progress': 'side-nav-progress'
   };
   const tabBtns = document.querySelectorAll('.tab-btn[data-tab]');
   if (!tabBtns.length) return;

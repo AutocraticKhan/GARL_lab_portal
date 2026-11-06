@@ -15,6 +15,7 @@ const DB = {
   savedReports: [],
   muReports: [],
   muSampleMasses: [],
+  sampleAnalysts: [],
   systemState: { nextSubmissionId: 1001, submissionYear: null },
   elements: [],
 };
@@ -212,6 +213,18 @@ async function initDB() {
   } catch (massErr) {
     DB.muSampleMasses = [];
     console.warn('[DB] mu_sample_masses not loaded — run sql/create_mu_sample_masses.sql first:', massErr.message);
+  }
+
+  // Analyst claims on the Received <-> In Progress toggle (one row per
+  // sample in sample_analysts). Loaded tolerantly like saved_mu_reports
+  // so a database that has not yet run sql/create_sample_analysts.sql
+  // still boots normally — the toggles then behave as before.
+  try {
+    const analysts = await supabaseFetch('sample_analysts');
+    DB.sampleAnalysts = analysts || [];
+  } catch (anErr) {
+    DB.sampleAnalysts = [];
+    console.warn('[DB] sample_analysts not loaded — run sql/create_sample_analysts.sql first:', anErr.message);
   }
 
   // Load system state
@@ -838,6 +851,97 @@ async function markSavedReportsStale(fullSubmissionId) {
     }
   }
   return targets.length + muTargets.length;
+}
+
+/* ── Sample analysts (Received <-> In Progress toggle claims) ── */
+// One row per sample in the sample_analysts table records which
+// logged-in user toggled that sample to In Progress. FIRST CLAIM WINS:
+// a sample may only be toggled by a user while nobody (or that same
+// user) has claimed it. Run sql/create_sample_analysts.sql first —
+// everything below degrades gracefully to the old toggle behaviour
+// when the table does not exist yet.
+
+/** Refresh the in-memory analyst list from Supabase. Tolerant: keeps the
+ *  current cache when the table does not exist (SQL not run yet). */
+async function refreshSampleAnalysts() {
+  try {
+    const rows = await supabaseFetch('sample_analysts');
+    DB.sampleAnalysts = rows || [];
+  } catch (err) {
+    console.warn('[DB] sample_analysts not loaded — run sql/create_sample_analysts.sql first:', err.message);
+  }
+}
+
+/** The analyst row for a sample, or null when it was never toggled. */
+function getSampleAnalyst(sampleId) {
+  return (DB.sampleAnalysts || []).find(a => a.sample_id === sampleId) || null;
+}
+
+/**
+ * Claim a sample for `user` (toggle → In Progress).
+ * Refreshes the analyst list first so a claim made by someone else since
+ * page load is detected, then upserts on sample_id so the UNIQUE
+ * constraint and the DB trigger keep first-claim-wins even under a race.
+ * @param {object} sample
+ * @param {{id: string, full_name: string}} user - the logged-in session
+ * @param {boolean} [fresh=true] - re-fetch the table first (pass false
+ *        inside a batch after one refreshSampleAnalysts() call)
+ * @returns {Promise<object>} the stored analyst row
+ */
+async function claimSampleAnalyst(sample, user, fresh = true) {
+  if (fresh) await refreshSampleAnalysts();
+  const existing = getSampleAnalyst(sample.id);
+  if (existing && existing.analyst_id !== user.id) {
+    throw new Error(existing.status === 'in_progress'
+      ? 'This sample is already being analysed by ' + existing.analyst_name + '.'
+      : 'This sample was claimed by ' + existing.analyst_name + ' — only they can toggle it.');
+  }
+  const now = new Date().toISOString();
+  const row = {
+    id: existing ? existing.id : generateId('ana'),
+    sample_id: sample.id,
+    submission_id: sample.submissionId || (existing ? existing.submission_id : '') || '',
+    analyst_id: user.id,
+    analyst_name: user.full_name,
+    status: 'in_progress',
+    toggled_at: now,
+    created_at: existing && existing.created_at ? existing.created_at : now,
+    updated_at: now,
+  };
+  const ok = await supabaseUpsert('sample_analysts', row, 'sample_id');
+  if (!ok) throw new Error('Failed to record the analyst in database');
+  const i = DB.sampleAnalysts.findIndex(a => a.sample_id === sample.id);
+  if (i === -1) DB.sampleAnalysts.push(row);
+  else DB.sampleAnalysts[i] = row;
+  return row;
+}
+
+/**
+ * Release a sample the user previously claimed (toggle → Received).
+ * Only the claimant may release — a sample claimed by another user
+ * throws. A sample with no analyst row (toggled before this feature
+ * existed) has nothing to release and succeeds silently.
+ * @param {object} sample
+ * @param {{id: string, full_name: string}} user - the logged-in session
+ * @param {boolean} [fresh=true] - re-fetch the table first (pass false
+ *        inside a batch after one refreshSampleAnalysts() call)
+ * @returns {Promise<object|null>} the updated analyst row, or null
+ */
+async function releaseSampleAnalyst(sample, user, fresh = true) {
+  if (fresh) await refreshSampleAnalysts();
+  const existing = getSampleAnalyst(sample.id);
+  if (!existing) return null;
+  if (existing.analyst_id !== user.id) {
+    throw new Error('This sample was toggled by ' + existing.analyst_name + ' — only they can reverse it.');
+  }
+  const now = new Date().toISOString();
+  const patch = { status: 'received', toggled_at: now, updated_at: now };
+  const ok = await supabaseUpdate('sample_analysts', existing.id, patch);
+  if (!ok) throw new Error('Failed to update the analyst record in database');
+  const updated = { ...existing, ...patch };
+  const i = DB.sampleAnalysts.indexOf(existing);
+  if (i !== -1) DB.sampleAnalysts[i] = updated;
+  return updated;
 }
 
 /* ── Workflow queries ────────────────────────────────────────── */
