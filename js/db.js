@@ -944,6 +944,34 @@ async function releaseSampleAnalyst(sample, user, fresh = true) {
   return updated;
 }
 
+/**
+ * Keep a sample's analyst claim row in sync after an ADMIN status override.
+ * Without this, an admin forcing a sample out of In Progress would leave the
+ * claim row saying 'in_progress' while the sample shows Received, locking the
+ * sample for every other user. Only the claim row's STATUS is touched —
+ * analyst_id/analyst_name are never reassigned (the sample_analysts DB
+ * trigger rejects that), so first-claim-wins still holds: peer users can
+ * never steal or undo each other's claim; only this explicit, audited admin
+ * override moves the status.
+ * @param {string} sampleId
+ * @param {string} sampleStatus - the sample's new status
+ * @returns {Promise<object|null>} the updated claim row, or null when the
+ *          sample was never claimed (or the table does not exist yet)
+ */
+async function syncSampleAnalystStatus(sampleId, sampleStatus) {
+  const existing = getSampleAnalyst(sampleId);
+  if (!existing) return null;
+  const wanted = sampleStatus === 'in_progress' ? 'in_progress' : 'received';
+  if (existing.status === wanted) return existing;
+  const patch = { status: wanted, updated_at: new Date().toISOString() };
+  const ok = await supabaseUpdate('sample_analysts', existing.id, patch);
+  if (!ok) throw new Error('Failed to update the analyst record in database');
+  const updated = { ...existing, ...patch };
+  const i = DB.sampleAnalysts.indexOf(existing);
+  if (i !== -1) DB.sampleAnalysts[i] = updated;
+  return updated;
+}
+
 /* ── Workflow queries ────────────────────────────────────────── */
 
 /** All samples currently waiting for reception review, newest first. */

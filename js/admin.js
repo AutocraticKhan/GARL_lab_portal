@@ -225,27 +225,57 @@ async function handleCreateUser(e) {
       const existing = DB.users.find(u => u.username === usernameLower || u.username === username);
       if (existing) { showToast('Username already exists.', 'error'); submitBtn.disabled = false; submitBtn.innerHTML = 'Save User'; return; }
 
-      // Provision credentials in Supabase Auth FIRST - on failure nothing
-      // is created and no plaintext password is ever stored.
-      const provisioned = await supabaseCreateAuthUser({
-        username: usernameLower,
-        password,
-        role,
-        full_name: fullName,
-        lab_id: labId,
-      });
-      if (!provisioned || !provisioned.uid) {
-        throw new Error('User provisioning returned no account id.');
+      // Provision credentials in Supabase Auth FIRST. When the Edge Function
+      // is unavailable (not deployed, secret missing, or this admin is not
+      // Auth-managed yet), fall back to the original plain-text creation so
+      // an admin is NEVER blocked from onboarding users. Input/duplicate
+      // errors are never masked by the fallback - they are rethrown.
+      const FATAL_PROVISION_RE = /already exists|Password must be|Username must be|Invalid role|Full name is required/i;
+      let provisioned = null;
+      let provisionReason = '';
+      try {
+        provisioned = await supabaseCreateAuthUser({
+          username: usernameLower,
+          password,
+          role,
+          full_name: fullName,
+          lab_id: labId,
+        });
+      } catch (err) {
+        const msg = err && err.message ? err.message : '';
+        if (FATAL_PROVISION_RE.test(msg)) throw err;
+        provisionReason = msg || 'unknown error';
+        console.warn('[ADMIN] Auth provisioning unavailable, creating plain-text user:', provisionReason);
       }
-      await createUser({
-        username: usernameLower,
-        password: 'AUTH#no-login#' + generateId('pw'), // dummy: blocks the legacy login path
-        role,
-        full_name: fullName,
-        lab_id: labId,
-        auth_uid: provisioned.uid,
-      });
-      showToast('User created successfully (Auth-managed).', 'success');
+      if (provisioned && !provisioned.uid) {
+        provisioned = null;
+        provisionReason = provisionReason || 'provisioning returned no account id';
+      }
+
+      if (provisioned && provisioned.uid) {
+        await createUser({
+          username: usernameLower,
+          password: 'AUTH#no-login#' + generateId('pw'), // dummy: blocks the legacy login path
+          role,
+          full_name: fullName,
+          lab_id: labId,
+          auth_uid: provisioned.uid,
+        });
+        showToast('User created successfully (Auth-managed).', 'success');
+      } else {
+        // Original plain-text behaviour (pre-Auth migration): the profile row
+        // stores the password and the legacy login path verifies it directly.
+        await createUser({
+          username: usernameLower,
+          password,
+          role,
+          full_name: fullName,
+          lab_id: labId,
+          auth_uid: '',
+        });
+        showToast('User created successfully (plain-text login)' +
+          (provisionReason ? ' - Auth provisioning skipped: ' + provisionReason : '') + '.', 'warning');
+      }
     }
     closeModal('modal-user');
     renderUsers();
@@ -560,6 +590,16 @@ function populateSampleFilters() {
 async function adminOverrideStatus(sampleId, newStatus) {
   try {
     await setSampleStatus(sampleId, newStatus, 'Status overridden by admin (' + adminSession.full_name + ')');
+    // Keep the analyst claim row consistent with the override so a sample
+    // forced out of In Progress does not stay locked as 'in_progress' in the
+    // claims table. Ownership itself can never be reassigned (DB trigger) —
+    // peer lab engineers still cannot undo each other's toggles.
+    try {
+      await refreshSampleAnalysts();
+      await syncSampleAnalystStatus(sampleId, newStatus);
+    } catch (claimErr) {
+      console.warn('[ADMIN] Analyst claim not synced after override:', claimErr.message);
+    }
     showToast('Sample status updated to "' + newStatus.replace('_',' ') + '".', 'success');
     renderAllSamples();
   } catch (err) {

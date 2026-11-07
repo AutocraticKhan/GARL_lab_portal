@@ -102,9 +102,12 @@ async function switchEngTab(tabId) {
 
   // Pull the latest samples so a resubmission made by reception shows up
   // immediately without a page reload. Falls back to the cache when offline.
+  // Analyst claims are refreshed alongside the samples so the "who toggled
+  // it" name shown next to the Received/In Progress toggle is always current
+  // for every logged-in user — not only after a full page reload.
   if (tabId === 'eng-tab-assigned' || tabId === 'eng-tab-returned' || tabId === 'eng-tab-completed') {
     try {
-      await refreshTable('samples');
+      await Promise.all([refreshTable('samples'), refreshSampleAnalysts()]);
     } catch (err) {
       console.warn('[LAB] Could not refresh samples, using cached data:', err.message);
     }
@@ -444,8 +447,13 @@ function renderReturnedSubmissions() {
 }
 
 // ── Side Panel (Submission-level detail with checkboxes) ──
-function openSubmissionPanel(submissionId) {
+async function openSubmissionPanel(submissionId) {
   activeSubmissionId = submissionId;
+
+  // Pull the latest analyst claims first so the name shown beside the
+  // Received/In Progress toggle is fresh for whoever opens the panel.
+  await refreshSampleAnalysts();
+  if (activeSubmissionId !== submissionId) return; // a newer panel was opened meanwhile
 
   const submissions = getSubmissionsForLab(engSession.lab_id);
   const sub = submissions.find(s => s.submissionId === submissionId);
@@ -3614,18 +3622,35 @@ document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSam
   const analyst = getSampleAnalyst(sample.id);
   const myId = engSession ? engSession.id : null;
   const mine = !analyst || analyst.analyst_id === myId;
+  const isMyClaim = !!analyst && analyst.analyst_id === myId;
 
-  // Claimed by another analyst: no toggle for this user — show WHO owns
-  // the sample instead (with the toggle timestamp) so the missing control
-  // is self-explanatory.
-  if (!mine) {
+  // Visible "who toggled it" chip — rendered BESIDE the toggle (right next
+  // to the Received / In Progress badge) so every user, including people who
+  // did not toggle the sample, can see who claimed it at a glance.
+  let nameChip = '';
+  if (analyst) {
     const toggledTxt = analyst.toggled_at
       ? ' · toggled In Progress on ' + formatDateTime(analyst.toggled_at)
       : '';
-    return '<span title="Toggled by ' + escAttr(analyst.analyst_name) + toggledTxt +
-      ' — only they can reverse this sample" ' +
+    const tip = 'Toggled In Progress by ' + analyst.analyst_name + toggledTxt + ' — ' +
+      (isMyClaim ? 'only you can reverse this sample.' : 'only they can reverse this sample.');
+    nameChip = '<span title="' + escAttr(tip) + '" ' +
       'style="font-size:0.7rem;color:#7c3aed;font-weight:700;white-space:nowrap;cursor:help;">' +
-      '🔬 ' + escHtml(analyst.analyst_name) + '</span>';
+      '🔬 ' + escHtml(analyst.analyst_name) + (isMyClaim ? ' (you)' : '') + '</span>';
+  }
+
+  // Claimed by another analyst: the toggle is shown LOCKED (disabled) so the
+  // sample's state stays visible, but only the claimant can flip it — any
+  // attempt from another account is also rejected by claim/release in db.js.
+  if (!mine) {
+    const lockedTip = 'Toggled by ' + analyst.analyst_name +
+      (analyst.toggled_at ? ' on ' + formatDateTime(analyst.toggled_at) : '') +
+      ' — only they can reverse this sample';
+    return '<label class="toggle" title="' + escAttr(lockedTip) + '" ' +
+        'style="margin-left:8px;opacity:0.55;cursor:not-allowed;">' +
+        '<input type="checkbox" ' + (isProgress ? 'checked' : '') + ' disabled />' +
+        '<span class="toggle-slider"></span></label>' +
+      nameChip;
   }
 
   const title = analyst
@@ -3637,7 +3662,8 @@ document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSam
   return '<label class="toggle" title="' + escAttr(title) + '" style="margin-left:8px;">' +
     '<input type="checkbox" ' + (isProgress ? 'checked' : '') +
     ' onchange="toggleSampleProgress(\'' + sample.id + '\', this.checked)" />' +
-    '<span class="toggle-slider"></span></label>';
+    '<span class="toggle-slider"></span></label>' +
+    nameChip;
 }
 
 async function toggleSampleProgress(sampleId, toProgress) {
@@ -3734,7 +3760,6 @@ async function toggleAllSamplesProgress(submissionId) {
    ════════════════════════════════════════════════════════════ */
 const PROG_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const ANALYST_PALETTE = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#0d9488'];
-const UNTRACKED_COLOR = '#94a3b8';
 let progressCharts = { bar: null, trend: null };
 
 function analystColor(index) {
@@ -3850,7 +3875,8 @@ function renderAnalystProgress() {
   const completed  = labSamples.filter(s => s.status === 'completed' && s.completed_at);
 
   // Attribution: the analyst row decides WHO did the sample; anything
-  // claimed before tracking existed (or never claimed) is "untracked".
+  // claimed before tracking existed (or never claimed) is excluded from
+  // the charts below (bucketed internally as "untracked").
   const attribute = s => {
     const row = getSampleAnalyst(s.id);
     return row && analystIdx.has(row.analyst_id) ? row.analyst_id : 'untracked';
@@ -3863,7 +3889,6 @@ function renderAnalystProgress() {
   });
   const counts = {};
   inRange.forEach(s => { const k = attribute(s); counts[k] = (counts[k] || 0) + 1; });
-  const untracked = counts['untracked'] || 0;
   const total = inRange.length;
   const activeCount = analysts.filter(a => (counts[a.id] || 0) > 0).length;
 
@@ -3886,23 +3911,12 @@ function renderAnalystProgress() {
   if (p1) p1.textContent = 'Samples completed between ' + (from || 'the beginning') +
     ' and ' + (to || 'today') + ' · ' + total + ' total.';
 
-  const note = document.getElementById('progress-untracked-note');
-  if (note) {
-    if (untracked > 0) {
-      note.style.display = 'block';
-      note.textContent = 'ℹ️ ' + untracked + ' sample(s) in this range were completed before analyst tracking existed, ' +
-        'were never claimed, or belong to a deactivated analyst — they are shown as "Untracked".';
-    } else {
-      note.style.display = 'none';
-    }
-  }
-
   destroyProgressCharts();
 
   // ── Chart 1: samples analysed per analyst (bar) ──
-  const barLabels = analysts.map(a => a.full_name || a.username).concat(untracked ? ['Untracked'] : []);
-  const barData   = analysts.map(a => counts[a.id] || 0).concat(untracked ? [untracked] : []);
-  const barColors = analysts.map((a, i) => analystColor(i)).concat(untracked ? [UNTRACKED_COLOR] : []);
+  const barLabels = analysts.map(a => a.full_name || a.username);
+  const barData   = analysts.map(a => counts[a.id] || 0);
+  const barColors = analysts.map((a, i) => analystColor(i));
   makeProgressChart('bar', 'chart-analysts', {
     type: 'bar',
     data: {
@@ -3956,21 +3970,6 @@ function renderAnalystProgress() {
     pointRadius: 3,
     data: months.map(m => (src[a.id] && src[a.id][m.key]) || 0),
   }));
-  if (metric === 'completed') {
-    const ut = months.map(m => (completedByMonth['untracked'] && completedByMonth['untracked'][m.key]) || 0);
-    if (ut.some(n => n > 0)) {
-      datasets.push({
-        label: 'Untracked',
-        borderColor: UNTRACKED_COLOR,
-        backgroundColor: UNTRACKED_COLOR,
-        borderDash: [6, 4],
-        tension: 0.3,
-        pointRadius: 3,
-        data: ut,
-      });
-    }
-  }
-
   const p2 = document.getElementById('progress-p2');
   if (p2) p2.textContent = (metric === 'started' ? 'Samples started (toggled In Progress)' : 'Samples completed') +
     ' per month, ' + months[0].label + ' to ' + months[months.length - 1].label +

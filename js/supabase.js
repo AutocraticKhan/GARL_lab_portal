@@ -412,11 +412,18 @@ const AUTH_USER_FUNCTION = 'create-auth-user';
 async function _functionsErrorMessage(err) {
   try {
     const ctx = err && err.context;
-    if (ctx && typeof ctx.json === 'function') {
+    if (!ctx) return null;
+    if (typeof ctx.json === 'function') {
+      // supabase-js attaches the raw Response — read its JSON body.
       const body = await ctx.json();
       if (body && typeof body === 'object') {
         return body.error || body.message || body.msg || null;
       }
+      return null;
+    }
+    // Other failure paths attach an already-parsed body object instead.
+    if (typeof ctx === 'object' && !(ctx instanceof Error)) {
+      return ctx.error || ctx.message || ctx.msg || null;
     }
   } catch (_) { /* body unreadable */ }
   return null;
@@ -439,8 +446,18 @@ async function _invokeAuthUserFunction(payload) {
 
   const { data, error } = await supabaseClient.functions.invoke(AUTH_USER_FUNCTION, { headers, body: payload });
   if (error) {
+    // Network/CORS failure — most commonly the function is NOT deployed:
+    // the gateway then answers even the CORS preflight with 404, the browser
+    // never sees a response body, and there is nothing to extract.
+    if (error.name === 'FunctionsFetchError') {
+      throw new Error('Cannot reach the create-auth-user Edge Function — verify it is deployed (Supabase dashboard → Edge Functions) and that your network allows the request.');
+    }
     const serverMsg = await _functionsErrorMessage(error);
-    throw new Error(serverMsg || 'User provisioning service failed — check that the create-auth-user Edge Function is deployed.');
+    if (serverMsg) throw new Error(serverMsg);
+    const status = error.context && typeof error.context.status === 'number'
+      ? ' (HTTP ' + error.context.status + ')' : '';
+    const detail = error.message ? ' (' + error.message + ')' : '';
+    throw new Error('User provisioning service failed' + status + detail + ' — check that the create-auth-user Edge Function is deployed.');
   }
   if (data && data.error) {
     throw new Error(data.error);

@@ -128,23 +128,6 @@
     .nav-item.active .nav-badge { background: rgba(20, 184, 166, 0.25); color: #5eead4; }
     .nav-badge:empty { display: none; }
 
-    /* Decorative instrument telemetry card (sidebar) */
-    .telemetry-card {
-      margin-top: auto;
-      padding: 12px;
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-    }
-
-    .telemetry-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .telemetry-label { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; }
-    .telemetry-online { display: inline-flex; align-items: center; gap: 5px; font-size: 0.66rem; color: #34d399; font-weight: 600; }
-    .telemetry-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; }
-    .telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.7rem; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; }
-    .telemetry-grid > div { background: rgba(255, 255, 255, 0.03); padding: 5px 8px; border-radius: 6px; }
-    .telemetry-grid strong { color: #fff; }
-
     .sidebar-footer {
       padding: 12px;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -596,17 +579,6 @@
         </span>
       </button>
 
-      <!-- Decorative instrument telemetry card (visual only) -->
-      <div class="telemetry-card">
-        <div class="telemetry-head">
-          <span class="telemetry-label">Instrument Telemetry</span>
-          <span class="telemetry-online"><span class="telemetry-dot"></span> Online</span>
-        </div>
-        <div class="telemetry-grid">
-          <div>Temp: <strong>21.2°C</strong></div>
-          <div>RH: <strong>41%</strong></div>
-        </div>
-      </div>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -865,7 +837,6 @@
           </div>
         </div>
 
-        <div id="progress-untracked-note" style="display:none;margin-top:var(--sp-3);padding:var(--sp-2) var(--sp-4);background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.25);border-radius:var(--r-md);font-size:0.75rem;color:var(--txt-muted);"></div>
         <p style="font-size:0.78rem;color:var(--txt-muted);margin-top:var(--sp-3);padding-left:4px;">
           💡 The line chart always shows the fixed 12-month window ending in the current month (the current month is month-to-date). The bar chart and KPIs follow the selected date range. "Started" counts each sample in the month its analyst first toggled it In Progress.
         </p>
