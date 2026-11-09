@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GARL | Detailed Analyst Progress Report</title>
+<style>
+:root{
+  --green:#075c43;--green-2:#0b7656;--green-pale:#eaf4ef;
+  --ink:#26364b;--muted:#68778a;--line:#d9e0e5;--paper:#fff;
+  --canvas:#f3f6f5;--amber:#9a6411;--amber-bg:#fff5df;
+  --blue:#315d8a;--blue-bg:#edf4fb;--red:#a43c37;--red-bg:#fff0ef;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font:14px/1.45 "Segoe UI",Arial,sans-serif}
+.page{max-width:1440px;margin:28px auto;padding:0 24px 36px}
+.report{background:var(--paper);border:1px solid #e2e7e9;box-shadow:0 5px 24px #18382a0b;padding:28px 30px 30px}
+.masthead{display:grid;grid-template-columns:1fr;align-items:center;gap:18px;padding:0 0 20px;border-bottom:2px solid #172c27}
+.heading{text-align:center;color:var(--green);font-family:Georgia,serif;letter-spacing:.055em}
+.heading .small{font-size:12px;font-weight:700;margin:3px 0}
+.heading h1{font-size:19px;letter-spacing:.07em;margin:7px 0 4px}
+.heading .place{font-size:12px;font-weight:700}
+.meta{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #9ba6ad;margin:18px 0 24px}
+.meta-item{padding:9px 12px;border-right:1px solid #c4cbd0;border-bottom:1px solid #c4cbd0;min-height:54px}
+.meta-item:nth-child(4n){border-right:0}.meta-item:nth-last-child(-n+4){border-bottom:0}
+.meta-label{display:block;color:#44546a;font-weight:700;font-size:11px;margin-bottom:4px}
+.meta-value{font-family:Georgia,serif;color:#26364b}
+.section{margin-top:23px}
+.section-head{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:0 0 10px}
+.section h2{font:700 15px Georgia,serif;color:#172c27;margin:0}
+.sub{font-size:11px;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0 0 24px}
+.kpi{border:1px solid var(--line);border-top:3px solid var(--green);padding:13px 15px;background:#fff}
+.kpi.range{border-top-color:#315d8a}
+.kpi span{display:block;color:var(--muted);font-size:11px;font-weight:600}
+.kpi strong{display:block;font:700 25px Georgia,serif;color:var(--green);margin-top:4px}
+.kpi.range strong{color:#315d8a}
+.kpi small{color:var(--muted);font-size:10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:12px 0}
+input,select{font:inherit;color:var(--ink);background:#fff;border:1px solid #cbd4d9;border-radius:3px;padding:8px 10px;min-height:35px}
+input{min-width:220px;flex:1}
+select{min-width:145px}
+button,a.button{border:1px solid var(--green);background:var(--green);color:#fff;border-radius:3px;padding:8px 12px;font-weight:600;cursor:pointer;font:inherit;text-decoration:none;display:inline-block}
+button.secondary,a.button.secondary{background:#fff;color:var(--green)}
+button:hover,a.button:hover{filter:brightness(.96)}
+.report-toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:space-between;margin:0 0 16px}
+.table-wrap{overflow-x:auto;border:1px solid #aeb8bd}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th{background:#f7f9fa;color:#596a80;font:700 11px Georgia,serif;letter-spacing:.04em;text-align:left;padding:10px 11px;border-bottom:1px solid #9ba6ad;white-space:nowrap}
+td{padding:10px 11px;border-bottom:1px solid #d9dfe3;vertical-align:middle;font-size:12px}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fbfdfc}
+.num{text-align:center;font-variant-numeric:tabular-nums}
+.analyst{font-weight:700;color:#243b34}
+.muted{color:var(--muted)}
+.pill{display:inline-block;border-radius:20px;padding:3px 8px;font-size:10px;font-weight:700;white-space:nowrap}
+.received{background:var(--green-pale);color:var(--green)}
+.progress{background:var(--blue-bg);color:var(--blue)}
+.stale{background:var(--red-bg);color:var(--red)}
+.current{background:var(--amber-bg);color:var(--amber)}
+.sample-list{display:flex;flex-wrap:wrap;gap:5px}
+.sample{font:11px Georgia,serif;border:1px solid #d6dfe0;background:#fbfcfc;padding:3px 6px;border-radius:2px}
+.report-id{font-family:Georgia,serif;color:#244f42;font-weight:700}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.note{border-left:3px solid #b9cfc4;background:#f7faf8;padding:10px 13px;color:#526477;font-size:11px}
+.footer{border-top:1px solid #d6dddf;margin-top:26px;padding-top:13px;text-align:center;color:#526477;font:11px Georgia,serif}
+.empty{text-align:center;padding:24px;color:var(--muted)}
+.empty-state{display:none;text-align:center;padding:56px 24px}
+.empty-state h2{font:700 17px Georgia,serif;color:var(--green);margin:0 0 8px}
+.empty-state p{color:var(--muted);font-size:12px;margin:0 0 18px}
+@media(max-width:800px){
+ .page{padding:0 10px;margin:10px auto}.report{padding:18px 14px}
+ .masthead{grid-template-columns:1fr;gap:8px}
+ .heading h1{font-size:14px}.heading .small,.heading .place{font-size:9px}
+ .meta{grid-template-columns:repeat(2,1fr)}.meta-item:nth-child(4n){border-right:1px solid #c4cbd0}
+ .meta-item:nth-child(2n){border-right:0}.meta-item:nth-last-child(-n+4){border-bottom:1px solid #c4cbd0}
+ .meta-item:nth-last-child(-n+2){border-bottom:0}
+ .kpis{grid-template-columns:repeat(2,1fr)}.details{grid-template-columns:1fr}
+}
+@media print{
+ body{background:#fff}.page{margin:0;padding:0;max-width:none}.report{border:0;box-shadow:none;padding:12mm}
+ .toolbar,.no-print{display:none!important}.table-wrap{overflow:visible}table{min-width:0}
+ th,td{font-size:9pt;padding:6px}.section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="page">
+<main class="report">
+  <header class="masthead">
+    <div class="heading">
+      <div class="small">GOVERNMENT OF PAKISTAN</div>
+      <div class="small">MINISTRY OF ENERGY (PETROLEUM DIVISION)</div>
+      <div class="small">GEOLOGICAL SURVEY OF PAKISTAN</div>
+      <h1>ANALYST PROGRESS REPORT — DETAILED</h1>
+      <div class="place">GEOSCIENCE ADVANCED RESEARCH LABORATORIES · ISLAMABAD</div>
+    </div>
+  </header>
+
+  <div class="empty-state" id="empty-state">
+    <h2>No report data found</h2>
+    <p>This page is opened from the <strong>Analyst Progress</strong> tab of the Lab Engineer dashboard,<br>
+       which passes the report data for the selected date range. Open it from there to generate the report.</p>
+    <a class="button" href="lab-dashboard.html">← Back to Lab Dashboard</a>
+  </div>
+<div id="report-content">
+
+  <section class="meta" aria-label="Report information">
+    <div class="meta-item"><span class="meta-label">Report title:</span><span class="meta-value">Analyst workload & report tracking — detailed</span></div>
+    <div class="meta-item"><span class="meta-label">Reporting date:</span><span class="meta-value" id="reportDate">—</span></div>
+    <div class="meta-item"><span class="meta-label">Reporting range:</span><span class="meta-value" id="metaRange">—</span></div>
+    <div class="meta-item"><span class="meta-label">Laboratory:</span><span class="meta-value" id="metaLab">—</span></div>
+    <div class="meta-item"><span class="meta-label">Prepared by:</span><span class="meta-value" id="metaPrepared">—</span></div>
+    <div class="meta-item"><span class="meta-label">Data sources:</span><span class="meta-value">Analyst claims · Saved reports</span></div>
+    <div class="meta-item"><span class="meta-label">Coverage:</span><span class="meta-value">All analysts of this laboratory</span></div>
+    <div class="meta-item"><span class="meta-label">Date basis:</span><span class="meta-value">KPIs: completed in range · Tables: claimed & toggled</span></div>
+  </section>
+
+  <section class="kpis" aria-label="Summary metrics">
+    <div class="kpi range"><span>SAMPLES COMPLETED</span><strong id="kCompleted">0</strong><small>Selected date range</small></div>
+    <div class="kpi range"><span>ACTIVE ANALYSTS</span><strong id="kActive">0/0</strong><small>With ≥1 sample in range</small></div>
+    <div class="kpi range"><span>TOP ANALYST</span><strong id="kTop" style="font-size:1.3rem;">—</strong><small id="kTopSub">0 samples</small></div>
+    <div class="kpi range"><span>IN PROGRESS NOW</span><strong id="kLive">0</strong><small>Across the whole lab</small></div>
+    <div class="kpi"><span>ANALYSTS</span><strong id="kAnalysts">0</strong><small>Active analysts in this lab</small></div>
+    <div class="kpi"><span>SAMPLES CLAIMED</span><strong id="kSamples">0</strong><small>Distinct sample IDs in register</small></div>
+    <div class="kpi"><span>REPORTS SAVED</span><strong id="kReports">0</strong><small>PNAC + QSCERT authored</small></div>
+    <div class="kpi"><span>NEEDING REWORK</span><strong id="kStale">0</strong><small>Saved reports flagged as stale</small></div>
+  </section>
+
+  <div class="report-toolbar no-print">
+    <span class="sub" id="range-note">—</span>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;">
+      <a class="button secondary" href="lab-dashboard.html">← Back to Dashboard</a>
+      <button type="button" id="printBtn">🖨 Print / Save as PDF</button>
+    </div>
+  </div>
+<section class="section">
+    <div class="section-head"><h2>1. Analyst workload summary</h2><span class="sub">All-time claim register · sample count = distinct sample IDs per analyst.</span></div>
+    <div class="table-wrap"><table id="analystTable">
+      <thead><tr><th>Analyst</th><th>Analyst ID</th><th class="num">Samples</th><th class="num">In progress</th><th class="num">Received</th><th>Last activity</th><th>Sample IDs</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>2. Sample assignment & activity register</h2><span class="sub">One row per analyst claim / sample assignment.</span></div>
+    <div class="toolbar no-print">
+      <input id="searchSamples" type="search" placeholder="Search analyst, sample ID or submission ID…" aria-label="Search sample assignments">
+      <select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option><option value="in_progress">In progress</option><option value="received">Received</option></select>
+      <select id="rangeFilter" aria-label="Filter by date basis"><option value="">All dates</option><option value="claimed">Claimed in range</option><option value="toggled">Toggled in range</option></select>
+      <button class="secondary" id="clearFilters" type="button">Clear filters</button>
+    </div>
+    <div class="table-wrap"><table id="sampleTable">
+      <thead><tr><th>Analyst</th><th>Analyst ID</th><th>Submission ID</th><th>Sample ID</th><th>Status</th><th>Claimed at</th><th>Last toggled at</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+<section class="section">
+    <div class="section-head"><h2>3. Saved reports authored by analysts</h2><span class="sub">Author attribution is taken from the session at save time.</span></div>
+    <div class="toolbar no-print">
+      <input id="searchReports" type="search" placeholder="Search report no., author, customer, lab or test…" aria-label="Search saved reports">
+      <select id="reportTypeFilter" aria-label="Filter report type"><option value="">All report types</option><option value="pnac">PNAC</option><option value="qscert">QSCERT</option></select>
+      <select id="staleFilter" aria-label="Filter stale reports"><option value="">All report states</option><option value="true">Needs rework</option><option value="false">Current</option></select>
+      <button class="secondary" id="clearReportFilters" type="button">Clear filters</button>
+    </div>
+    <div class="table-wrap"><table id="reportTable">
+      <thead><tr><th>Report no.</th><th>Type</th><th>Author</th><th>Customer / Lab</th><th>Test</th><th class="num">Samples</th><th>Elements / Unit</th><th>Method</th><th>Analysis date</th><th>Issue date</th><th>Last edited</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>4. Reading this report</h2></div>
+    <div class="details">
+      <div class="note"><strong>Sample workload:</strong> <code>created_at</code> is the claim (workload start) time. <code>toggled_at</code> is the most recent status-toggle activity. Sample counts are calculated from distinct <code>sample_id</code> values, not raw claim rows. The four blue KPI cards follow the date range selected on the dashboard.</div>
+      <div class="note"><strong>Report workload:</strong> Saved reports are grouped by <code>engineer_id</code> / <code>engineer_name</code> for this laboratory. A report marked <em>Needs rework</em> has <code>is_stale = true</code>. Report complexity can be reviewed using sample count, elements and unit.</div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    END OF REPORT · INTERNAL LABORATORY MONITORING<br>
+    <span id="generatedStamp"></span>
+  </footer>
+
+  </div><!-- /report-content -->
+</main>
+</div>
+
+<script>
+'use strict';
+const STORAGE_KEY = 'garl_detailed_progress_report';
+const $ = id => document.getElementById(id);
+const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";");
+const fmt = value => value ? new Date(value).toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+const dateFmt = value => value ? new Date(String(value).length <= 10 ? value + "T00:00:00" : value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" }) : "—";
+const unique = values => [...new Set(values)];
+
+let payload = null;
+try { payload = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { payload = null; }
+const hasPayload = !!(payload && Array.isArray(payload.assignments) && Array.isArray(payload.savedReports) && payload.summary);
+
+/** Fill the masthead meta grid + the 8 KPI cards from the payload. */
+function renderMetaAndKpis() {
+  const s = payload.summary || {};
+  $("reportDate").textContent = payload.generated_at
+    ? new Date(payload.generated_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+    : "—";
+  $("metaRange").textContent = (payload.from || payload.to)
+    ? (payload.from || "the beginning") + " → " + (payload.to || "today")
+    : "All dates";
+  $("metaLab").textContent = payload.lab_name || "—";
+  $("metaPrepared").textContent = payload.prepared_by || "—";
+  $("range-note").textContent = (payload.from || payload.to)
+    ? "KPIs cover " + (payload.from || "the beginning") + " → " + (payload.to || "today") + " · tables show the full register."
+    : "No date range selected — KPIs cover all time.";
+
+  // Row 1 — the four dashboard badges (selected date range)
+  $("kCompleted").textContent = s.completed_in_range ?? 0;
+  $("kActive").textContent = (s.active_analysts ?? 0) + "/" + (s.total_analysts ?? 0);
+  $("kTop").textContent = s.top_analyst || "—";
+  $("kTopSub").textContent = (s.top_analyst_count ?? 0) + " sample(s) completed";
+  $("kLive").textContent = s.in_progress_now ?? 0;
+
+  // Row 2 — report-level totals
+  $("kAnalysts").textContent = (payload.analysts || []).length;
+  $("kSamples").textContent = unique(payload.assignments.map(x => x.sample_id)).length;
+  $("kReports").textContent = payload.savedReports.length;
+  $("kStale").textContent = payload.savedReports.filter(x => x.is_stale).length;
+
+  $("generatedStamp").textContent = "Generated " + fmt(payload.generated_at) +
+    " · " + (payload.lab_name || "—") + " · " + (payload.prepared_by || "—");
+}
+/** Section 1: per-analyst workload (roster first, then claim-only authors). */
+function renderSummary() {
+  const order = [];
+  const byId = {};
+  const ensure = (id, name) => {
+    if (!byId[id]) {
+      byId[id] = { id, name: name || "—", samples: new Set(), inprog: 0, recv: 0, last: "" };
+      order.push(id);
+    }
+    return byId[id];
+  };
+  (payload.analysts || []).forEach(a => ensure(a.id, a.name));
+  payload.assignments.forEach(x => {
+    const e = ensure(x.analyst_id, x.analyst_name);
+    e.samples.add(x.sample_id);
+    if (x.status === "received") e.recv++; else e.inprog++;
+    if (x.toggled_at && x.toggled_at > e.last) e.last = x.toggled_at;
+  });
+
+  $("analystTable").querySelector("tbody").innerHTML = order.map(id => {
+    const e = byId[id];
+    return `<tr><td class="analyst">${esc(e.name)}</td><td>${esc(e.id)}</td><td class="num">${e.samples.size}</td>` +
+      `<td class="num">${e.inprog}</td><td class="num">${e.recv}</td><td>${fmt(e.last)}</td>` +
+      `<td><div class="sample-list">${[...e.samples].map(s => `<span class="sample">${esc(s)}</span>`).join("")}</div></td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="empty">No analyst assignment records found.</td></tr>`;
+}
+
+/** True when a timestamp falls inside the dashboard's selected range. */
+function inRangeDate(value) {
+  if (!payload.from && !payload.to) return true;
+  if (!value) return false;
+  const day = String(value).slice(0, 10);
+  return (!payload.from || day >= payload.from) && (!payload.to || day <= payload.to);
+}
+
+/** Section 2: full claim register with search / status / date-basis filters. */
+function renderAssignments() {
+  const q = $("searchSamples").value.toLowerCase();
+  const status = $("statusFilter").value;
+  const basis = $("rangeFilter").value;
+  const rows = payload.assignments.filter(x => {
+    if (status && x.status !== status) return false;
+    if (basis === "claimed" && !inRangeDate(x.created_at)) return false;
+    if (basis === "toggled" && !inRangeDate(x.toggled_at)) return false;
+    return [x.analyst_name, x.analyst_id, x.sample_id, x.submission_id]
+      .some(v => String(v).toLowerCase().includes(q));
+  });
+  $("sampleTable").querySelector("tbody").innerHTML = rows.map(x =>
+    `<tr><td class="analyst">${esc(x.analyst_name)}</td><td>${esc(x.analyst_id)}</td><td>${esc(x.submission_id)}</td>` +
+    `<td class="report-id">${esc(x.sample_id)}</td>` +
+    `<td><span class="pill ${x.status === "received" ? "received" : "progress"}">${x.status === "received" ? "Received" : "In progress"}</span></td>` +
+    `<td>${fmt(x.created_at)}</td><td>${fmt(x.toggled_at)}</td></tr>`).join("")
+    || `<tr><td colspan="7" class="empty">No matching assignments.</td></tr>`;
+}
+
+/** Section 3: saved reports with search / type / staleness filters. */
+function renderReports() {
+  const q = $("searchReports").value.toLowerCase();
+  const type = $("reportTypeFilter").value;
+  const stale = $("staleFilter").value;
+  const rows = payload.savedReports.filter(x =>
+    (!type || x.report_type === type) &&
+    (!stale || String(x.is_stale) === stale) &&
+    [x.report_number, x.engineer_name, x.engineer_id, x.customer_name, x.lab_name, x.test_name]
+      .some(v => String(v).toLowerCase().includes(q)));
+  $("reportTable").querySelector("tbody").innerHTML = rows.map(x =>
+    `<tr><td class="report-id">${esc(x.report_number)}</td><td>${esc((x.report_type || "—").toUpperCase())}</td>` +
+    `<td><span class="analyst">${esc(x.engineer_name)}</span><br><span class="muted">${esc(x.engineer_id)}</span></td>` +
+    `<td>${esc(x.customer_name)}<br><span class="muted">${esc(x.lab_name)}</span></td>` +
+    `<td>${esc(x.test_name)}</td><td class="num">${esc(x.sample_count)}</td>` +
+    `<td>${esc(x.elements)} / ${esc(x.unit)}</td><td>${esc(x.method_used)}</td>` +
+    `<td>${dateFmt(x.sample_analysis_date)}</td><td>${dateFmt(x.report_issue_date)}</td><td>${fmt(x.updated_at)}</td>` +
+    `<td><span class="pill ${x.is_stale ? "stale" : "received"}">${x.is_stale ? "Needs rework" : "Current"}</span></td></tr>`).join("")
+    || `<tr><td colspan="12" class="empty">No matching saved reports.</td></tr>`;
+}
+
+function wireControls() {
+  ["searchSamples", "statusFilter", "rangeFilter"].forEach(id => $(id).addEventListener("input", renderAssignments));
+  ["searchReports", "reportTypeFilter", "staleFilter"].forEach(id => $(id).addEventListener("input", renderReports));
+  $("clearFilters").addEventListener("click", () => {
+    $("searchSamples").value = ""; $("statusFilter").value = ""; $("rangeFilter").value = "";
+    renderAssignments();
+  });
+  $("clearReportFilters").addEventListener("click", () => {
+    $("searchReports").value = ""; $("reportTypeFilter").value = ""; $("staleFilter").value = "";
+    renderReports();
+  });
+  $("printBtn").addEventListener("click", () => window.print());
+}
+
+// ── Bootstrap ──
+if (!hasPayload) {
+  $("empty-state").style.display = "block";
+} else {
+  renderMetaAndKpis();
+  renderSummary();
+  renderAssignments();
+  renderReports();
+  wireControls();
+}</script>
+</body>
+</html>

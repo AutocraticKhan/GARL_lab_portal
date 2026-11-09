@@ -264,6 +264,19 @@ function wireEngEvents() {
     applyProgressDefaultRange();
     renderAnalystProgress();
   });
+
+  // ── 5th badge: Detailed report (opens the standalone HTML file) ──
+  const detailedReportCard = document.getElementById('kpi-detailed-report');
+  if (detailedReportCard) {
+    detailedReportCard.addEventListener('click', openDetailedAnalystReport);
+    detailedReportCard.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        openDetailedAnalystReport();
+      }
+    });
+  }
+
   applyProgressDefaultRange();
 }
 
@@ -3984,4 +3997,125 @@ function renderAnalystProgress() {
       scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
     },
   });
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   DETAILED ANALYST REPORT (5th KPI badge)
+   Snapshots the lab's analyst claims + saved reports for the
+   currently selected date range into localStorage, then opens the
+   standalone file pages/analyst-progress-detailed-report.html
+   (which renders the formal GSP-style report from that payload).
+   ════════════════════════════════════════════════════════════ */
+const DETAILED_REPORT_STORAGE_KEY = 'garl_detailed_progress_report';
+
+function buildDetailedReportPayload() {
+  const fromEl = document.getElementById('progress-from');
+  const toEl   = document.getElementById('progress-to');
+  let from = fromEl ? fromEl.value : '';
+  let to   = toEl ? toEl.value : '';
+  // Same range sanity as renderAnalystProgress (swap crossed dates)
+  if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
+
+  const analysts       = getLabAnalysts();
+  const analystIds     = new Set(analysts.map(a => a.id));
+  const labSamples     = getSamplesForLab(engSession.lab_id);
+  const sampleById     = new Map(labSamples.map(s => [s.id, s]));
+  const claimsBySample = new Map((DB.sampleAnalysts || []).map(r => [r.sample_id, r]));
+
+  // ── Summary — identical maths to renderAnalystProgress so the
+  //    report's KPIs match the four dashboard badges exactly ──
+  const completed = labSamples.filter(s => s.status === 'completed' && s.completed_at);
+  const inRange   = completed.filter(s => {
+    const d = String(s.completed_at).slice(0, 10);
+    return (!from || d >= from) && (!to || d <= to);
+  });
+  const counts = {};
+  inRange.forEach(s => {
+    const claim = claimsBySample.get(s.id);
+    const key = claim && analystIds.has(claim.analyst_id) ? claim.analyst_id : 'untracked';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const activeCount = analysts.filter(a => (counts[a.id] || 0) > 0).length;
+  const top = analysts.length
+    ? analysts.reduce((best, a) => (counts[a.id] || 0) > (counts[best.id] || 0) ? a : best, analysts[0])
+    : null;
+  const topCount = top ? (counts[top.id] || 0) : 0;
+
+  const summary = {
+    completed_in_range: inRange.length,
+    active_analysts: activeCount,
+    total_analysts: analysts.length,
+    top_analyst: topCount > 0 ? (top.full_name || top.username) : '—',
+    top_analyst_count: topCount,
+    in_progress_now: labSamples.filter(s => s.status === 'in_progress').length,
+  };
+
+  // ── Full claim register: one row per sample_analysts record,
+  //    joined to this lab's samples ──
+  const assignments = (DB.sampleAnalysts || []).map(row => {
+    const s = sampleById.get(row.sample_id);
+    if (!s) return null;
+    return {
+      analyst_name: row.analyst_name || '—',
+      analyst_id: row.analyst_id || '—',
+      status: row.status || 'in_progress',
+      created_at: row.created_at || '',
+      toggled_at: row.toggled_at || '',
+      submission_id: row.submission_id || '',
+      sample_id: s.sample_number || row.sample_id,
+      sample_status: s.status || '',
+      completed_at: s.completed_at || '',
+    };
+  }).filter(Boolean);
+
+  // ── Saved reports of this lab: matched by lab_id, or by author
+  //    roster for legacy rows that have no lab_id ──
+  const savedReports = (DB.savedReports || [])
+    .filter(r => (r.lab_id ? r.lab_id === engSession.lab_id : analystIds.has(r.engineer_id)))
+    .map(r => ({
+      engineer_name: r.engineer_name || '—',
+      engineer_id: r.engineer_id || '—',
+      report_number: r.report_number || '—',
+      report_type: (r.report_type || '').toLowerCase(),
+      report_issue_date: r.report_issue_date || '',
+      updated_at: r.updated_at || '',
+      customer_name: r.customer_name || '—',
+      lab_name: r.lab_name || '—',
+      test_name: r.test_name || '—',
+      sample_count: Number(r.sample_count) || 0,
+      elements: Array.isArray(r.elements) ? r.elements.join(', ') : (r.elements || '—'),
+      unit: r.unit || '—',
+      method_used: r.method_used || '—',
+      sample_analysis_date: r.sample_analysis_date || '',
+      is_stale: !!r.is_stale,
+    }));
+
+  const lab = getLab(engSession.lab_id);
+  return {
+    generated_at: new Date().toISOString(),
+    from,
+    to,
+    lab_name: (lab && lab.lab_name) || engSession.lab_name || '—',
+    prepared_by: engSession.full_name || engSession.username || '—',
+    summary,
+    analysts: analysts.map(a => ({ id: a.id, name: a.full_name || a.username || '—' })),
+    assignments,
+    savedReports,
+  };
+}
+
+function openDetailedAnalystReport() {
+  let payload;
+  try {
+    payload = buildDetailedReportPayload();
+    localStorage.setItem(DETAILED_REPORT_STORAGE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    showToast('Could not prepare the detailed report: ' + (err && err.message ? err.message : err), 'error');
+    return;
+  }
+  const win = window.open('analyst-progress-detailed-report.html', '_blank');
+  if (!win) {
+    showToast('Popup blocked! Please allow popups for this site to open the detailed report.', 'error');
+  }
 }

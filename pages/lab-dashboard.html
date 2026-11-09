@@ -250,6 +250,11 @@
 
     .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px -8px rgba(15, 23, 42, 0.16); border-color: #cbd5e1; }
 
+    /* Clickable stat card → opens the detailed report (separate HTML file) */
+    .stat-card.stat-card-link { cursor: pointer; }
+    .stat-card.stat-card-link:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+    .stat-card.stat-card-link:active { transform: translateY(-1px); }
+
     .stat-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 
     .stat-pill {
@@ -808,6 +813,21 @@
             <div class="stat-label">
               <span>In Progress Now</span>
               <span class="stat-sub" style="color:var(--txt-muted);">Across the whole lab</span>
+            </div>
+          </div>
+          <!-- 5th badge → opens the standalone detailed report file -->
+          <div class="stat-card stat-card-link" id="kpi-detailed-report" role="button" tabindex="0"
+               title="Open the full detailed analyst progress report"
+               aria-label="Open detailed analyst progress report"
+               style="--stat-accent:linear-gradient(135deg,#0d9488,#0f766e);">
+            <div class="stat-card-top">
+              <div class="stat-icon">📑</div>
+              <span class="stat-pill" style="color:#0f766e;background:#f0fdfa;border:1px solid #99f6e4;">Full report</span>
+            </div>
+            <div class="stat-value" style="font-size:1.3rem;">Open ➜</div>
+            <div class="stat-label">
+              <span>Detailed Report</span>
+              <span class="stat-sub" style="color:var(--txt-muted);">Full tables & saved reports</span>
             </div>
           </div>
         </div>
