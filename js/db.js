@@ -152,6 +152,21 @@ function getElementInfo(symbol) {
   return (DB.elements || []).find(e => e.symbol === symbol) || null;
 }
 
+// ── Periodic notice popup settings (system_state: notice_* keys) ──
+// Shared by initDB() (page load) and notice-popup.js (refresh
+// before every scheduled show). Missing keys fall back to safe
+// defaults — the popup stays disabled until the admin enables it.
+function parseNoticeState(stateMap) {
+  const s = stateMap || {};
+  return {
+    enabled: s.notice_enabled === 'true',
+    title: (s.notice_title || '').trim() || 'Reminder',
+    message: (s.notice_message || '').trim(),
+    btnPrimary: (s.notice_btn_primary || '').trim() || 'Got it',
+    btnSecondary: (s.notice_btn_secondary || '').trim(),
+  };
+}
+
 // ── DB initialisation ─────────────────────────────────────────
 async function initDB() {
   // Initialize Supabase
@@ -233,6 +248,9 @@ async function initDB() {
     stateData.forEach(s => { stateMap[s.key] = s.value; });
     DB.systemState.nextSubmissionId = parseInt(stateMap.nextSubmissionId, 10) || 1001;
     DB.systemState.submissionYear = stateMap.submissionYear ? parseInt(stateMap.submissionYear, 10) : null;
+    DB.systemState.notice = parseNoticeState(stateMap);
+  } else {
+    DB.systemState.notice = parseNoticeState({});
   }
 
   // Normalise boolean fields
@@ -241,6 +259,10 @@ async function initDB() {
   DB.tests  = DB.tests.map(t  => ({ ...t, active: t.active === true || t.active === 'true' }));
 
   console.log('[DB] Load complete. Users:', DB.users.length, 'Labs:', DB.labs.length, 'Samples:', DB.samples.length);
+
+  // Signal shared modules (e.g. notice-popup.js) that DB data is ready.
+  window.__garlDbReady = true;
+  document.dispatchEvent(new CustomEvent('garl:db-ready'));
 }
 
 // ── Supabase CRUD helpers (using functions from supabase.js) ──

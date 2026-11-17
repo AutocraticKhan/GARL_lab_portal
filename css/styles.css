@@ -1604,3 +1604,92 @@ tr.needs-review-row td:first-child {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── Periodic Notice Popup ──────────────────────────────────
+   Non-blocking card (no dark overlay) shown at a random
+   10–15 min interval when enabled from the admin Settings
+   tab. Bottom-right, dismissible via ✕ / buttons / Esc.     */
+.notice-popup {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9998;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5) var(--sp-4) var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(16px) scale(0.98);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.notice-popup.notice-show { opacity: 1; transform: translateY(0) scale(1); }
+.notice-popup.notice-hide { opacity: 0; transform: translateY(8px) scale(0.98); }
+
+.notice-popup-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  border-radius: 50%;
+  background: rgba(2, 132, 199, 0.1);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+}
+.notice-popup-body { flex: 1; min-width: 0; padding-right: 18px; }
+.notice-popup-title {
+  margin: 2px 0 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--txt-main);
+}
+.notice-popup-message {
+  margin: 0 0 10px;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--txt-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notice-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+.notice-popup-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--txt-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.notice-popup-close:hover { background: var(--clr-surface-2); color: var(--txt-main); }
+
+@media (max-width: 480px) {
+  .notice-popup {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notice-popup { transition: none; }
+}

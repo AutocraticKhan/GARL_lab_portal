@@ -28,7 +28,7 @@ function switchTab(tabId) {
   });
 
   // Update active state of sidebar navigation items
-  const isDashboardTab = ['tab-users', 'tab-labs', 'tab-tests', 'tab-samples'].includes(tabId);
+  const isDashboardTab = ['tab-users', 'tab-labs', 'tab-tests', 'tab-samples', 'tab-settings'].includes(tabId);
   const dashboardBtn = document.getElementById('nav-admin-dashboard');
   if (dashboardBtn) {
     if (isDashboardTab) {
@@ -52,7 +52,8 @@ function switchTab(tabId) {
     'tab-users': 'User Management', 
     'tab-labs': 'Lab Management', 
     'tab-tests': 'Test Management', 
-    'tab-samples': 'All Samples' 
+    'tab-samples': 'All Samples',
+    'tab-settings': 'Settings'
   };
   const titleEl = document.getElementById('topbar-title');
   if (titleEl) {
@@ -64,6 +65,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-labs')    renderLabs();
   if (tabId === 'tab-tests')   renderTests();
   if (tabId === 'tab-samples') renderAllSamples();
+  if (tabId === 'tab-settings') loadNoticeSettingsForm();
 }
 
 // ── Wire events ───────────────────────────────────────────────
@@ -74,6 +76,14 @@ function wireAdminEvents() {
       switchTab(btn.dataset.tab);
     });
   });
+
+  // Notice popup settings (Settings tab)
+  const noticeForm = document.getElementById('notice-settings-form');
+  if (noticeForm) {
+    noticeForm.addEventListener('submit', handleSaveNoticeSettings);
+    document.getElementById('btn-preview-notice').addEventListener('click', handlePreviewNotice);
+    loadNoticeSettingsForm();
+  }
 
   // Create User
   document.getElementById('btn-create-user').addEventListener('click', () => {
@@ -615,6 +625,74 @@ function populateLabSelect(selectId) {
     DB.labs.filter(l => l.active !== false).map(l =>
       '<option value="' + l.id + '">' + escHtml(l.lab_name) + '</option>'
     ).join('');
+}
+
+// ── Notice popup settings (Settings tab) ─────────────────────
+// Persisted in system_state under the notice_* keys; the shared
+// notice-popup.js module reads them on every dashboard.
+function readNoticeForm() {
+  const enabledEl = document.getElementById('notice-enabled');
+  return {
+    enabled: !!(enabledEl && enabledEl.checked),
+    title: document.getElementById('notice-title').value.trim(),
+    message: document.getElementById('notice-message').value.trim(),
+    btnPrimary: document.getElementById('notice-btn-primary').value.trim(),
+    btnSecondary: document.getElementById('notice-btn-secondary').value.trim(),
+  };
+}
+
+function loadNoticeSettingsForm() {
+  const enabledEl = document.getElementById('notice-enabled');
+  if (!enabledEl) return;
+  const s = (typeof DB !== 'undefined' && DB.systemState && DB.systemState.notice)
+    || { enabled: false, title: '', message: '', btnPrimary: '', btnSecondary: '' };
+  enabledEl.checked = !!s.enabled;
+  document.getElementById('notice-title').value = s.title || '';
+  document.getElementById('notice-message').value = s.message || '';
+  document.getElementById('notice-btn-primary').value = s.btnPrimary || '';
+  document.getElementById('notice-btn-secondary').value = s.btnSecondary || '';
+}
+
+async function handleSaveNoticeSettings(e) {
+  e.preventDefault();
+  const data = readNoticeForm();
+  if (data.enabled && (!data.title || !data.message)) {
+    showToast('Add a title and a message before enabling the popup.', 'error');
+    return;
+  }
+  try {
+    await Promise.all([
+      supabaseUpsert('system_state', { key: 'notice_enabled',     value: data.enabled ? 'true' : 'false' }, 'key'),
+      supabaseUpsert('system_state', { key: 'notice_title',       value: data.title },       'key'),
+      supabaseUpsert('system_state', { key: 'notice_message',     value: data.message },     'key'),
+      supabaseUpsert('system_state', { key: 'notice_btn_primary', value: data.btnPrimary },  'key'),
+      supabaseUpsert('system_state', { key: 'notice_btn_secondary', value: data.btnSecondary }, 'key'),
+    ]);
+    // Update the in-memory copy so preview / next cycles see it instantly.
+    DB.systemState.notice = parseNoticeState({
+      notice_enabled: data.enabled ? 'true' : 'false',
+      notice_title: data.title,
+      notice_message: data.message,
+      notice_btn_primary: data.btnPrimary,
+      notice_btn_secondary: data.btnSecondary,
+    });
+    showToast('Notice popup settings saved.', 'success');
+  } catch (err) {
+    console.error('[ADMIN] Error saving notice settings:', err);
+    showToast('Error saving settings: ' + err.message, 'error');
+  }
+}
+
+function handlePreviewNotice() {
+  const data = readNoticeForm();
+  if (typeof showNoticeCard !== 'function') return;
+  const shown = showNoticeCard({
+    title: data.title,
+    message: data.message,
+    btnPrimary: data.btnPrimary,
+    btnSecondary: data.btnSecondary,
+  });
+  if (!shown) showToast('A popup is already on screen.', 'info');
 }
 
 // ── Bootstrap ────────────────────────────────────────────────

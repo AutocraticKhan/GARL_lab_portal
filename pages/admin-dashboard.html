@@ -62,6 +62,7 @@
         <button class="tab-btn" data-tab="tab-labs">🏥 Labs</button>
         <button class="tab-btn" data-tab="tab-tests">🔬 Tests</button>
         <button class="tab-btn" data-tab="tab-samples">🧫 All Samples</button>
+        <button class="tab-btn" data-tab="tab-settings">⚙️ Settings</button>
       </div>
 
       <!-- ── TAB: USERS ──────────────────────────────────────── -->
@@ -164,6 +165,60 @@
             </thead>
             <tbody id="samples-tbody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- ── TAB: SETTINGS ────────────────────────────────────── -->
+      <div id="tab-settings" class="tab-panel">
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <span class="table-toolbar-title">Notice Popup Settings</span>
+          </div>
+          <div class="card" style="border:none; box-shadow:none; border-radius:0; max-width:760px;">
+            <form id="notice-settings-form" novalidate>
+              <div class="toggle-wrap" style="justify-content:space-between; align-items:flex-start; margin-bottom:var(--sp-5); padding-bottom:var(--sp-5); border-bottom:1px solid var(--border-color);">
+                <div style="flex:1; padding-right:var(--sp-4);">
+                  <div style="font-weight:600; color:var(--txt-main); margin-bottom:2px;">Show periodic notice popup to users</div>
+                  <div style="font-size:0.8rem; color:var(--txt-muted); line-height:1.5;">
+                    When enabled, every signed-in user sees the popup <strong>right after logging in</strong> to any
+                    dashboard, and then again at a random interval of <strong>10–15 minutes</strong> — never on a
+                    fixed schedule, so it never feels spammy. The popup does not block the page: users close it
+                    with ✕, a button, or the Esc key. Leave the secondary button label empty to show only one button.
+                  </div>
+                </div>
+                <label class="toggle" title="Enable / disable the notice popup">
+                  <input type="checkbox" id="notice-enabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="notice-title">Popup title</label>
+                <input class="form-control" type="text" id="notice-title" maxlength="140" placeholder="Reminder" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="notice-message">Message</label>
+                <textarea class="form-control" id="notice-message" rows="4" maxlength="600" placeholder="Type the message every user should see…"></textarea>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="notice-btn-primary">Primary button label</label>
+                  <input class="form-control" type="text" id="notice-btn-primary" maxlength="40" placeholder="Got it" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="notice-btn-secondary">Secondary button label (optional)</label>
+                  <input class="form-control" type="text" id="notice-btn-secondary" maxlength="40" placeholder="Leave empty to hide" />
+                </div>
+              </div>
+
+              <div style="display:flex; gap:var(--sp-3); justify-content:flex-end; flex-wrap:wrap;">
+                <button type="button" class="btn btn-ghost" id="btn-preview-notice">👁 Preview popup</button>
+                <button type="submit" class="btn btn-primary">Save settings</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -329,6 +384,7 @@
 <script src="../js/supabase.js"></script>
 <script src="../js/db.js"></script>
 <script src="../js/auth.js"></script>
+<script src="../js/notice-popup.js"></script>
 <script src="../js/admin.js"></script>
 <script>
 
