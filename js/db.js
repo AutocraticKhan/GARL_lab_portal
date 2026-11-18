@@ -921,6 +921,10 @@ async function claimSampleAnalyst(sample, user, fresh = true) {
     // claim, then insert a fresh claim row for this user.
     const ok = await supabaseDelete('sample_analysts', existing.id);
     if (!ok) throw new Error('Failed to delete the old claim row from database');
+    // Clean the in-memory cache so a fresh claim is the only row for this
+    // sample; if left behind it would be mistaken for the current owner.
+    const cacheIndex = DB.sampleAnalysts.findIndex(a => a.sample_id === sample.id);
+    if (cacheIndex !== -1) DB.sampleAnalysts.splice(cacheIndex, 1);
   }
   const now = new Date().toISOString();
   const row = {

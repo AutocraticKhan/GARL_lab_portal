@@ -19,9 +19,11 @@
 --
 -- Permission rules are enforced by the app (js/lab-engineer.js):
 --   1. Toggle to In Progress allowed only when NO row exists for the
---      sample, or the existing row belongs to the current user.
+--      sample, OR the existing row belongs to the current user, OR the
+--      existing row has status 'received' (released by another analyst).
 --   2. Toggle back to Received allowed only when analyst_id = current user.
---   3. All other users: button hidden / action rejected for that sample.
+--   3. Samples still In Progress claimed by another analyst are locked to
+--      everyone; never-claimed or Released samples can be claimed by anyone.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS sample_analysts (
