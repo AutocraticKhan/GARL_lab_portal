@@ -914,13 +914,17 @@ async function claimSampleAnalyst(sample, user, fresh = true) {
   if (fresh) await refreshSampleAnalysts();
   const existing = getSampleAnalyst(sample.id);
   if (existing && existing.analyst_id !== user.id) {
-    throw new Error(existing.status === 'in_progress'
-      ? 'This sample is already being analysed by ' + existing.analyst_name + '.'
-      : 'This sample was claimed by ' + existing.analyst_name + ' — only they can toggle it.');
+    if (existing.status === 'in_progress') {
+      throw new Error('This sample is already being analysed by ' + existing.analyst_name + '.');
+    }
+    // Released (received) row belongs to another user: clean up their old
+    // claim, then insert a fresh claim row for this user.
+    const ok = await supabaseDelete('sample_analysts', existing.id);
+    if (!ok) throw new Error('Failed to delete the old claim row from database');
   }
   const now = new Date().toISOString();
   const row = {
-    id: existing ? existing.id : generateId('ana'),
+    id: generateId('ana'),
     sample_id: sample.id,
     submission_id: sample.submissionId || (existing ? existing.submission_id : '') || '',
     analyst_id: user.id,

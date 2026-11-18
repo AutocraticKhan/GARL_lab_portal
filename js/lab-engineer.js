@@ -3634,28 +3634,32 @@ document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSam
   if (!canToggle) return '';
   const analyst = getSampleAnalyst(sample.id);
   const myId = engSession ? engSession.id : null;
-  const mine = !analyst || analyst.analyst_id === myId;
   const isMyClaim = !!analyst && analyst.analyst_id === myId;
 
   // Visible "who toggled it" chip — rendered BESIDE the toggle (right next
   // to the Received / In Progress badge) so every user, including people who
   // did not toggle the sample, can see who claimed it at a glance.
+  // The chip is ONLY shown for actively in_progress samples; released
+  // samples show no name so any analyst can claim them freely.
   let nameChip = '';
-  if (analyst) {
+  if (analyst && analyst.status === 'in_progress') {
+    const actionPhrase = analyst.status === 'received' ? 'returned to Received' : 'toggled In Progress';
     const toggledTxt = analyst.toggled_at
-      ? ' · toggled In Progress on ' + formatDateTime(analyst.toggled_at)
+      ? ' · ' + actionPhrase + ' on ' + formatDateTime(analyst.toggled_at)
       : '';
-    const tip = 'Toggled In Progress by ' + analyst.analyst_name + toggledTxt + ' — ' +
+    const tip = 'Toggled ' + (analyst.status === 'received' ? 'back to Received' : 'In Progress') + ' by ' + analyst.analyst_name + toggledTxt + ' — ' +
       (isMyClaim ? 'only you can reverse this sample.' : 'only they can reverse this sample.');
     nameChip = '<span title="' + escAttr(tip) + '" ' +
       'style="font-size:0.7rem;color:#7c3aed;font-weight:700;white-space:nowrap;cursor:help;">' +
       '🔬 ' + escHtml(analyst.analyst_name) + (isMyClaim ? ' (you)' : '') + '</span>';
   }
 
-  // Claimed by another analyst: the toggle is shown LOCKED (disabled) so the
-  // sample's state stays visible, but only the claimant can flip it — any
-  // attempt from another account is also rejected by claim/release in db.js.
-  if (!mine) {
+  // Lock only when an analyst row belongs to a DIFFERENT user AND is
+  // actively in_progress. A received row = previously released, so the
+  // sample is free for ANY analyst to claim.
+  const isLocked = !!analyst && analyst.analyst_id !== myId && analyst.status === 'in_progress';
+
+  if (isLocked) {
     const lockedTip = 'Toggled by ' + analyst.analyst_name +
       (analyst.toggled_at ? ' on ' + formatDateTime(analyst.toggled_at) : '') +
       ' — only they can reverse this sample';
@@ -3669,7 +3673,9 @@ document.addEventListener('DOMContentLoaded', initLabEngineer);function buildSam
   const title = analyst
     ? (isProgress
         ? 'In Progress — claimed by you (' + analyst.analyst_name + '). Toggle to return to Received.'
-        : 'You claimed this sample earlier (' + analyst.analyst_name + '). Toggle to claim it again.')
+        : analyst.status === 'received'
+          ? 'Released back to Received by ' + analyst.analyst_name + '. Toggle to claim it again — any analyst can claim it.'
+          : 'Claimed by ' + analyst.analyst_name + '. Toggle to claim it again.')
     : 'Toggle Received <-> In Progress — records you (' +
       (engSession ? engSession.full_name : '') + ') as the analyst for this sample';
   return '<label class="toggle" title="' + escAttr(title) + '" style="margin-left:8px;">' +
@@ -3716,12 +3722,14 @@ async function toggleAllSamplesProgress(submissionId) {
   if (!targets.length) return; // nothing in either state to toggle
 
   // Permission pass — only samples nobody has claimed yet, or that the
-  // current user claimed themselves. Refresh ONCE for the whole batch so
-  // claims made by other users since page load are respected.
+  // current user claimed themselves, or that were released back to
+  // Received (any analyst can claim a released sample). Refresh ONCE for
+  // the whole batch so claims made by other users since page load are
+  // respected.
   await refreshSampleAnalysts();
   const eligible = targets.filter(s => {
     const a = getSampleAnalyst(s.id);
-    return !a || a.analyst_id === engSession.id;
+    return !a || a.analyst_id === engSession.id || a.status === 'received';
   });
   const blocked = targets.length - eligible.length;
   if (!eligible.length) {

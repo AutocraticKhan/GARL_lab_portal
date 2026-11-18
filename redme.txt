@@ -12,11 +12,14 @@ the logged-in user (no separate name input is asked).
 Permission rules:
   • First claim wins: whoever first toggles a sample to In Progress
     becomes its analyst; other users cannot reverse it.
-  • Other users can only toggle samples that have never been claimed.
+  • A released sample (toggled back to Received) can be claimed by ANY
+    analyst — the previous analyst's row is cleaned up and re-inserted
+    fresh. A sample never claimed is claimable by anyone.
   • A user can toggle their OWN samples back to Received (and claim
     them again later); the analyst name stays recorded either way.
-  • A sample claimed by someone else shows the analyst's name (🔬)
-    instead of a toggle.
+  • A sample claimed by someone else (and still In Progress) is locked
+    — only that analyst can reverse it; other engineers see a locked
+    toggle plus the analyst's name (🔬).
 
 REQUIRED SQL before use (idempotent): sql/create_sample_analysts.sql
 Until it is run the toggles keep working exactly as before (the app

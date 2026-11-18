@@ -12,8 +12,8 @@
 -- Permission model (one row per sample, UNIQUE sample_id):
 --   * status = 'in_progress' → sample is being analysed by analyst_*
 --   * status = 'received'    → analyst released their OWN sample back
---                              to Received; analyst_* still records who
---                              claimed it (no other user may claim it)
+--                              to Received; analyst_* records who
+--                              claimed it — ANY analyst may claim it
 --   * no row                 → sample never toggled; ANY user may claim
 --                              it and their name is recorded
 --
