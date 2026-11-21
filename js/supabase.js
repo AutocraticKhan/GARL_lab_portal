@@ -130,6 +130,62 @@ async function supabaseDelete(table, id) {
   }
 }
 
+// ── Batch variants ─────────────────────────────────────────────
+// These send ONE statement for N rows (`?id=in.(...)`) instead of N
+// statements. They are additive — the single-row helpers above are
+// untouched, so every existing caller behaves exactly as before.
+// Used by the bulk sample toggles where a per-sample round-trip would
+// otherwise serialize hundreds of network requests.
+
+/**
+ * Update many rows of `table` in a single request.
+ * @param {string} table
+ * @param {string[]} ids - primary-key values to match (ignored when empty)
+ * @param {object} patch - the same patch every row receives
+ * @param {string} [column='id'] - the column to match `ids` against
+ * @returns {Promise<boolean>} true when the statement succeeded
+ */
+async function supabaseUpdateMany(table, ids, patch, column = 'id') {
+  if (!supabaseClient) return false;
+  const list = (ids || []).filter(Boolean);
+  if (!list.length) return true; // nothing to do — not an error
+  try {
+    const { error } = await supabaseClient
+      .from(table)
+      .update(patch)
+      .in(column, list);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error(`[SUPABASE] Error batch-updating ${table}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Delete many rows of `table` in a single request.
+ * @param {string} table
+ * @param {string[]} ids - values to match (ignored when empty)
+ * @param {string} [column='id'] - the column to match `ids` against
+ * @returns {Promise<boolean>} true when the statement succeeded
+ */
+async function supabaseDeleteMany(table, ids, column = 'id') {
+  if (!supabaseClient) return false;
+  const list = (ids || []).filter(Boolean);
+  if (!list.length) return true; // nothing to do — not an error
+  try {
+    const { error } = await supabaseClient
+      .from(table)
+      .delete()
+      .in(column, list);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error(`[SUPABASE] Error batch-deleting from ${table}:`, err);
+    throw err;
+  }
+}
+
 async function supabaseFindOne(table, column, value) {
   if (!supabaseClient) return null;
   try {

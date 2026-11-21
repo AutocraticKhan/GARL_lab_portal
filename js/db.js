@@ -444,6 +444,53 @@ async function setSampleStatus(id, status, note = '') {
   return sample;
 }
 
+/**
+ * Set the SAME status on many samples using ONE UPDATE statement plus
+ * ONE batched event insert — instead of 2 requests per sample.
+ *
+ * Produces byte-for-byte the same rows `setSampleStatus()` would:
+ *   patch = { status, [status + '_at']: ISO timestamp }
+ *   one 'events' row per sample with the same shape logEvent() writes.
+ *
+ * All-or-nothing: when the bulk statement fails the whole batch throws
+ * and the in-memory cache is left untouched, so callers can safely fall
+ * back to the per-sample path.
+ *
+ * @param {string[]} ids - sample ids to update
+ * @param {string} status - the new status (received/assigned/in_progress/completed/…)
+ * @param {string} [note] - audit note written to every event row
+ * @param {object} [opts]
+ * @param {boolean} [opts.stampStatusAt=true] - also write `<status>_at`.
+ *        Set false for statuses with no such column (e.g. 'received', which
+ *        only has updateSample({status:'received'}) in the original code).
+ * @returns {Promise<number>} how many samples were updated
+ */
+async function setSampleStatusBatch(ids, status, note = '', opts = {}) {
+  const list = (ids || []).filter(Boolean);
+  if (!list.length) return 0;
+
+  const stamp = opts.stampStatusAt !== false;
+  const patch = { status };
+  if (stamp) patch[`${status}_at`] = new Date().toISOString();
+
+  // Network first, cache second — mirrors updateSample()/logEvent() so a
+  // rejected statement never leaves the UI showing a state the DB does not have.
+  const ok = await supabaseUpdateMany('samples', list, patch);
+  if (!ok) throw new Error('Failed to update samples in database');
+
+  const byId = new Map(DB.samples.map(s => [s.id, s]));
+  for (const id of list) {
+    const sample = byId.get(id);
+    if (sample) Object.assign(sample, patch);
+  }
+
+  // Fire-and-forget audit rows must not block the UI any more than the
+  // single path did — logEvent already swallows its own failure with a warning.
+  await logEventBatch(list.map(id => ({ sample_id: id, type: status, note })));
+
+  return list.filter(id => byId.has(id)).length;
+}
+
 /* ============================================================
    REOPEN / REANALYSE WORKFLOW (lab engineer)
    ------------------------------------------------------------
@@ -900,6 +947,37 @@ function getSampleAnalyst(sampleId) {
 }
 
 /**
+ * Refresh ONLY one sample's claim row instead of re-downloading the entire
+ * sample_analysts table. For a single toggle this is one small indexed lookup
+ * instead of a full (paged) table scan — same end state for that sample.
+ * Tolerant by design: any failure keeps the current cache, exactly like
+ * refreshSampleAnalysts().
+ * @param {string} sampleId
+ * @returns {Promise<object|null>} the fresh row, or null when unclaimed/unknown
+ */
+async function refreshOneSampleAnalyst(sampleId) {
+  // No client = nothing to compare against; leaving the cache alone matches
+  // refreshSampleAnalysts()'s "keep what we already trust" tolerance.
+  if (!supabaseClient) return getSampleAnalyst(sampleId);
+  let row = null;
+  try {
+    row = await supabaseFindOne('sample_analysts', 'sample_id', sampleId);
+  } catch (err) {
+    console.warn('[DB] sample_analysts lookup failed — run sql/create_sample_analysts.sql first:', err.message);
+    return getSampleAnalyst(sampleId); // keep the cache we already trust
+  }
+  const i = DB.sampleAnalysts.findIndex(a => a.sample_id === sampleId);
+  if (row) {
+    if (i === -1) DB.sampleAnalysts.push(row);
+    else DB.sampleAnalysts[i] = row;
+  } else if (i !== -1) {
+    // Confirmed unclaimed — drop any stale cached row.
+    DB.sampleAnalysts.splice(i, 1);
+  }
+  return row;
+}
+
+/**
  * Claim a sample for `user` (toggle → In Progress).
  * Refreshes the analyst list first so a claim made by someone else since
  * page load is detected, then upserts on sample_id so the UNIQUE
@@ -911,7 +989,7 @@ function getSampleAnalyst(sampleId) {
  * @returns {Promise<object>} the stored analyst row
  */
 async function claimSampleAnalyst(sample, user, fresh = true) {
-  if (fresh) await refreshSampleAnalysts();
+  if (fresh) await refreshOneSampleAnalyst(sample.id);
   const existing = getSampleAnalyst(sample.id);
   if (existing && existing.analyst_id !== user.id) {
     if (existing.status === 'in_progress') {
@@ -958,7 +1036,7 @@ async function claimSampleAnalyst(sample, user, fresh = true) {
  * @returns {Promise<object|null>} the updated analyst row, or null
  */
 async function releaseSampleAnalyst(sample, user, fresh = true) {
-  if (fresh) await refreshSampleAnalysts();
+  if (fresh) await refreshOneSampleAnalyst(sample.id);
   const existing = getSampleAnalyst(sample.id);
   if (!existing) return null;
   if (existing.analyst_id !== user.id) {
@@ -972,6 +1050,125 @@ async function releaseSampleAnalyst(sample, user, fresh = true) {
   const i = DB.sampleAnalysts.indexOf(existing);
   if (i !== -1) DB.sampleAnalysts[i] = updated;
   return updated;
+}
+
+/**
+ * Claim MANY samples for `user` (toggle → In Progress) with ONE delete
+ * (only when re-claiming released rows owned by someone else) + ONE upsert.
+ *
+ * Applies EXACTLY the same first-claim-wins rules as claimSampleAnalyst():
+ *   • row owned by another analyst AND status 'in_progress' → rejected
+ *   • row owned by another analyst AND status 'received'   → old row deleted, fresh claim inserted
+ *   • no row                                                → fresh claim inserted
+ *   • row owned by this user                                → refreshed in place (keeps created_at)
+ *
+ * Assumes the analyst cache is already fresh — call refreshSampleAnalysts()
+ * before invoking this, exactly like the `fresh = false` mode of
+ * claimSampleAnalyst().
+ *
+ * Throws on any rejected sample (including the DB trigger firing when a peer
+ * claimed one mid-flight) WITHOUT touching the in-memory cache, so callers can
+ * fall back to the per-sample path and get the original per-sample behaviour.
+ *
+ * @param {object[]} samples
+ * @param {{id: string, full_name: string}} user
+ * @returns {Promise<object[]>} the stored analyst rows, one per sample
+ */
+async function claimSampleAnalystBatch(samples, user) {
+  const list = (samples || []).filter(Boolean);
+  if (!list.length) return [];
+
+  const now = new Date().toISOString();
+  const rows = [];
+  const staleRowIds = [];   // released rows owned by another user that must go first
+  const staleSampleIds = [];
+
+  for (const sample of list) {
+    const existing = getSampleAnalyst(sample.id);
+    if (existing && existing.analyst_id !== user.id) {
+      if (existing.status === 'in_progress') {
+        throw new Error('This sample is already being analysed by ' + existing.analyst_name + '.');
+      }
+      staleRowIds.push(existing.id);
+      staleSampleIds.push(sample.id);
+    }
+    rows.push({
+      id: generateId('ana'),
+      sample_id: sample.id,
+      submission_id: sample.submissionId || (existing ? existing.submission_id : '') || '',
+      analyst_id: user.id,
+      analyst_name: user.full_name,
+      status: 'in_progress',
+      toggled_at: now,
+      created_at: existing && existing.created_at ? existing.created_at : now,
+      updated_at: now,
+    });
+  }
+
+  // Network first, cache second — a rejected statement leaves DB.* untouched.
+  if (staleRowIds.length) {
+    const ok = await supabaseDeleteMany('sample_analysts', staleRowIds);
+    if (!ok) throw new Error('Failed to delete the old claim rows from database');
+  }
+  const upserted = await supabaseUpsert('sample_analysts', rows, 'sample_id');
+  if (!upserted) throw new Error('Failed to record the analysts in database');
+
+  // Success: reconcile the cache the same way the single-row functions do.
+  for (const sid of staleSampleIds) {
+    const i = DB.sampleAnalysts.findIndex(a => a.sample_id === sid);
+    if (i !== -1) DB.sampleAnalysts.splice(i, 1);
+  }
+  for (const row of rows) {
+    const i = DB.sampleAnalysts.findIndex(a => a.sample_id === row.sample_id);
+    if (i === -1) DB.sampleAnalysts.push(row);
+    else DB.sampleAnalysts[i] = row;
+  }
+  return rows;
+}
+
+/**
+ * Release MANY samples the user previously claimed (toggle → Received) with
+ * ONE UPDATE instead of one per sample.
+ *
+ * Applies EXACTLY the same rules as releaseSampleAnalyst():
+ *   • no analyst row         → skipped silently (nothing to release)
+ *   • row owned by another   → throws (only the claimant may reverse it)
+ *   • row owned by this user → status flipped to 'received'
+ *
+ * Assumes the analyst cache is already fresh (same contract as the
+ * `fresh = false` mode). Throws without touching the cache on any rejection,
+ * so callers can safely fall back to the per-sample path.
+ *
+ * @param {object[]} samples
+ * @param {{id: string, full_name: string}} user
+ * @returns {Promise<object[]>} the updated analyst rows
+ */
+async function releaseSampleAnalystBatch(samples, user) {
+  const list = (samples || []).filter(Boolean);
+  if (!list.length) return [];
+
+  const now = new Date().toISOString();
+  const targets = [];
+  for (const sample of list) {
+    const existing = getSampleAnalyst(sample.id);
+    if (!existing) continue; // never claimed — succeeds silently, like the single path
+    if (existing.analyst_id !== user.id) {
+      throw new Error('This sample was toggled by ' + existing.analyst_name + ' — only they can reverse it.');
+    }
+    targets.push(existing);
+  }
+  if (!targets.length) return [];
+
+  const patch = { status: 'received', toggled_at: now, updated_at: now };
+  const ok = await supabaseUpdateMany('sample_analysts', targets.map(t => t.id), patch);
+  if (!ok) throw new Error('Failed to update the analyst records in database');
+
+  const updatedRows = targets.map(t => ({ ...t, ...patch }));
+  for (const row of updatedRows) {
+    const i = DB.sampleAnalysts.findIndex(a => a.sample_id === row.sample_id);
+    if (i !== -1) DB.sampleAnalysts[i] = row;
+  }
+  return updatedRows;
 }
 
 /**
@@ -1124,8 +1321,9 @@ async function createReport(data) {
 }
 
 /* Events / Audit */
-async function logEvent(sample_id, type, note = '') {
-  const evt = {
+/** Build one in-memory event row (shared by logEvent / logEventBatch). */
+function buildEventRow(sample_id, type, note = '') {
+  return {
     id: generateId('evt'),
     sample_id,
     type,
@@ -1134,10 +1332,42 @@ async function logEvent(sample_id, type, note = '') {
     actor_name: currentUser()?.full_name || 'System',
     timestamp: new Date().toISOString(),
   };
+}
+
+async function logEvent(sample_id, type, note = '') {
+  const evt = buildEventRow(sample_id, type, note);
   const ok = await supabaseUpsert('events', evt);
   if (!ok) console.warn('[DB] Failed to log event to database');
   DB.events.push(evt);
   return evt;
+}
+
+/**
+ * Insert MANY event rows in ONE request (supabaseUpsert already accepts an
+ * array) instead of one request per row. Row shape is identical to logEvent().
+ *
+ * Deliberately never throws: logEvent()'s `if (!ok) console.warn(...)` shows
+ * audit rows are meant to be non-critical, and a throw here (AFTER the sample
+ * rows were already committed) would make a bulk operation report failure for
+ * work that actually succeeded — and would replay duplicate events when the
+ * caller retried. A failed insert is therefore warned about and the rows are
+ * still kept in the in-memory trail so the UI keeps showing them.
+ *
+ * @param {Array<{sample_id: string, type: string, note?: string}>} entries
+ * @returns {Promise<object[]>} the created rows (empty when nothing passed)
+ */
+async function logEventBatch(entries) {
+  const list = Array.isArray(entries) ? entries.filter(e => e && e.sample_id) : [];
+  if (!list.length) return [];
+  const rows = list.map(e => buildEventRow(e.sample_id, e.type, e.note || ''));
+  try {
+    const ok = await supabaseUpsert('events', rows);
+    if (!ok) console.warn('[DB] Failed to log events to database');
+  } catch (err) {
+    console.warn('[DB] Failed to log events to database:', err.message);
+  }
+  DB.events.push(...rows);
+  return rows;
 }
 
 function getEventsForSample(sample_id) {

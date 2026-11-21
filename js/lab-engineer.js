@@ -775,12 +775,27 @@ async function handleMarkAllComplete() {
 
   let successCount = 0;
   let errorCount = 0;
-  for (const sample of incomplete) {
-    try {
-      await setSampleStatus(sample.id, 'completed', 'Sample completed by ' + engSession.full_name + ' (bulk)');
-      successCount++;
-    } catch (err) {
-      errorCount++;
+  const targetIds = incomplete.map(s => s.id);
+  const bulkNote = 'Sample completed by ' + engSession.full_name + ' (bulk)';
+  try {
+    // Fast path: ONE UPDATE for all samples + ONE batched event insert,
+    // instead of 2 sequential requests per sample (100 round-trips for 50).
+    successCount = await setSampleStatusBatch(targetIds, 'completed', bulkNote);
+    errorCount = targetIds.length - successCount;
+  } catch (err) {
+    // The bulk statement is all-or-nothing, so nothing was written — replay
+    // the original per-sample loop to keep the individual pass/fail counts
+    // (and the same behaviour) when e.g. the network drops mid-request.
+    console.warn('[LAB] Bulk-complete failed, retrying per sample:', err.message);
+    successCount = 0;
+    errorCount = 0;
+    for (const sample of incomplete) {
+      try {
+        await setSampleStatus(sample.id, 'completed', bulkNote);
+        successCount++;
+      } catch (err2) {
+        errorCount++;
+      }
     }
   }
 
@@ -3741,20 +3756,44 @@ async function toggleAllSamplesProgress(submissionId) {
   }
 
   let done = 0, failed = 0;
-  for (const s of eligible) {
-    try {
-      if (toProgress) {
-        await claimSampleAnalyst(s, engSession, false);
-        await setSampleStatus(s.id, 'in_progress', 'Marked in progress by ' + engSession.full_name);
-      } else {
-        await releaseSampleAnalyst(s, engSession, false);
-        await updateSample(s.id, { status: 'received' });
-        await logEvent(s.id, 'received', 'Reverted to received by ' + engSession.full_name);
+  const progressNote = 'Marked in progress by ' + engSession.full_name;
+  const receivedNote = 'Reverted to received by ' + engSession.full_name;
+
+  try {
+    // Fast path — one statement per phase instead of 2-3 round-trips PER
+    // SAMPLE. For 50 samples this collapses ~150 sequential requests into
+    // ~4 (delete/upsert claims, update samples, insert events).
+    if (toProgress) {
+      await claimSampleAnalystBatch(eligible, engSession);
+      await setSampleStatusBatch(eligible.map(s => s.id), 'in_progress', progressNote);
+    } else {
+      await releaseSampleAnalystBatch(eligible, engSession);
+      // 'received' has no `received_at` column — mirror updateSample({status:'received'}).
+      await setSampleStatusBatch(eligible.map(s => s.id), 'received', receivedNote, { stampStatusAt: false });
+    }
+    done = eligible.length;
+  } catch (err) {
+    // Each bulk statement is all-or-nothing, so replay the original
+    // per-sample loop. That keeps the individual success/failure counts and
+    // the first-claim-wins behaviour exactly as before when a peer analyst
+    // claims a sample mid-flight, or the network drops.
+    console.warn('[LAB] Bulk toggle failed, retrying per sample:', err.message);
+    done = 0;
+    for (const s of eligible) {
+      try {
+        if (toProgress) {
+          await claimSampleAnalyst(s, engSession, false);
+          await setSampleStatus(s.id, 'in_progress', progressNote);
+        } else {
+          await releaseSampleAnalyst(s, engSession, false);
+          await updateSample(s.id, { status: 'received' });
+          await logEvent(s.id, 'received', receivedNote);
+        }
+        done++;
+      } catch (err2) {
+        failed++;
+        console.warn('[LAB] Toggle-all failed for sample ' + s.id + ':', err2.message);
       }
-      done++;
-    } catch (err) {
-      failed++;
-      console.warn('[LAB] Toggle-all failed for sample ' + s.id + ':', err.message);
     }
   }
 
