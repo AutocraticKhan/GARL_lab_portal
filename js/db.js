@@ -395,8 +395,14 @@ async function createSample(data) {
   return sample;
 }
 
-async function createSampleForSubmission(data) {
-  const sample = {
+/**
+ * Pure row builder shared by createSampleForSubmission() and
+ * createSamplesForSubmission() so both paths emit byte-identical rows.
+ * @param {object} data
+ * @returns {object} a samples-table row
+ */
+function buildSampleForSubmissionRow(data) {
+  return {
     id: data.sampleId || generateId('smp'),
     sampleId: data.sampleId,
     submissionId: data.submissionId,
@@ -420,11 +426,49 @@ async function createSampleForSubmission(data) {
     notes: data.notes || '',
     created_at: new Date().toISOString(),
   };
+}
+
+async function createSampleForSubmission(data) {
+  const sample = buildSampleForSubmissionRow(data);
   const ok = await supabaseUpsert('samples', sample);
   if (!ok) throw new Error('Failed to create sample in database');
   DB.samples.push(sample);
   await logEvent(sample.id, 'created', `Sample registered: ${sample.sampleId}`);
   return sample;
+}
+
+/**
+ * Insert MANY samples for one submission with ONE upsert plus ONE batched
+ * event insert — instead of 2 sequential requests per sample (1000 requests
+ * for a 500-sample submission).
+ *
+ * Rows are identical to what createSampleForSubmission() writes, and the
+ * audit note keeps its per-sample text (`Sample registered: <sampleId>`).
+ *
+ * PostgREST sends a single statement, so this is all-or-nothing: when it
+ * throws, nothing was written and the caller can safely fall back to the
+ * per-sample path.
+ *
+ * @param {object[]} items - the same `data` objects the single path takes
+ * @returns {Promise<object[]>} the created rows, in input order
+ */
+async function createSamplesForSubmission(items) {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return [];
+
+  const rows = list.map(buildSampleForSubmissionRow);
+
+  // Network first, cache second — a rejected statement leaves DB.* untouched.
+  const ok = await supabaseUpsert('samples', rows);
+  if (!ok) throw new Error('Failed to create samples in database');
+  DB.samples.push(...rows);
+
+  await logEventBatch(rows.map(r => ({
+    sample_id: r.id,
+    type: 'created',
+    note: `Sample registered: ${r.sampleId}`,
+  })));
+  return rows;
 }
 
 async function updateSample(id, patch) {
@@ -686,16 +730,69 @@ const ARCHIVE_REASONS = [
  * Apply per-sample patches to the samples table.
  * Uses true UPDATE statements (a partial upsert is unsafe here because the
  * samples table has NOT NULL columns such as customer_name).
+ *
+ * PERFORMANCE: rows whose patch is field-for-field identical are collapsed
+ * into a single `UPDATE ... WHERE id IN (...)` statement. The callers that
+ * build a uniform patch (return / archive / restore) therefore drop from N
+ * requests to 1; callers with per-row-varying fields (resubmit) group
+ * naturally and are never slower than before.
+ *
+ * `sampleId` is deliberately kept OUT of the network payload: every caller
+ * writes the row's own business key back unchanged, so it is a no-op write
+ * whose only real use is the human-readable label in `errors`. (It also
+ * protects the column from being nulled when the cache lacks the value.)
+ *
+ * When any group statement fails, the whole fast path is abandoned and the
+ * original per-row loop is replayed, preserving the {updated, failed, errors}
+ * contract exactly.
+ *
  * @param {Array<{id: string} & object>} patches
  * @returns {Promise<{updated: number, failed: number, errors: string[]}>}
  */
 async function bulkUpdateSamples(patches) {
+  const list = (Array.isArray(patches) ? patches : []).filter(p => p && p.id);
+  if (!list.length) return { updated: 0, failed: 0, errors: [] };
+
+  // Group by an identical, order-stable field signature. `undefined` values
+  // are dropped first so the signature matches what JSON would actually send.
+  const groups = new Map();
+  for (const patch of list) {
+    const { id, sampleId, ...rest } = patch;
+    const fields = {};
+    const keys = Object.keys(rest).filter(k => rest[k] !== undefined).sort();
+    for (const k of keys) fields[k] = rest[k];
+    const sig = JSON.stringify(keys.map(k => [k, fields[k]]));
+    let g = groups.get(sig);
+    if (!g) { g = { fields, ids: [] }; groups.set(sig, g); }
+    g.ids.push(id);
+  }
+
+  // ── Fast path: one UPDATE per distinct patch shape ──
+  try {
+    let updated = 0;
+    for (const g of groups.values()) {
+      const ok = await supabaseUpdateMany('samples', g.ids, g.fields);
+      if (!ok) throw new Error('Update was rejected by the database');
+      for (const id of g.ids) {
+        const idx = DB.samples.findIndex(s => s.id === id);
+        if (idx !== -1) DB.samples[idx] = { ...DB.samples[idx], ...g.fields };
+        updated++;
+      }
+    }
+    return { updated, failed: 0, errors: [] };
+  } catch (err) {
+    console.warn('[DB] Batch sample update failed, retrying row by row:', err.message);
+  }
+
+  // ── Fallback: original per-row behaviour (per-row error reporting) ──
   let updated = 0;
   let failed = 0;
   const errors = [];
 
-  for (const patch of patches) {
-    const { id, ...fields } = patch;
+  for (const patch of list) {
+    const { id, sampleId, ...rest } = patch;
+    const fields = {};
+    for (const k of Object.keys(rest)) if (rest[k] !== undefined) fields[k] = rest[k];
     try {
       const ok = await supabaseUpdate('samples', id, fields);
       if (!ok) throw new Error('Update was rejected by the database');
@@ -704,7 +801,7 @@ async function bulkUpdateSamples(patches) {
       updated++;
     } catch (err) {
       failed++;
-      errors.push((fields.sampleId || id) + ': ' + err.message);
+      errors.push((sampleId || id) + ': ' + err.message);
     }
   }
 
@@ -751,9 +848,11 @@ async function returnSamplesToReception(sampleIds, reason, note) {
 
   const result = await bulkUpdateSamples(patches);
   const logNote = note ? (reason + ' — ' + note) : reason;
-  for (const s of targets) {
-    await logEvent(s.id, 'returned', 'Returned to reception: ' + logNote);
-  }
+  await logEventBatch(targets.map(s => ({
+    sample_id: s.id,
+    type: 'returned',
+    note: 'Returned to reception: ' + logNote,
+  })));
   return result;
 }
 
@@ -805,9 +904,12 @@ async function resubmitSamples(items, note) {
   }));
 
   const result = await bulkUpdateSamples(patches);
-  for (const { sample } of validated) {
-    await logEvent(sample.id, 'resubmitted', note || 'Edited and resubmitted to lab by reception');
-  }
+  const resubmitNote = note || 'Edited and resubmitted to lab by reception';
+  await logEventBatch(validated.map(({ sample }) => ({
+    sample_id: sample.id,
+    type: 'resubmitted',
+    note: resubmitNote,
+  })));
   return result;
 }
 
@@ -848,9 +950,11 @@ async function archiveReturnedSamples(sampleIds, reason, note) {
 
   const result = await bulkUpdateSamples(patches);
   const logNote = note ? (reason + ' — ' + note) : reason;
-  for (const s of targets) {
-    await logEvent(s.id, 'archived', 'Archived by reception: ' + logNote);
-  }
+  await logEventBatch(targets.map(s => ({
+    sample_id: s.id,
+    type: 'archived',
+    note: 'Archived by reception: ' + logNote,
+  })));
   return result;
 }
 
@@ -885,9 +989,12 @@ async function restoreArchivedSamples(sampleIds, note) {
   }));
 
   const result = await bulkUpdateSamples(patches);
-  for (const s of targets) {
-    await logEvent(s.id, 'restored', note || 'Restored from archive and sent back to lab');
-  }
+  const restoreNote = note || 'Restored from archive and sent back to lab';
+  await logEventBatch(targets.map(s => ({
+    sample_id: s.id,
+    type: 'restored',
+    note: restoreNote,
+  })));
   return result;
 }
 
@@ -1497,6 +1604,7 @@ async function generateSubmissionReports(submissionId, lab_id, actorId, actorNam
   const labCode = lab?.lab_code || 'LAB';
 
   const createdReports = [];
+  const reportEventEntries = [];
   for (const sample of completedSamples) {
     const existingReport = DB.reports.find(r => r.sample_id === sample.id);
     if (existingReport) {
@@ -1525,10 +1633,18 @@ async function generateSubmissionReports(submissionId, lab_id, actorId, actorNam
     }
     DB.reports.push(report);
 
-    // Log event
-    await logEvent(sample.id, 'report_generated', `Report ${report.report_number} generated by ${actorName || 'System'}`);
+    // Queue the audit row and flush it in ONE insert after the loop — 1
+    // request instead of N. A failed upsert `continue`s above, so its event
+    // is never queued, exactly matching the old per-iteration behaviour.
+    reportEventEntries.push({
+      sample_id: sample.id,
+      type: 'report_generated',
+      note: `Report ${report.report_number} generated by ${actorName || 'System'}`,
+    });
     createdReports.push(report);
   }
+
+  await logEventBatch(reportEventEntries);
 
   return createdReports;
 }

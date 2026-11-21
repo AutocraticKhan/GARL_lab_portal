@@ -566,11 +566,9 @@ async function handleSubmissionSubmit(e) {
       sampleCount: pendingSamples.length,
     });
 
-    const newSamples = [];
-    for (let index = 0; index < pendingSamples.length; index++) {
-      const ps = pendingSamples[index];
+    const sampleInputs = pendingSamples.map((ps, index) => {
       const idInfo = idMappings[index];
-      const sampleData = {
+      return {
         sampleId: idInfo.fullId,
         submissionId: newSubmission.submissionId,
         sampleNumber: idInfo.sampleNumber,
@@ -590,8 +588,22 @@ async function handleSubmissionSubmit(e) {
         collection_date: dateVal,
         collected_by: recSession.id,
       };
-      const created = await createSampleForSubmission(sampleData);
-      newSamples.push(created);
+    });
+
+    let newSamples = [];
+    try {
+      // Fast path: ONE insert for every sample + ONE batched audit insert,
+      // instead of 2 sequential requests per sample (1000 round-trips for a
+      // 500-sample submission).
+      newSamples = await createSamplesForSubmission(sampleInputs);
+    } catch (err) {
+      // The bulk insert is all-or-nothing, so nothing was written — replay
+      // the original per-sample path so individual failures surface exactly
+      // as they did before.
+      console.warn('[RECEPTIONIST] Bulk insert failed, retrying per sample:', err.message);
+      for (const sampleData of sampleInputs) {
+        newSamples.push(await createSampleForSubmission(sampleData));
+      }
     }
 
     showToast('Submission #' + newSubmission.submissionId + ' registered with ' + pendingSamples.length + ' sample(s)!', 'success');
